@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Data - Exam Cell Application{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="form-header">
+        <h2><i class="fas fa-cloud-upload-alt"></i> Upload Student Data</h2>
+        <p>Upload Excel file containing student and course information</p>
+    </div>
+    
+    <form method="POST" enctype="multipart/form-data">
+        <!-- Academic Details Section -->
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h4 style="color: #333; margin-bottom: 15px;">
+                <i class="fas fa-calendar-alt"></i> Academic Session Details
+            </h4>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div class="form-group">
+                    <label for="academic_year">
+                        <i class="fas fa-calendar"></i> Academic Year
+                    </label>
+                    <select id="academic_year" name="academic_year" class="form-control" required>
+                        <option value="">-- Select Academic Year --</option>
+                        <option value="2024-25">2024-25</option>
+                        <option value="2025-26" selected>2025-26</option>
+                        <option value="2026-27">2026-27</option>
+                        <option value="2027-28">2027-28</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="semester_type">
+                        <i class="fas fa-leaf"></i> Semester
+                    </label>
+                    <select id="semester_type" name="semester_type" class="form-control" required>
+                        <option value="">-- Select Semester --</option>
+                        <option value="monsoon" selected>Monsoon</option>
+                        <option value="winter">Winter</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="sheet_type">
+                        <i class="fas fa-file-excel"></i> Sheet Type
+                    </label>
+                    <select id="sheet_type" name="sheet_type" class="form-control" required>
+                        <option value="">-- Select Sheet Type --</option>
+                        <option value="combined" selected>Combined Sheet (All Programs)</option>
+                        <option value="UG">UG Sheet Only</option>
+                        <option value="PG">PG Sheet Only</option>
+                        <option value="PhD">PhD Sheet Only</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="exam_type">
+                        <i class="fas fa-edit"></i> Exam Type
+                    </label>
+                    <select id="exam_type" name="exam_type" class="form-control" required>
+                        <option value="">-- Select Exam Type --</option>
+                        <option value="midsem" selected>Mid Semester</option>
+                        <option value="endsem">End Semester</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- File Upload Section -->
+        <div class="file-upload">
+            <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
+            <label for="file" class="file-upload-label">
+                <i class="fas fa-file-excel"></i><br>
+                Click to select Excel file or drag and drop
+                <div style="font-size: 14px; margin-top: 10px; color: #999;">
+                    Supported formats: .xlsx, .xls (Max: 16MB)
+                </div>
+            </label>
+        </div>
+        
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-upload"></i> Upload and Process File
+            </button>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </form>
+    
+    <!-- File Requirements -->
+    <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+        <h4 style="color: #333; margin-bottom: 15px;">
+            <i class="fas fa-info-circle"></i> File Requirements
+        </h4>
+        <div style="color: #666; font-size: 14px; line-height: 1.6;">
+            <p><strong>Required Columns:</strong></p>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>RollNo - Student roll number</li>
+                <li>NameasPerXStd - Student name</li>
+                <li>EmailId - Student email</li>
+                <li>CourseCode - Course code</li>
+                <li>CourseTitle - Course title</li>
+                <li>Credits - Course credits</li>
+                <li>MainInstructor - Instructor name</li>
+                <li>ProgramName - Program name</li>
+                <li>And other course-related fields...</li>
+            </ul>
+            <p style="margin-top: 15px;"><strong>Note:</strong> The system will replace existing data with the new upload.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Drag and drop functionality
+const fileUpload = document.querySelector('.file-upload');
+const fileInput = document.querySelector('#file');
+const fileLabel = document.querySelector('.file-upload-label');
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    fileUpload.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+['dragenter', 'dragover'].forEach(eventName => {
+    fileUpload.addEventListener(eventName, highlight, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+    fileUpload.addEventListener(eventName, unhighlight, false);
+});
+
+function highlight(e) {
+    fileUpload.style.background = '#f0f0ff';
+    fileUpload.style.borderColor = '#764ba2';
+}
+
+function unhighlight(e) {
+    fileUpload.style.background = '';
+    fileUpload.style.borderColor = '#667eea';
+}
+
+fileUpload.addEventListener('drop', handleDrop, false);
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    fileInput.files = files;
+    
+    if (files.length > 0) {
+        fileLabel.innerHTML = `<i class="fas fa-file-excel"></i> ${files[0].name}`;
+    }
+}
+</script>
+{% endblock %}
