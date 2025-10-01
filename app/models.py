@@ -1,7 +1,7 @@
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
-from app.utils import sort_by_roll_number
+from helpers.utils import sort_by_roll_number
 
 def init_db():
     """Initialize the database with users, semesters, and students tables"""
