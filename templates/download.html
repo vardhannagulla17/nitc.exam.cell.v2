@@ -11,6 +11,8 @@
     
     {% if semesters %}
         <form method="POST" id="downloadForm">
+            <div class="download-grid">
+                <div class="download-left">
             <!-- Program Level Selection -->
             <div class="form-group">
                 <label for="program_level">
@@ -62,9 +64,7 @@
                         <button type="submit" name="action" value="download_all" class="btn btn-warning btn-lg" id="downloadAllBtn">
                             <i class="fas fa-download"></i> Download All Sheets (ZIP)
                         </button>
-                        <div class="text-muted small mt-2">
-                            <i class="fas fa-info-circle"></i> Creates a ZIP file with both detailed and simple formats for all courses
-                        </div>
+                        
                     </div>
                 </div>
             </div>
@@ -87,68 +87,46 @@
                 </div>
             </div>
             
-            <!-- Action Buttons -->
-            <div class="form-group" id="actionButtons" style="display: none;">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card mb-3">
-                            <div class="card-body bg-light">
-                                <h5 class="card-title">Simple Format</h5>
-                                <button type="submit" name="action" value="preview_simple" class="btn btn-secondary mr-2" id="previewSimpleBtn" disabled>
-                                    <i class="fas fa-eye"></i> Preview Simple
-                                </button>
-                                <button type="submit" name="action" value="download_simple" class="btn btn-success" id="downloadSimpleBtn" disabled>
-                                    <i class="fas fa-download"></i> Download Simple
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card mb-3">
-                            <div class="card-body bg-light">
-                                <h5 class="card-title">Detailed Format</h5>
-                                <button type="submit" name="action" value="preview" class="btn btn-secondary mr-2" id="previewBtn" disabled>
+                </div>
+                <div class="download-right">
+                    <div class="card mb-3">
+                        <div class="card-body bg-light text-center">
+                            <h5 class="card-title">Detailed Format</h5>
+                            <div class="d-flex justify-content-center gap-2 mt-3">
+                                <button type="submit" name="action" value="preview" class="btn btn-secondary" id="previewBtn" disabled>
                                     <i class="fas fa-eye"></i> Preview Detailed
                                 </button>
                                 <button type="submit" name="action" value="download" class="btn btn-primary" id="downloadBtn" disabled>
                                     <i class="fas fa-download"></i> Download Detailed
                                 </button>
                             </div>
+                            <div class="text-muted small mt-3">Includes signature, bio-break and additional sheets columns</div>
                         </div>
                     </div>
+
+                    {% if courses %}
+                    <div class="card mt-3">
+                        <div class="card-header">Available Courses ({{ courses|length }})</div>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 360px; overflow:auto;">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr><th>Course Code</th><th>Course Title</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for course in courses %}
+                                            <tr><td><strong>{{ course[0] }}</strong></td><td>{{ course[1] }}</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-                
-                <!-- Bulk download moved to top section -->
             </div>
         </form>
-
-        {% if courses %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h4 class="mb-0"><i class="fas fa-list"></i> Available Courses ({{ courses|length }})</h4>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive" style="max-height: 300px;">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Course Code</th>
-                                    <th>Course Title</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for course in courses %}
-                                    <tr>
-                                        <td><strong>{{ course[0] }}</strong></td>
-                                        <td>{{ course[1] }}</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        {% endif %}
+        
     {% else %}
         <div class="alert alert-warning">
             <i class="fas fa-exclamation-circle"></i>
@@ -255,7 +233,7 @@
         const dateSelected = document.getElementById('exam_date').value;
         const semesterSelected = document.getElementById('semester_id').value;
         
-        const buttons = ['previewSimpleBtn', 'downloadSimpleBtn', 'previewBtn', 'downloadBtn'];
+        const buttons = ['previewBtn', 'downloadBtn'];
         buttons.forEach(id => {
             const btn = document.getElementById(id);
             btn.disabled = !(courseSelected && dateSelected && semesterSelected);
@@ -266,7 +244,7 @@
         if (courseSelected) {
             buttons.forEach(id => {
                 const btn = document.getElementById(id);
-                const action = btn.value.includes('Simple') ? 'Simple' : 'Detailed';
+                const action = 'Detailed';
                 btn.innerHTML = `<i class="fas fa-${btn.value.includes('preview') ? 'eye' : 'download'}"></i> ${btn.value.includes('preview') ? 'Preview' : 'Download'} ${courseSelected} (${action})`;
             });
         }
@@ -302,9 +280,6 @@
         handlePreview('preview');
     });
 
-    document.getElementById('previewSimpleBtn').addEventListener('click', function(e) {
-        e.preventDefault();
-        handlePreview('preview_simple');
-    });
+    // preview_simple removed
 </script>
 {% endblock %}

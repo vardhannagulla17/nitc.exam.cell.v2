@@ -58,53 +58,10 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
     except Exception as e:
         return None, f"Error generating attendance sheet: {str(e)}"
 
-def generate_simple_attendance_sheet(course_code, exam_date, semester_id, preview=False):
-    """Generate HTML attendance sheet with only signature column"""
-    try:
-        # Get semester information
-        import sqlite3
-        db_path = os.path.join(current_app.config['BASE_DIR'], 'exam_cell.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute('SELECT academic_year, semester_type, degree_level, exam_type, db_name FROM semesters WHERE id = ?', (semester_id,))
-        semester_info = cursor.fetchone()
-        conn.close()
-        
-        if not semester_info:
-            return None, "Semester not found"
-        
-        academic_year, semester_type, degree_level, exam_type, db_name = semester_info
-        
-        # Get students from semester-specific database
-        students_sorted = get_sorted_students(db_name, course_code)
-        if not students_sorted:
-            return None, "No students found for this course"
-        
-        # Get course details
-        course_title = students_sorted[0][2] if students_sorted else "Unknown Course"
-        instructor_name = students_sorted[0][3] if students_sorted else "Unknown Instructor"
-        
-        # Generate HTML content
-        html_content = generate_simple_html_content(
-            course_code, exam_date, academic_year, semester_type, 
-            degree_level, exam_type, course_title, instructor_name, 
-            students_sorted
-        )
-        
-        if preview:
-            return html_content, "Simple attendance sheet preview generated successfully"
-        
-        # Save HTML file
-        filename = f"SimpleAttendance_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{course_code}_{exam_date}.html"
-        filepath = os.path.join(current_app.config['DOWNLOAD_FOLDER'], filename)
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        
-        return filepath, "Simple attendance sheet generated successfully"
-        
-    except Exception as e:
-        return None, f"Error generating simple attendance sheet: {str(e)}"
+# NOTE: simple attendance sheet generator removed. The detailed attendance
+# sheet (generate_attendance_sheet / generate_html_content) now includes
+# signature, bio-break and additional sheets columns and should be used
+# for both preview and download.
 
 def generate_all_attendance_sheets_zip(semester_id, exam_date):
     """Generate all attendance sheets for a semester and create a ZIP file with program and course folders"""
@@ -191,13 +148,8 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date):
                     continue
                 generated_files.append((dest_path, os.path.join(program_level, course_code, filename)))
             
-            # Generate simple attendance sheet
-            simple_filepath, simple_message = generate_simple_attendance_sheet(course_code, exam_date, semester_id, preview=False)
-            if simple_filepath:
-                simple_filename = f"Simple_{os.path.basename(simple_filepath)}"
-                simple_dest_path = os.path.join(course_dir, simple_filename)
-                shutil.copy2(simple_filepath, simple_dest_path)
-                generated_files.append((simple_dest_path, os.path.join(program_level, course_code, simple_filename)))
+            # Note: simplified attendance sheet is no longer generated separately.
+            # The detailed attendance sheet now includes signature and bio-break/additional sheets columns.
         
         if not generated_files:
             return None, "No attendance sheets could be generated"
@@ -423,9 +375,10 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
                 <tr>
                     <th style="width: 5%;">Sl. No.</th>
                     <th style="width: 12%;">Roll No.</th>
-                    <th style="width: 45%;">Student Name</th>
-                    <th style="width: 20%;">No. of Additional Sheets</th>
-                    <th style="width: 18%;">Details of Bio Break</th>
+                    <th style="width: 40%;">Student Name</th>
+                    <th style="width: 12%;">No. of Additional Sheets</th>
+                    <th style="width: 16%;">Details of Bio Break</th>
+                    <th style="width: 15%;">Signature</th>
                 </tr>
             </thead>
             <tbody>
@@ -443,12 +396,14 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
                     <td>{student[1] if student[1] else ''}</td>
                     <td></td>
                     <td></td>
+                    <td></td>
                 </tr>"""
             else:
                 # Empty rows to fill the page
                 html_content += f"""
                 <tr>
                     <td>{serial_no}</td>
+                    <td></td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -482,177 +437,4 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
 """
     return html_content
 
-def generate_simple_html_content(course_code, exam_date, academic_year, semester_type, degree_level, exam_type, course_title, instructor_name, students_sorted):
-    """Generate HTML content for simple attendance sheet"""
-    # Calculate pagination
-    rows_per_page = 60
-    total_students = len(students_sorted)
-    total_pages = max(1, (total_students + rows_per_page - 1) // rows_per_page)
-    
-    # Display mappings
-    exam_type_display = {
-        'midsem': 'Mid Semester Examination',
-        'endsem': 'End Semester Examination'
-    }
-    
-    semester_display = {
-        'monsoon': 'Monsoon',
-        'winter': 'Winter'
-    }
-    
-    html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Simple Attendance Sheet - {course_title} - {instructor_name}</title>
-    <style>
-        body {{ 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-        }}
-        .header {{ 
-            text-align: center; 
-            margin-bottom: 10px; 
-        }}
-        .institute-name {{ 
-            font-weight: bold; 
-            font-size: 14px; 
-        }}
-        .department {{ 
-            font-weight: bold; 
-            font-size: 12px; 
-            margin-top: 3px; 
-        }}
-        .form-title {{ 
-            font-weight: bold; 
-            font-size: 12px; 
-            margin-top: 6px; 
-        }}
-        .page-no {{ 
-            font-size: 10px; 
-            margin-top: 4px; 
-        }}
-        table {{ 
-            border-collapse: collapse; 
-            width: 100%; 
-            margin: 8px 0; 
-        }}
-        th, td {{ 
-            border: 1px solid black; 
-            padding: 4px; 
-            text-align: left; 
-            font-size: 10px; 
-        }}
-        th {{ 
-            background-color: #f0f0f0; 
-            font-weight: bold; 
-        }}
-        @media print {{
-            body {{ 
-                margin: 10mm; 
-            }}
-            .page {{ 
-                page-break-after: always; 
-            }}
-            .page:last-child {{ 
-                page-break-after: auto; 
-            }}
-        }}
-    </style>
-</head>
-<body>
-"""
-    
-    # Generate pages
-    for page_num in range(total_pages):
-        start_idx = page_num * rows_per_page
-        end_idx = min(start_idx + rows_per_page, total_students)
-        page_students = students_sorted[start_idx:end_idx]
-        
-        html_content += f"""
-    <div class="page">
-        <!-- Header Section -->
-        <div class="header">
-            <div class="institute-name">NATIONAL INSTITUTE OF TECHNOLOGY CALICUT</div>
-            <div class="department">DEPARTMENT OF MECHANICAL ENGINEERING</div>
-            <div class="form-title">Student Attendance Sheet</div>
-            <div class="page-no">Page {page_num + 1} of {total_pages}</div>
-        </div>
-
-        <!-- Course Information Section -->
-        <div class="info-section">
-            <div><strong>Name of the Examination:</strong> {exam_type_display.get(exam_type, exam_type)}</div>
-            <div>
-                <strong>Semester:</strong> {semester_display.get(semester_type, semester_type)} &nbsp;&nbsp;
-                <strong>Academic Year:</strong> {academic_year} &nbsp;&nbsp;
-                <strong>Date:</strong> {exam_date} &nbsp;&nbsp;
-                <strong>Time:</strong> ____________
-            </div>
-            <div>
-                <strong>Course Code:</strong> {course_code} &nbsp;&nbsp;
-                <strong>Course Name:</strong> {course_title} &nbsp;&nbsp;
-                <strong>Instructor:</strong> {instructor_name}
-            </div>
-        </div>
-
-        <!-- Students Table -->
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 8%;">Sl. No.</th>
-                    <th style="width: 15%;">Roll No.</th>
-                    <th style="width: 50%;">Student Name</th>
-                    <th style="width: 27%;">Signature</th>
-                </tr>
-            </thead>
-            <tbody>
-"""
-        
-        # Add student rows for this page
-        for i in range(rows_per_page):
-            serial_no = start_idx + i + 1
-            if i < len(page_students):
-                student = page_students[i]
-                html_content += f"""
-                <tr>
-                    <td>{serial_no}</td>
-                    <td>{student[0] if student[0] else ''}</td>
-                    <td>{student[1] if student[1] else ''}</td>
-                    <td></td>
-                </tr>"""
-            else:
-                # Empty rows to fill the page
-                html_content += f"""
-                <tr>
-                    <td>{serial_no}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                </tr>"""
-        
-        html_content += """
-            </tbody>
-        </table>
-
-        <!-- Invigilator Signature Section -->
-        <div style="margin-top: 20px;">
-            <strong>Signature of invigilators with Date</strong>
-            <table style="margin-top: 10px;">
-                <tr>
-                    <th style="width: 10%;">Sl. No.</th>
-                    <th style="width: 40%;">Name</th>
-                    <th style="width: 25%;">Date</th>
-                    <th style="width: 25%;">Signature</th>
-                </tr>
-                <tr><td>1</td><td></td><td></td><td></td></tr>
-                <tr><td>2</td><td></td><td></td><td></td></tr>
-            </table>
-        </div>
-    </div>
-"""
-    
-    html_content += """
-</body>
-</html>
-"""
-    return html_content
+# simple sheet removed
