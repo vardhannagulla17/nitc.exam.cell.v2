@@ -6,7 +6,7 @@ A Flask-based web application for managing student attendance sheets for examina
 
 - **User Authentication**: Admin and staff user roles
 - **Excel File Upload**: Upload student enrollment data from Excel files
-- **Attendance Sheet Generation**: Generate detailed and simple attendance sheets
+-- **Attendance Sheet Generation**: Generate detailed attendance sheets (includes signature, bio-break and additional sheets columns)
 - **Bulk Downloads**: Download all attendance sheets as organized ZIP files
 - **Program-wise Organization**: Separate folders for UG, PG, and PhD programs
 - **Semester Management**: Handle multiple semesters and examination types
@@ -70,7 +70,7 @@ pran-cell/
 1. **Login** with your credentials
 2. **Upload Excel files** containing student enrollment data (Admin only)
 3. **Select semester and program** for attendance sheet generation
-4. **Generate attendance sheets** in detailed or simple format
+4. **Generate attendance sheets** in detailed format
 5. **Download individual sheets** or **bulk download** all sheets as ZIP
 
 ## File Formats

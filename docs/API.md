@@ -75,8 +75,8 @@ Display the attendance sheet download interface.
 #### POST /download
 Generate attendance sheets.
 
-**Request Body:**
-- `action`: Action to perform ("download", "download_simple", "preview", "preview_simple", "download_all")
+- **Request Body:**
+- `action`: Action to perform ("download", "preview", "download_all")
 - `program_level`: Program level (UG, PG, PhD)
 - `semester_id`: Semester ID
 - `course_code`: Course code (required for individual downloads)
@@ -84,9 +84,7 @@ Generate attendance sheets.
 
 **Actions:**
 - `download`: Generate detailed attendance sheet for a course
-- `download_simple`: Generate simple attendance sheet for a course
 - `preview`: Preview detailed attendance sheet
-- `preview_simple`: Preview simple attendance sheet
 - `download_all`: Generate all attendance sheets as ZIP
 
 ## Data Models

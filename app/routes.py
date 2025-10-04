@@ -7,7 +7,7 @@ from .models import (
     get_semesters_for_program_level
 )
 from .attendance import (
-    generate_attendance_sheet, generate_simple_attendance_sheet,
+    generate_attendance_sheet,
     generate_all_attendance_sheets_zip
 )
 from helpers.file_utils import allowed_file, get_uploaded_files, delete_file_safely
@@ -203,23 +203,23 @@ def download_attendance():
                     return send_file(filepath, as_attachment=True)
                 flash(message, 'error')
                     
-            elif action in ['preview', 'preview_simple'] and course_code:
+            elif action in ['preview'] and course_code:
                 print(f"DEBUG: Generating preview for {course_code}")
                 if action == 'preview':
                     html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True)
                 else:
-                    html_content, message = generate_simple_attendance_sheet(course_code, exam_date, semester_id, preview=True)
+                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True)
                     
                 if html_content:
                     return html_content
                 flash(message, 'error')
                     
-            elif action in ['download', 'download_simple'] and course_code:
+            elif action in ['download'] and course_code:
                 print(f"DEBUG: Generating download for {course_code}")
                 if action == 'download':
                     filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
                 else:
-                    filepath, message = generate_simple_attendance_sheet(course_code, exam_date, semester_id, preview=False)
+                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
                     
                 if filepath:
                     flash(message, 'success')
