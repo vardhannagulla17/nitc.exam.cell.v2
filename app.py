@@ -2,13 +2,17 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from werkzeug.utils import secure_filename
 import os
 import sys
+import tempfile
+import time
 
 # Add the current directory to Python path so we can import from nitc.exam.cell.v1.app
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Create Flask app and configure it
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this'  # Change this in production
+
+# Use environment variable for secret key in production; fallback for local dev
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-this')
 
 # Add datetime filter
 @app.template_filter('datetime')
@@ -19,8 +23,12 @@ def format_datetime(timestamp):
 
 # File upload configurations
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-DOWNLOAD_FOLDER = os.path.join(BASE_DIR, 'downloads')
+
+# IMPORTANT: use a writable temp directory on Vercel (and other serverless platforms)
+TMP_DIR = tempfile.gettempdir()  # typically /tmp
+UPLOAD_FOLDER = os.path.join(TMP_DIR, 'nitc_uploads')
+DOWNLOAD_FOLDER = os.path.join(TMP_DIR, 'nitc_downloads')
+
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
 
