@@ -20,7 +20,7 @@ def format_datetime(timestamp):
 
 # File upload configurations
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-IS_VERCEL = os.environ.get('VERCEL', False)
+IS_VERCEL = os.environ.get('VERCEL') in ('1', 'true', 'True', True)
 
 # Use memory storage for Vercel, filesystem for local dev
 if IS_VERCEL:
