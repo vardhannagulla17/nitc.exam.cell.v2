@@ -23,6 +23,8 @@
   "env": {
     "PYTHONPATH": ".",
     "FLASK_ENV": "production",
-    "VERCEL": "1"
+    "VERCEL": "1",
+    "FLASK_APP": "app.py"
   }
+}
 }
