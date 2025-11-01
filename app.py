@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from werkzeug.utils import secure_filename
 import os
 import sys
-import tempfile
 import time
 
 # Add the current directory to Python path so we can import from nitc.exam.cell.v1.app
@@ -10,9 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Create Flask app and configure it
 app = Flask(__name__)
-
-# Use environment variable for secret key in production; fallback for local dev
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-this')
+app.secret_key = 'your-secret-key-change-this'  # Change this in production
 
 # Add datetime filter
 @app.template_filter('datetime')
@@ -23,11 +20,22 @@ def format_datetime(timestamp):
 
 # File upload configurations
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+IS_VERCEL = os.environ.get('VERCEL', False)
 
-# IMPORTANT: use a writable temp directory on Vercel (and other serverless platforms)
-TMP_DIR = tempfile.gettempdir()  # typically /tmp
-UPLOAD_FOLDER = os.path.join(TMP_DIR, 'nitc_uploads')
-DOWNLOAD_FOLDER = os.path.join(TMP_DIR, 'nitc_downloads')
+# Use memory storage for Vercel, filesystem for local dev
+if IS_VERCEL:
+    from io import BytesIO
+    UPLOAD_STORAGE = {}  # In-memory storage for uploads
+    DOWNLOAD_STORAGE = {}  # In-memory storage for downloads
+    UPLOAD_FOLDER = None
+    DOWNLOAD_FOLDER = None
+else:
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+    DOWNLOAD_FOLDER = os.environ.get('DOWNLOAD_FOLDER', os.path.join(BASE_DIR, 'downloads'))
+    # Ensure folders exist in local dev
+    for folder in [UPLOAD_FOLDER, DOWNLOAD_FOLDER]:
+        if folder:
+            os.makedirs(folder, exist_ok=True)
 
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
@@ -45,9 +53,10 @@ for folder in [UPLOAD_FOLDER, DOWNLOAD_FOLDER]:
     except Exception as e:
         print(f'Error creating directory {folder}: {str(e)}')
 
-# Create program-level directories in downloads folder
-for program in ['UG', 'PG', 'PhD']:
-    os.makedirs(os.path.join(DOWNLOAD_FOLDER, program), exist_ok=True)
+# Note: Don't create program-level subdirectories at import time. Those
+# should be created lazily when needed (see app.attendance). Creating
+# many directories during import can fail on read-only or restricted
+# deployment environments and causes hard-to-debug crashes.
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -57,24 +66,38 @@ def get_uploaded_files():
     """Get list of uploaded files with their details"""
     files = []
     try:
-        # Ensure the upload folder exists
-        if not os.path.exists(UPLOAD_FOLDER):
-            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-            return files
-
-        for filename in os.listdir(UPLOAD_FOLDER):
-            try:
-                filepath = os.path.join(UPLOAD_FOLDER, filename)
-                if os.path.isfile(filepath):
+        if IS_VERCEL:
+            # Use in-memory storage on Vercel
+            for filename, file_data in UPLOAD_STORAGE.items():
+                try:
                     file_info = {
                         'name': filename,
-                        'size': os.path.getsize(filepath),
-                        'uploaded_at': os.path.getctime(filepath)
+                        'size': len(file_data['content']),
+                        'uploaded_at': file_data['uploaded_at']
                     }
                     files.append(file_info)
-            except Exception as e:
-                print(f"Error processing file {filename}: {str(e)}")
-                continue
+                except Exception as e:
+                    print(f"Error processing file {filename}: {str(e)}")
+                    continue
+        else:
+            # Use filesystem in local development
+            if not os.path.exists(UPLOAD_FOLDER):
+                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                return files
+
+            for filename in os.listdir(UPLOAD_FOLDER):
+                try:
+                    filepath = os.path.join(UPLOAD_FOLDER, filename)
+                    if os.path.isfile(filepath):
+                        file_info = {
+                            'name': filename,
+                            'size': os.path.getsize(filepath),
+                            'uploaded_at': os.path.getctime(filepath)
+                        }
+                        files.append(file_info)
+                except Exception as e:
+                    print(f"Error processing file {filename}: {str(e)}")
+                    continue
         
         # Sort files by upload date, newest first
         return sorted(files, key=lambda x: x['uploaded_at'], reverse=True)
@@ -281,10 +304,23 @@ def upload_file():
         
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
             
-            success, message = load_excel_to_db(filepath, academic_year, semester_type, sheet_type, exam_type)
+            if IS_VERCEL:
+                # Store in memory on Vercel
+                content = file.read()
+                UPLOAD_STORAGE[filename] = {
+                    'content': content,
+                    'uploaded_at': time.time()
+                }
+                # Create BytesIO for processing
+                file_obj = BytesIO(content)
+                success, message = load_excel_to_db(file_obj, academic_year, semester_type, sheet_type, exam_type)
+            else:
+                # Store on filesystem in local dev
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                success, message = load_excel_to_db(filepath, academic_year, semester_type, sheet_type, exam_type)
+            
             if success:
                 flash(message, 'success')
             else:
@@ -362,10 +398,23 @@ def download_attendance():
         try:
             if action == 'download_all':
                 print("DEBUG: Generating all attendance sheets ZIP")
-                filepath, message = generate_all_attendance_sheets_zip(semester_id, exam_date)
-                if filepath:
-                    flash(message, 'success')
-                    return send_file(filepath, as_attachment=True)
+                if IS_VERCEL:
+                    # Generate ZIP in memory
+                    zip_data, message = generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=True)
+                    if zip_data:
+                        flash(message, 'success')
+                        return send_file(
+                            BytesIO(zip_data),
+                            mimetype='application/zip',
+                            as_attachment=True,
+                            download_name=f'attendance_sheets_{semester_id}_{exam_date}.zip'
+                        )
+                else:
+                    # Generate ZIP on filesystem
+                    filepath, message = generate_all_attendance_sheets_zip(semester_id, exam_date)
+                    if filepath:
+                        flash(message, 'success')
+                        return send_file(filepath, as_attachment=True)
                 flash(message, 'error')
                     
             elif action in ['preview'] and course_code:
@@ -439,5 +488,9 @@ def download_attendance():
 
 # Initialize the application and run
 if __name__ == '__main__':
+    # Initialize DB when running locally
     init_db()
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    # Use PORT environment variable when provided (platforms like Vercel/containers)
+    port = int(os.environ.get('PORT', 5000))
+    # Bind to all interfaces in containerized environments
+    app.run(debug=True, host='0.0.0.0', port=port)

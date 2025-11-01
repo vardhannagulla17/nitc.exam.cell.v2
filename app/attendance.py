@@ -3,15 +3,27 @@ import shutil
 import tempfile
 import zipfile
 import sqlite3
+from io import BytesIO
 from helpers.utils import sort_by_roll_number
 from flask import current_app
+from werkzeug.utils import secure_filename
 
 # Get download folder path
 
-def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False):
+def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False):
     """Generate HTML attendance sheet for a specific course and date using NITC format"""
-    download_folder = current_app.config['DOWNLOAD_FOLDER']
-    os.makedirs(download_folder, exist_ok=True)  # Ensure download folder exists
+    # For Vercel deployment, always use in_memory=True
+    if current_app.config.get('IS_VERCEL'):
+        in_memory = True
+    
+    # Only create folders if we're not in memory mode
+    if not in_memory:
+        download_folder = current_app.config.get('DOWNLOAD_FOLDER') or os.path.join(current_app.config.get('BASE_DIR', '.'), 'downloads')
+        try:
+            os.makedirs(download_folder, exist_ok=True)
+        except Exception as e:
+            print(f"Warning: could not create download folder {download_folder}: {e}")
+            download_folder = tempfile.mkdtemp(prefix='downloads_')
     try:
         # Get semester information
         import sqlite3
@@ -43,16 +55,20 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             students_sorted
         )
         
-        if preview:
-            return html_content, "Preview generated successfully"
-        
-        # Save HTML file
-        filename = f"Attendance_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{course_code}_{exam_date}.html"
-        filepath = os.path.join(current_app.config['DOWNLOAD_FOLDER'], filename)
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        
+        if preview or in_memory:
+            return html_content, "Generated successfully"
+            
+        # Save to file only if not in memory mode
+        safe_course = secure_filename(str(course_code))
+        safe_date = secure_filename(str(exam_date))
+        filename = f"Attendance_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{safe_course}_{safe_date}.html"
+        filepath = os.path.join(download_folder, filename)
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+        except Exception as write_err:
+            return None, f"Failed to write attendance file: {write_err}"
+
         return filepath, "Attendance sheet generated successfully"
         
     except Exception as e:
@@ -63,8 +79,9 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
 # signature, bio-break and additional sheets columns and should be used
 # for both preview and download.
 
-def generate_all_attendance_sheets_zip(semester_id, exam_date):
-    """Generate all attendance sheets for a semester and create a ZIP file with program and course folders"""
+def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
+    """Generate all attendance sheets for a semester and create a ZIP file with program and course folders.
+    When in_memory=True, returns (zip_bytes, message) instead of (filepath, message)."""
     try:
         # Get base directory and ensure download folder exists
         base_dir = current_app.config['BASE_DIR']
@@ -100,10 +117,13 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date):
         download_folder = current_app.config['DOWNLOAD_FOLDER']
         os.makedirs(download_folder, exist_ok=True)
         
-        # Create program level directories in both temp and download folders
+        # Create program level directories in temp. Create download subdirs lazily when copying files.
         for program in program_dirs.keys():
-            os.makedirs(os.path.join(temp_dir, program), exist_ok=True)
-            os.makedirs(os.path.join(download_folder, program), exist_ok=True)
+            try:
+                os.makedirs(os.path.join(temp_dir, program), exist_ok=True)
+            except Exception:
+                # If temp dir creation fails (unlikely), continue — we'll fail later when needed
+                pass
         
         # Create course folders and generate files
         for course_code, course_title in courses:
@@ -136,17 +156,26 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date):
             os.makedirs(course_dir, exist_ok=True)
             
             # Generate detailed attendance sheet (with bio breaks)
-            filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
-            if filepath:
-                filename = f"Detailed_{os.path.basename(filepath)}"
-                dest_path = os.path.join(course_dir, filename)
-                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                try:
-                    shutil.copy2(filepath, dest_path)
-                except Exception as e:
-                    print(f"Warning: Could not copy file {filepath} to {dest_path}: {str(e)}")
-                    continue
-                generated_files.append((dest_path, os.path.join(program_level, course_code, filename)))
+            html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, in_memory=True)
+            if html_content:
+                safe_course = secure_filename(str(course_code))
+                filename = f"Detailed_Attendance_{academic_year}_{semester_type}_{course_code}_{exam_date}.html"
+                rel_path = os.path.join(program_level, safe_course, filename)
+                
+                if in_memory:
+                    # Add directly to ZIP
+                    zipf.writestr(rel_path, html_content)
+                else:
+                    # Write to temp dir and copy
+                    dest_path = os.path.join(course_dir, filename)
+                    try:
+                        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                        with open(dest_path, 'w', encoding='utf-8') as f:
+                            f.write(html_content)
+                        generated_files.append((dest_path, rel_path))
+                    except Exception as e:
+                        print(f"Warning: Could not write file {dest_path}: {str(e)}")
+                        continue
             
             # Note: simplified attendance sheet is no longer generated separately.
             # The detailed attendance sheet now includes signature and bio-break/additional sheets columns.
@@ -155,20 +184,24 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date):
             return None, "No attendance sheets could be generated"
         
         # Create ZIP file with organized structure
-        zip_filename = f"AttendanceSheets_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{exam_date}.zip"
-        zip_filepath = os.path.join(current_app.config['DOWNLOAD_FOLDER'], zip_filename)
-        
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(zip_filepath), exist_ok=True)
-        
-        # Remove existing ZIP file if it exists
-        if os.path.exists(zip_filepath):
-            try:
-                os.remove(zip_filepath)
-            except Exception as e:
-                print(f"Warning: Could not remove existing ZIP file: {str(e)}")
-        
-        with zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        if in_memory:
+            zip_buffer = BytesIO()
+            zipf = zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED)
+        else:
+            zip_filename = f"AttendanceSheets_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{exam_date}.zip"
+            zip_filepath = os.path.join(current_app.config['DOWNLOAD_FOLDER'], zip_filename)
+            
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(zip_filepath), exist_ok=True)
+            
+            # Remove existing ZIP file if it exists
+            if os.path.exists(zip_filepath):
+                try:
+                    os.remove(zip_filepath)
+                except Exception as e:
+                    print(f"Warning: Could not remove existing ZIP file: {str(e)}")
+            
+            zipf = zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED)
             # Add a README file explaining the structure
             readme_content = f"""Attendance Sheets Organization
 ----------------------------
@@ -213,7 +246,14 @@ Each course folder contains:
             print(f"Warning: Could not clean up temporary directory: {str(cleanup_error)}")
             # Continue execution as this is not a critical error
         
-        return zip_filepath, f"Generated {total_files} attendance sheets in ZIP file"
+        if in_memory:
+            zipf.close()
+            zip_data = zip_buffer.getvalue()
+            zip_buffer.close()
+            return zip_data, f"Generated attendance sheets in ZIP"
+        else:
+            zipf.close()
+            return zip_filepath, f"Generated {total_files} attendance sheets in ZIP file"
         
     except Exception as e:
         return None, f"Error generating bulk attendance sheets: {str(e)}"
