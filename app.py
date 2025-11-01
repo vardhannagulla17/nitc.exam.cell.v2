@@ -46,12 +46,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['DOWNLOAD_FOLDER'] = DOWNLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
-# Ensure required directories exist
-for folder in [UPLOAD_FOLDER, DOWNLOAD_FOLDER]:
-    try:
-        os.makedirs(folder, exist_ok=True)
-    except Exception as e:
-        print(f'Error creating directory {folder}: {str(e)}')
+# Ensure required directories exist (only for non-Vercel environments)
+if not IS_VERCEL:
+    for folder in [UPLOAD_FOLDER, DOWNLOAD_FOLDER]:
+        if folder:
+            try:
+                os.makedirs(folder, exist_ok=True)
+            except Exception as e:
+                print(f'Error creating directory {folder}: {str(e)}')
 
 # Note: Don't create program-level subdirectories at import time. Those
 # should be created lazily when needed (see app.attendance). Creating
