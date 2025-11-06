@@ -46,10 +46,21 @@ class TestingConfig(Config):
     TESTING = True
     DATABASE_PATH = os.path.join(Config.BASE_DIR, 'test_exam_cell.db')
 
+
+class VercelConfig(Config):
+    """Vercel serverless configuration"""
+    DEBUG = False
+    TESTING = False
+    # Use None for folder paths on Vercel (read-only filesystem)
+    UPLOAD_FOLDER = None
+    DOWNLOAD_FOLDER = None
+    DATABASE_PATH = None  # Can't use SQLite on Vercel serverless
+
 # Configuration dictionary
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
     'testing': TestingConfig,
+    'vercel': VercelConfig,
     'default': DevelopmentConfig
 }

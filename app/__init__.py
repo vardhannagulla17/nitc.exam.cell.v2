@@ -7,7 +7,11 @@ def create_app(config_name=None):
     
     # Load configuration
     if config_name is None:
-        config_name = os.environ.get('FLASK_CONFIG', 'default')
+        # Use vercel config if running on Vercel
+        if os.environ.get('VERCEL'):
+            config_name = 'vercel'
+        else:
+            config_name = os.environ.get('FLASK_CONFIG', 'default')
     
     from config import config
     app.config.from_object(config[config_name])

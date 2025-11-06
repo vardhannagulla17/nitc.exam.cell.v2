@@ -39,7 +39,11 @@ def get_uploaded_files():
         return []
 
 def ensure_directories_exist():
-    """Ensure all required directories exist"""
+    """Ensure all required directories exist (skip on Vercel)"""
+    # Skip directory creation on Vercel (read-only filesystem)
+    if os.environ.get('VERCEL'):
+        return
+    
     directories = [
         current_app.config['UPLOAD_FOLDER'],
         current_app.config['DOWNLOAD_FOLDER']
@@ -50,10 +54,11 @@ def ensure_directories_exist():
         directories.append(os.path.join(current_app.config['DOWNLOAD_FOLDER'], program))
     
     for directory in directories:
-        try:
-            os.makedirs(directory, exist_ok=True)
-        except Exception as e:
-            print(f'Error creating directory {directory}: {str(e)}')
+        if directory:  # Skip None values
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except Exception as e:
+                print(f'Error creating directory {directory}: {str(e)}')
 
 def delete_file_safely(filepath):
     """Safely delete a file if it exists"""
