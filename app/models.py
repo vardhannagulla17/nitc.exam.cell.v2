@@ -3,9 +3,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 from helpers.utils import sort_by_roll_number
 
+from .database import get_db_connection
+
 def init_db():
     """Initialize the database with users, semesters, and students tables"""
-    conn = sqlite3.connect('exam_cell.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     # Create users table if it doesn't exist
@@ -110,11 +112,24 @@ def create_semester_db(db_name):
     conn.close()
     return True
 
-def load_excel_to_db(file_path, academic_year, semester_type, sheet_type, exam_type):
-    """Load Excel data into semester-specific SQLite database"""
+def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam_type):
+    """Load Excel data into semester-specific SQLite database
+    
+    Args:
+        file_source: Either a file path (string) or BytesIO object containing Excel data
+        academic_year: Academic year string
+        semester_type: Semester type (monsoon/winter)
+        sheet_type: Sheet type (UG/PG/PhD/combined)
+        exam_type: Exam type (midsem/endsem)
+    """
     try:
-        # Read Excel file
-        df = pd.read_excel(file_path, engine='openpyxl')
+        # Read Excel file - handle both file path and BytesIO object
+        if hasattr(file_source, 'read'):
+            # It's a file-like object (BytesIO)
+            df = pd.read_excel(file_source, engine='openpyxl')
+        else:
+            # It's a file path string
+            df = pd.read_excel(file_source, engine='openpyxl')
         
         # Filter data based on sheet type if not combined (vectorized)
         if sheet_type != 'combined':
@@ -188,7 +203,7 @@ def load_excel_to_db(file_path, academic_year, semester_type, sheet_type, exam_t
 
 def get_user_by_credentials(username, password):
     """Get user by username and password"""
-    conn = sqlite3.connect('exam_cell.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT id, password_hash, role FROM users WHERE username = ?', (username,))
     user = cursor.fetchone()
@@ -200,7 +215,7 @@ def get_user_by_credentials(username, password):
 
 def get_semester_stats():
     """Get statistics from all semesters"""
-    conn = sqlite3.connect('exam_cell.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('SELECT COUNT(*) FROM semesters')

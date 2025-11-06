@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Error{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="error-container">
+        <h1>{{ error.code if error.code else '500' }}</h1>
+        <h2>{{ error.name if error.name else 'Server Error' }}</h2>
+        <p>{{ error.description if error.description else 'An unexpected error has occurred.' }}</p>
+        <div class="error-actions">
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="fas fa-home"></i> Back to Home
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

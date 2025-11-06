@@ -20,15 +20,21 @@ def format_datetime(timestamp):
 
 # File upload configurations
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-IS_VERCEL = os.environ.get('VERCEL', False)
+IS_VERCEL = bool(os.environ.get('VERCEL', False))
 
 # Use memory storage for Vercel, filesystem for local dev
 if IS_VERCEL:
     from io import BytesIO
     UPLOAD_STORAGE = {}  # In-memory storage for uploads
     DOWNLOAD_STORAGE = {}  # In-memory storage for downloads
-    UPLOAD_FOLDER = None
-    DOWNLOAD_FOLDER = None
+    UPLOAD_FOLDER = '/tmp/uploads'  # Vercel allows /tmp for temporary storage
+    DOWNLOAD_FOLDER = '/tmp/downloads'
+    # Create temp directories in Vercel
+    for folder in [UPLOAD_FOLDER, DOWNLOAD_FOLDER]:
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except:
+            pass  # Ignore if can't create in Vercel
 else:
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
     DOWNLOAD_FOLDER = os.environ.get('DOWNLOAD_FOLDER', os.path.join(BASE_DIR, 'downloads'))
@@ -184,6 +190,17 @@ from app.attendance import (
     generate_attendance_sheet,
     generate_all_attendance_sheets_zip
 )
+
+# Error handler for 500 errors
+@app.errorhandler(500)
+def internal_error(error):
+    app.logger.error(f'Server Error: {error}')
+    return render_template('error.html', error=error), 500
+
+# Error handler for 404 errors
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('error.html', error=error), 404
 
 # Routes
 @app.route('/')
@@ -417,23 +434,17 @@ def download_attendance():
                         return send_file(filepath, as_attachment=True)
                 flash(message, 'error')
                     
-            elif action in ['preview'] and course_code:
+            elif action == 'preview' and course_code:
                 print(f"DEBUG: Generating preview for {course_code}")
-                if action == 'preview':
-                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True)
-                else:
-                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True)
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True)
                     
                 if html_content:
                     return html_content
                 flash(message, 'error')
                     
-            elif action in ['download'] and course_code:
+            elif action == 'download' and course_code:
                 print(f"DEBUG: Generating download for {course_code}")
-                if action == 'download':
-                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
-                else:
-                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
+                filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
                     
                 if filepath:
                     flash(message, 'success')
@@ -492,5 +503,5 @@ if __name__ == '__main__':
     init_db()
     # Use PORT environment variable when provided (platforms like Vercel/containers)
     port = int(os.environ.get('PORT', 5000))
-    # Bind to all interfaces in containerized environments
-    app.run(debug=True, host='0.0.0.0', port=port)
+    # For local development, only bind to localhost
+    app.run(debug=True, host='127.0.0.1', port=port)

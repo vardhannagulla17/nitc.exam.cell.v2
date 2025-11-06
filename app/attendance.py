@@ -106,24 +106,61 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
         if not courses:
             return None, "No courses found for this semester"
         
-        # Create temporary directory for organizing files
-        temp_dir = tempfile.mkdtemp()
+        # Create temporary directory for organizing files (only if not in memory)
+        temp_dir = None
         generated_files = []
+        
+        # Initialize ZIP file early based on mode
+        if in_memory:
+            zip_buffer = BytesIO()
+            zipf = zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED)
+        else:
+            temp_dir = tempfile.mkdtemp()
+            zip_filename = f"AttendanceSheets_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{exam_date}.zip"
+            zip_filepath = os.path.join(download_folder, zip_filename)
+            
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(zip_filepath), exist_ok=True)
+            
+            # Remove existing ZIP file if it exists
+            if os.path.exists(zip_filepath):
+                try:
+                    os.remove(zip_filepath)
+                except Exception as e:
+                    print(f"Warning: Could not remove existing ZIP file: {str(e)}")
+            
+            zipf = zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED)
+        
+        # Add README file explaining the structure
+        readme_content = f"""Attendance Sheets Organization
+----------------------------
+Academic Year: {academic_year}
+Semester: {semester_type}
+Examination: {'Mid Semester' if exam_type == 'midsem' else 'End Semester' if exam_type == 'endsem' else exam_type} Examination
+Date: {exam_date}
+
+Folder Structure:
+---------------
+/UG/ - Undergraduate Courses
+/PG/ - Postgraduate Courses
+/PhD/ - PhD Courses
+
+Each course folder contains:
+1. Detailed_*.html - Full attendance sheet with bio-breaks tracking
+"""
+        zipf.writestr('README.txt', readme_content)
         
         # Create program level directories
         program_dirs = {'UG': 'Undergraduate', 'PG': 'Postgraduate', 'PhD': 'PhD'}
         
-        # Ensure the download folder exists
-        download_folder = current_app.config['DOWNLOAD_FOLDER']
-        os.makedirs(download_folder, exist_ok=True)
-        
-        # Create program level directories in temp. Create download subdirs lazily when copying files.
-        for program in program_dirs.keys():
-            try:
-                os.makedirs(os.path.join(temp_dir, program), exist_ok=True)
-            except Exception:
-                # If temp dir creation fails (unlikely), continue — we'll fail later when needed
-                pass
+        # Create program level directories in temp (only if not in memory)
+        if not in_memory:
+            for program in program_dirs.keys():
+                try:
+                    os.makedirs(os.path.join(temp_dir, program), exist_ok=True)
+                except Exception:
+                    # If temp dir creation fails (unlikely), continue — we'll fail later when needed
+                    pass
         
         # Create course folders and generate files
         for course_code, course_title in courses:
@@ -147,14 +184,6 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
                 # Fallback to previous heuristic based on course code
                 program_level = 'PG' if course_code.startswith('M') else 'PhD' if course_code.startswith('P') else 'UG'
             
-            # Create course directory with absolute paths
-            temp_program_dir = os.path.join(temp_dir, program_level)
-            course_dir = os.path.join(temp_program_dir, course_code)
-            
-            # Ensure both program and course directories exist
-            os.makedirs(temp_program_dir, exist_ok=True)
-            os.makedirs(course_dir, exist_ok=True)
-            
             # Generate detailed attendance sheet (with bio breaks)
             html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, in_memory=True)
             if html_content:
@@ -166,6 +195,14 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
                     # Add directly to ZIP
                     zipf.writestr(rel_path, html_content)
                 else:
+                    # Create course directory and write to temp dir
+                    temp_program_dir = os.path.join(temp_dir, program_level)
+                    course_dir = os.path.join(temp_program_dir, course_code)
+                    
+                    # Ensure both program and course directories exist
+                    os.makedirs(temp_program_dir, exist_ok=True)
+                    os.makedirs(course_dir, exist_ok=True)
+                    
                     # Write to temp dir and copy
                     dest_path = os.path.join(course_dir, filename)
                     try:
@@ -176,83 +213,41 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
                     except Exception as e:
                         print(f"Warning: Could not write file {dest_path}: {str(e)}")
                         continue
-            
-            # Note: simplified attendance sheet is no longer generated separately.
-            # The detailed attendance sheet now includes signature and bio-break/additional sheets columns.
         
-        if not generated_files:
-            return None, "No attendance sheets could be generated"
-        
-        # Create ZIP file with organized structure
-        if in_memory:
-            zip_buffer = BytesIO()
-            zipf = zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED)
-        else:
-            zip_filename = f"AttendanceSheets_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{exam_date}.zip"
-            zip_filepath = os.path.join(current_app.config['DOWNLOAD_FOLDER'], zip_filename)
-            
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(zip_filepath), exist_ok=True)
-            
-            # Remove existing ZIP file if it exists
-            if os.path.exists(zip_filepath):
-                try:
-                    os.remove(zip_filepath)
-                except Exception as e:
-                    print(f"Warning: Could not remove existing ZIP file: {str(e)}")
-            
-            zipf = zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED)
-            # Add a README file explaining the structure
-            readme_content = f"""Attendance Sheets Organization
-----------------------------
-Academic Year: {academic_year}
-Semester: {semester_type}
-Examination: {'Mid Semester' if exam_type == 'midsem' else 'End Semester' if exam_type == 'endsem' else exam_type} Examination
-Date: {exam_date}
-
-Folder Structure:
----------------
-/UG/ - Undergraduate Courses
-/PG/ - Postgraduate Courses
-/PhD/ - PhD Courses
-
-Each course folder contains:
-1. Detailed_*.html - Full attendance sheet with bio-breaks tracking
-2. Simple_*.html - Basic attendance sheet with only signature column
-"""
-            zipf.writestr('README.txt', readme_content)
-            
-            # Add all generated files preserving folder structure
+        # Add all generated files to ZIP (only for filesystem mode)
+        if not in_memory:
             for file_path, rel_path in generated_files:
                 zipf.write(file_path, rel_path)
         
         # Get the count before cleanup
-        total_files = len(generated_files)
+        total_files = len(generated_files) if not in_memory else len(courses)
         
-        # Cleanup temp directory and generated files
-        try:
-            # Close any open file handles
-            for file_path, _ in generated_files:
-                try:
-                    if os.path.exists(file_path):
-                        os.chmod(file_path, 0o777)  # Ensure we have permissions to remove
-                except Exception:
-                    pass  # Ignore permission setting errors
-            
-            # Remove the temp directory
-            if os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir, ignore_errors=True)
-        except Exception as cleanup_error:
-            print(f"Warning: Could not clean up temporary directory: {str(cleanup_error)}")
-            # Continue execution as this is not a critical error
+        # Close ZIP file
+        zipf.close()
+        
+        # Cleanup temp directory (only if not in memory)
+        if not in_memory and temp_dir:
+            try:
+                # Close any open file handles
+                for file_path, _ in generated_files:
+                    try:
+                        if os.path.exists(file_path):
+                            os.chmod(file_path, 0o777)  # Ensure we have permissions to remove
+                    except Exception:
+                        pass  # Ignore permission setting errors
+                
+                # Remove the temp directory
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception as cleanup_error:
+                print(f"Warning: Could not clean up temporary directory: {str(cleanup_error)}")
+                # Continue execution as this is not a critical error
         
         if in_memory:
-            zipf.close()
             zip_data = zip_buffer.getvalue()
             zip_buffer.close()
             return zip_data, f"Generated attendance sheets in ZIP"
         else:
-            zipf.close()
             return zip_filepath, f"Generated {total_files} attendance sheets in ZIP file"
         
     except Exception as e:
