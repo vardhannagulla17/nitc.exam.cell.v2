@@ -2,127 +2,162 @@
 
 {% block title %}Upload Data - Exam Cell Application{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/upload.css') }}">
+{% endblock %}
+
 {% block content %}
-<div class="form-container">
-    <div class="form-header">
+<div class="upload-container">
+    <div class="upload-header">
         <h2><i class="fas fa-cloud-upload-alt"></i> Upload Student Data</h2>
         <p>Upload Excel file containing student and course information</p>
     </div>
     
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data" class="upload-form">
         <!-- Academic Details Section -->
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-            <h4 style="color: #333; margin-bottom: 15px;">
-                <i class="fas fa-calendar-alt"></i> Academic Session Details
-            </h4>
+        <div class="academic-section">
+            <h3><i class="fas fa-calendar-alt"></i> Academic Session Details</h3>
             
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                <div class="form-group">
-                    <label for="academic_year">
-                        <i class="fas fa-calendar"></i> Academic Year
-                    </label>
-                    <select id="academic_year" name="academic_year" class="form-control" required>
-                        <option value="">-- Select Academic Year --</option>
-                        <option value="2024-25">2024-25</option>
-                        <option value="2025-26" selected>2025-26</option>
-                        <option value="2026-27">2026-27</option>
-                        <option value="2027-28">2027-28</option>
-                    </select>
+            <div class="form-grid">
+                <div class="input-group">
+                    <label for="academic_year">Academic Year</label>
+                    <div class="select-wrapper">
+                        <select id="academic_year" name="academic_year" required>
+                            <option value="">-- Select Academic Year --</option>
+                            <option value="2024-25">2024-25</option>
+                            <option value="2025-26" selected>2025-26</option>
+                            <option value="2026-27">2026-27</option>
+                            <option value="2027-28">2027-28</option>
+                        </select>
+                        <i class="fas fa-chevron-down select-arrow"></i>
+                    </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="semester_type">
-                        <i class="fas fa-leaf"></i> Semester
-                    </label>
-                    <select id="semester_type" name="semester_type" class="form-control" required>
-                        <option value="">-- Select Semester --</option>
-                        <option value="monsoon" selected>Monsoon</option>
-                        <option value="winter">Winter</option>
-                    </select>
+                <div class="input-group">
+                    <label for="semester_type">Semester</label>
+                    <div class="select-wrapper">
+                        <select id="semester_type" name="semester_type" required>
+                            <option value="">-- Select Semester --</option>
+                            <option value="monsoon" selected>Monsoon</option>
+                            <option value="winter">Winter</option>
+                        </select>
+                        <i class="fas fa-chevron-down select-arrow"></i>
+                    </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="sheet_type">
-                        <i class="fas fa-file-excel"></i> Sheet Type
-                    </label>
-                    <select id="sheet_type" name="sheet_type" class="form-control" required>
-                        <option value="">-- Select Sheet Type --</option>
-                        <option value="combined" selected>Combined Sheet (All Programs)</option>
-                        <option value="UG">UG Sheet Only</option>
-                        <option value="PG">PG Sheet Only</option>
-                        <option value="PhD">PhD Sheet Only</option>
-                    </select>
+                <div class="input-group">
+                    <label for="sheet_type">Sheet Type</label>
+                    <div class="select-wrapper">
+                        <select id="sheet_type" name="sheet_type" required>
+                            <option value="">-- Select Sheet Type --</option>
+                            <option value="combined" selected>Combined Sheet (All Programs)</option>
+                            <option value="UG">UG Sheet Only</option>
+                            <option value="PG">PG Sheet Only</option>
+                            <option value="PhD">PhD Sheet Only</option>
+                        </select>
+                        <i class="fas fa-chevron-down select-arrow"></i>
+                    </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="exam_type">
-                        <i class="fas fa-edit"></i> Exam Type
-                    </label>
-                    <select id="exam_type" name="exam_type" class="form-control" required>
-                        <option value="">-- Select Exam Type --</option>
-                        <option value="midsem" selected>Mid Semester</option>
-                        <option value="endsem">End Semester</option>
-                    </select>
+                <div class="input-group">
+                    <label for="exam_type">Exam Type</label>
+                    <div class="select-wrapper">
+                        <select id="exam_type" name="exam_type" required>
+                            <option value="">-- Select Exam Type --</option>
+                            <option value="midsem" selected>Mid Semester</option>
+                            <option value="endsem">End Semester</option>
+                        </select>
+                        <i class="fas fa-chevron-down select-arrow"></i>
+                    </div>
                 </div>
             </div>
         </div>
         
         <!-- File Upload Section -->
-        <div class="file-upload">
-            <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
-            <label for="file" class="file-upload-label">
-                <i class="fas fa-file-excel"></i><br>
-                Click to select Excel file or drag and drop
-                <div style="font-size: 14px; margin-top: 10px; color: #999;">
-                    Supported formats: .xlsx, .xls (Max: 16MB)
+        <div class="file-upload-section">
+            <h3><i class="fas fa-file-excel"></i> File Upload</h3>
+            <div class="file-drop-zone" id="fileDropZone">
+                <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
+                <div class="drop-zone-content">
+                    <i class="fas fa-cloud-upload-alt drop-icon"></i>
+                    <p class="drop-text">Drag & drop your Excel file here</p>
+                    <p class="drop-or">or</p>
+                    <button type="button" class="browse-btn" onclick="document.getElementById('file').click()">
+                        <i class="fas fa-folder-open"></i> Browse Files
+                    </button>
                 </div>
-            </label>
+                <p class="file-info">Supported: .xlsx, .xls (Max: 16MB)</p>
+                <div class="file-selected" id="fileSelected" style="display: none;">
+                    <i class="fas fa-file-excel"></i>
+                    <span class="file-name"></span>
+                    <button type="button" class="remove-file" onclick="removeFile()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
         </div>
         
-        <div class="form-group">
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-upload"></i> Upload and Process File
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button type="submit" class="upload-btn">
+                <i class="fas fa-upload"></i>
+                <span>Upload and Process</span>
             </button>
-        </div>
-        
-        <div style="text-align: center; margin-top: 20px;">
-            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            <a href="{{ url_for('dashboard') }}" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                <span>Back to Dashboard</span>
             </a>
         </div>
     </form>
     
-    <!-- File Requirements -->
-    <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-        <h4 style="color: #333; margin-bottom: 15px;">
-            <i class="fas fa-info-circle"></i> File Requirements
-        </h4>
-        <div style="color: #666; font-size: 14px; line-height: 1.6;">
-            <p><strong>Required Columns:</strong></p>
-            <ul style="margin: 10px 0 0 20px;">
-                <li>RollNo - Student roll number</li>
-                <li>NameasPerXStd - Student name</li>
-                <li>EmailId - Student email</li>
-                <li>CourseCode - Course code</li>
-                <li>CourseTitle - Course title</li>
-                <li>Credits - Course credits</li>
-                <li>MainInstructor - Instructor name</li>
-                <li>ProgramName - Program name</li>
-                <li>And other course-related fields...</li>
-            </ul>
-            <p style="margin-top: 15px;"><strong>Note:</strong> The system will replace existing data with the new upload.</p>
+    <!-- Requirements Info Dropdown -->
+    <div class="requirements-dropdown">
+        <button type="button" class="requirements-toggle" onclick="toggleRequirements()">
+            <i class="fas fa-info-circle"></i>
+            <span>File Requirements</span>
+            <i class="fas fa-chevron-down toggle-icon"></i>
+        </button>
+        
+        <div class="requirements-content" id="requirementsContent">
+            <div class="requirements-grid">
+                <div class="req-column">
+                    <h4>Required Columns:</h4>
+                    <ul>
+                        <li>RollNo - Student roll number</li>
+                        <li>NameasPerXStd - Student name</li>
+                        <li>EmailId - Student email</li>
+                        <li>CourseCode - Course code</li>
+                        <li>CourseTitle - Course title</li>
+                    </ul>
+                </div>
+                <div class="req-column">
+                    <h4>Additional Fields:</h4>
+                    <ul>
+                        <li>Credits - Course credits</li>
+                        <li>MainInstructor - Instructor name</li>
+                        <li>ProgramName - Program name</li>
+                        <li>Other course-related fields</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="note">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Important:</strong> The system will replace existing data with the new upload.
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-// Drag and drop functionality
-const fileUpload = document.querySelector('.file-upload');
-const fileInput = document.querySelector('#file');
-const fileLabel = document.querySelector('.file-upload-label');
+// File upload functionality
+const fileInput = document.getElementById('file');
+const dropZone = document.getElementById('fileDropZone');
+const dropZoneContent = document.querySelector('.drop-zone-content');
+const fileSelected = document.getElementById('fileSelected');
 
+// Drag and drop events
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    fileUpload.addEventListener(eventName, preventDefaults, false);
+    dropZone.addEventListener(eventName, preventDefaults, false);
 });
 
 function preventDefaults(e) {
@@ -131,24 +166,22 @@ function preventDefaults(e) {
 }
 
 ['dragenter', 'dragover'].forEach(eventName => {
-    fileUpload.addEventListener(eventName, highlight, false);
+    dropZone.addEventListener(eventName, highlight, false);
 });
 
 ['dragleave', 'drop'].forEach(eventName => {
-    fileUpload.addEventListener(eventName, unhighlight, false);
+    dropZone.addEventListener(eventName, unhighlight, false);
 });
 
 function highlight(e) {
-    fileUpload.style.background = '#f0f0ff';
-    fileUpload.style.borderColor = '#764ba2';
+    dropZone.classList.add('drag-over');
 }
 
 function unhighlight(e) {
-    fileUpload.style.background = '';
-    fileUpload.style.borderColor = '#667eea';
+    dropZone.classList.remove('drag-over');
 }
 
-fileUpload.addEventListener('drop', handleDrop, false);
+dropZone.addEventListener('drop', handleDrop, false);
 
 function handleDrop(e) {
     const dt = e.dataTransfer;
@@ -156,7 +189,72 @@ function handleDrop(e) {
     fileInput.files = files;
     
     if (files.length > 0) {
-        fileLabel.innerHTML = `<i class="fas fa-file-excel"></i> ${files[0].name}`;
+        showSelectedFile(files[0]);
+    }
+}
+
+// File input change event
+fileInput.addEventListener('change', function(e) {
+    if (e.target.files.length > 0) {
+        showSelectedFile(e.target.files[0]);
+    }
+});
+
+function showSelectedFile(file) {
+    dropZoneContent.style.display = 'none';
+    fileSelected.style.display = 'flex';
+    fileSelected.querySelector('.file-name').textContent = file.name;
+}
+
+function removeFile() {
+    fileInput.value = '';
+    dropZoneContent.style.display = 'block';
+    fileSelected.style.display = 'none';
+}
+
+// Form validation
+document.querySelector('.upload-form').addEventListener('submit', function(e) {
+    const requiredFields = ['academic_year', 'semester_type', 'sheet_type', 'exam_type'];
+    let isValid = true;
+    
+    requiredFields.forEach(fieldName => {
+        const field = document.getElementById(fieldName);
+        const wrapper = field.closest('.input-group');
+        
+        if (!field.value) {
+            wrapper.classList.add('error');
+            isValid = false;
+        } else {
+            wrapper.classList.remove('error');
+        }
+    });
+    
+    if (!fileInput.files.length) {
+        dropZone.classList.add('error');
+        isValid = false;
+    } else {
+        dropZone.classList.remove('error');
+    }
+    
+    if (!isValid) {
+        e.preventDefault();
+    }
+});
+
+// Requirements dropdown toggle
+function toggleRequirements() {
+    const content = document.getElementById('requirementsContent');
+    const toggle = document.querySelector('.requirements-toggle');
+    const icon = toggle.querySelector('.toggle-icon');
+    
+    if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        icon.style.transform = 'rotate(0deg)';
+        toggle.classList.remove('active');
+    } else {
+        content.classList.add('expanded');
+        icon.style.transform = 'rotate(180deg)';
+        toggle.classList.add('active');
     }
 }
 </script>

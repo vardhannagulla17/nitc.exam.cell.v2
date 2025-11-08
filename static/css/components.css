@@ -17,6 +17,11 @@
     color: white;
     -webkit-tap-highlight-color: transparent;
     box-shadow: var(--shadow-sm);
+    /* Explicitly prevent dropdown arrow styling */
+    background-image: none !important;
+    -webkit-appearance: button;
+    -moz-appearance: button;
+    appearance: button;
 }
 
 .btn i {
@@ -69,6 +74,19 @@
 .btn-secondary {
     background: var(--secondary);
     color: white;
+}
+
+/* Additional protection for buttons against dropdown styling */
+button,
+button.btn,
+input[type="submit"],
+input[type="button"],
+.btn,
+a.btn {
+    background-image: none !important;
+    -webkit-appearance: button !important;
+    -moz-appearance: button !important;
+    appearance: button !important;
 }
 
 /* Form Controls */

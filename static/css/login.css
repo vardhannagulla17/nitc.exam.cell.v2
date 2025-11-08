@@ -31,7 +31,7 @@
 /* Main Container with Enhanced Depth */
 .login-container {
     width: 100%;
-    max-width: 420px;
+    max-width: 600px;
     background: var(--bg-card);
     border-radius: 20px;
     overflow: hidden;
@@ -68,7 +68,7 @@
 
 /* Header with Professional Gradient */
 .login-header {
-    padding: 40px 30px 30px;
+    padding: 50px 40px 40px;
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
     text-align: center;
     color: white;
@@ -96,17 +96,19 @@
 }
 
 .login-header p {
-    font-size: 1rem;
-    opacity: 0.9;
+    font-size: 1.1rem;
+    opacity: 1;
     margin: 0;
-    font-weight: 400;
+    font-weight: 500;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Logo Container with Depth */
 .logo-container {
-    width: 80px;
-    height: 80px;
-    margin: 0 auto 20px;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 25px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -119,15 +121,15 @@
 }
 
 .nitc-logo {
-    width: 50px;
-    height: 50px;
+    width: 65px;
+    height: 65px;
     object-fit: contain;
-    filter: brightness(0) invert(1);
+    /* Removed filter to show original logo colors */
 }
 
 /* Body with Enhanced Typography */
 .login-body {
-    padding: 30px;
+    padding: 40px 50px;
     background: var(--bg-card);
 }
 
@@ -368,7 +370,7 @@
 
 /* Footer Enhancement */
 .login-footer {
-    padding: 24px 30px 30px;
+    padding: 30px 50px 40px;
     text-align: center;
     background: var(--bg-elevated);
     border-top: 1px solid var(--border-light);
@@ -500,6 +502,119 @@
     font-weight: 500;
 }
 
+/* Laptop and Desktop Optimization */
+@media (min-width: 1024px) {
+    .login-page {
+        padding: 15px;
+    }
+    
+    .login-container {
+        max-width: 680px;
+    }
+    
+    .login-header {
+        padding: 40px 50px 35px;
+    }
+    
+    .login-header h1 {
+        font-size: 1.85rem;
+        margin: 15px 0 8px;
+    }
+    
+    .login-header p {
+        font-size: 1.15rem;
+    }
+    
+    .logo-container {
+        width: 100px;
+        height: 100px;
+        margin-bottom: 20px;
+    }
+    
+    .nitc-logo {
+        width: 65px;
+        height: 65px;
+    }
+    
+    .login-body {
+        padding: 35px 50px;
+    }
+    
+    .login-footer {
+        padding: 25px 50px 30px;
+    }
+    
+    .form-control {
+        height: 52px;
+        font-size: 1rem;
+        padding: 0 16px 0 48px;
+    }
+    
+    .btn-login {
+        height: 52px;
+        font-size: 1rem;
+        margin-top: 16px;
+    }
+    
+    .input-icon {
+        left: 16px;
+        font-size: 1.1rem;
+    }
+    
+    .demo-credentials {
+        max-width: 400px;
+        padding: 24px;
+    }
+    
+    .credential-item {
+        padding: 12px;
+        margin: 8px 0;
+        font-size: 0.85rem;
+    }
+    
+    .login-form {
+        gap: 20px;
+    }
+}
+
+/* Large Desktop Optimization */
+@media (min-width: 1440px) {
+    .login-container {
+        max-width: 750px;
+    }
+    
+    .login-header {
+        padding: 50px 60px 40px;
+    }
+    
+    .login-header h1 {
+        font-size: 2rem;
+    }
+    
+    .login-header p {
+        font-size: 1.2rem;
+    }
+    
+    .logo-container {
+        width: 110px;
+        height: 110px;
+        margin-bottom: 25px;
+    }
+    
+    .nitc-logo {
+        width: 75px;
+        height: 75px;
+    }
+    
+    .login-body {
+        padding: 40px 60px;
+    }
+    
+    .login-footer {
+        padding: 30px 60px 35px;
+    }
+}
+
 /* Enhanced Responsive Design */
 @media (max-width: 768px) {
     .login-page {
@@ -507,30 +622,34 @@
     }
     
     .login-container {
-        max-width: 390px;
+        max-width: 500px;
     }
     
     .login-header {
-        padding: 30px 25px 25px;
+        padding: 35px 30px 30px;
     }
     
     .login-header h1 {
-        font-size: 1.5rem;
+        font-size: 1.6rem;
     }
     
     .logo-container {
-        width: 70px;
-        height: 70px;
-        margin-bottom: 15px;
+        width: 85px;
+        height: 85px;
+        margin-bottom: 20px;
     }
     
     .nitc-logo {
-        width: 40px;
-        height: 40px;
+        width: 55px;
+        height: 55px;
     }
     
     .login-body {
-        padding: 25px;
+        padding: 35px 40px;
+    }
+    
+    .login-footer {
+        padding: 25px 40px 35px;
     }
     
     .form-control {
@@ -550,28 +669,32 @@
     }
     
     .login-container {
-        max-width: 360px;
+        max-width: 420px;
         border-radius: 16px;
     }
     
     .login-header {
-        padding: 25px 20px 20px;
+        padding: 30px 25px 25px;
     }
     
     .login-header h1 {
-        font-size: 1.375rem;
+        font-size: 1.4rem;
     }
     
     .login-header p {
-        font-size: 0.9rem;
+        font-size: 1rem;
     }
     
     .login-body {
-        padding: 20px;
+        padding: 30px 25px;
+    }
+    
+    .login-footer {
+        padding: 20px 25px 30px;
     }
     
     .demo-credentials {
-        max-width: 300px;
+        max-width: 350px;
         padding: 20px;
     }
     

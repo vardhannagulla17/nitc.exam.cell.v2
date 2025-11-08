@@ -505,5 +505,9 @@ if __name__ == '__main__':
     init_db()
     # Use PORT environment variable when provided (platforms like Vercel/containers)
     port = int(os.environ.get('PORT', 5000))
-    # Bind to all interfaces in containerized environments (supports both local dev and Docker)
-    app.run(debug=True, host='0.0.0.0', port=port)
+    # For local development, bind only to localhost to show single URL
+    # Use 0.0.0.0 only in production/container environments
+    if os.environ.get('VERCEL') or os.environ.get('DOCKER'):
+        app.run(debug=True, host='0.0.0.0', port=port)
+    else:
+        app.run(debug=True, host='127.0.0.1', port=port)

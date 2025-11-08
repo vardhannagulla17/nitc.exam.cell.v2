@@ -99,6 +99,16 @@ select.form-control {
     padding-right: 40px;
 }
 
+/* Ensure buttons don't inherit dropdown arrow styling */
+button.form-control,
+.btn,
+button.btn,
+input[type="submit"],
+input[type="button"] {
+    background-image: none !important;
+    padding-right: 24px !important;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .login-container,

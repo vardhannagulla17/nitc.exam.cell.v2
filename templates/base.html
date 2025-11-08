@@ -51,9 +51,9 @@
     </div>
 
     <script>
-        // Enhanced alert auto-hide with smooth fade out
+        // Enhanced alert auto-hide with smooth fade out (excludes persistent alerts)
         setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert');
+            const alerts = document.querySelectorAll('.alert:not(.alert-persistent)');
             alerts.forEach(alert => {
                 alert.style.transition = 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
                 alert.style.opacity = '0';
