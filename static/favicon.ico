@@ -1,0 +1,2 @@
+# Simple placeholder - this will be handled by the Flask app
+# Favicon requests will be caught by the /favicon.ico route in api/index.py

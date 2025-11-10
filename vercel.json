@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "api/index.py",
@@ -6,6 +7,14 @@
     }
   ],
   "routes": [
+    {
+      "src": "/favicon.ico",
+      "dest": "api/index.py"
+    },
+    {
+      "src": "/favicon.png", 
+      "dest": "api/index.py"
+    },
     {
       "src": "/(.*)",
       "dest": "api/index.py"
