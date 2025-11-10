@@ -60,6 +60,14 @@ if not IS_VERCEL:
                 os.makedirs(folder, exist_ok=True)
             except Exception as e:
                 print(f'Error creating directory {folder}: {str(e)}')
+else:
+    # For Vercel, ensure temp directories exist
+    for folder in [UPLOAD_FOLDER, DOWNLOAD_FOLDER]:
+        if folder:
+            try:
+                os.makedirs(folder, exist_ok=True)
+            except Exception as e:
+                print(f'Note: Could not create temp directory {folder}: {str(e)}')
 
 # Note: Don't create program-level subdirectories at import time. Those
 # should be created lazily when needed (see app.attendance). Creating
@@ -210,6 +218,16 @@ def index():
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
+
+# Test route for Vercel debugging
+@app.route('/health')
+def health_check():
+    return {
+        'status': 'ok',
+        'vercel': IS_VERCEL,
+        'python_path': sys.path[:3],
+        'base_dir': BASE_DIR
+    }
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
