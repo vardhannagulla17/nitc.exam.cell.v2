@@ -28,29 +28,184 @@ def create_application():
     <title>NITC Exam Cell</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
     <style>
+        /* Professional Faculty Interface - Matching Login/Dashboard Design */
+        :root {
+            --bg-base: #f8fafc;
+            --bg-elevated: #ffffff;
+            --bg-surface: #f1f5f9;
+            --bg-overlay: #e2e8f0;
+            
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #3b82f6;
+            --primary-soft: #dbeafe;
+            
+            --secondary: #6366f1;
+            --success: #059669;
+            --warning: #d97706;
+            --info: #0891b2;
+            
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #64748b;
+            --text-muted: #94a3b8;
+            
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --radius-2xl: 1.5rem;
+            
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             margin: 0; padding: 0; min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--bg-base);
             display: flex; align-items: center; justify-content: center;
+            padding: 2rem;
         }
+        
         .container {
-            background: white; padding: 3rem; border-radius: 1rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            text-align: center; max-width: 600px; margin: 2rem;
+            background: var(--bg-elevated);
+            padding: 3rem;
+            border-radius: var(--radius-2xl);
+            text-align: center;
+            max-width: 700px;
+            width: 100%;
+            border: 1px solid var(--border-light);
+            position: relative;
+            overflow: hidden;
+            
+            /* Professional layered shadows matching login page */
+            box-shadow: 
+                0 1px 3px rgba(0, 0, 0, 0.05),
+                0 4px 16px rgba(0, 0, 0, 0.08),
+                0 8px 32px rgba(0, 0, 0, 0.12);
+                
+            /* Subtle animation */
+            animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .title { color: #1f2937; font-size: 2.5rem; margin-bottom: 1rem; font-weight: 700; }
-        .subtitle { color: #6b7280; font-size: 1.1rem; margin-bottom: 2rem; }
-        .buttons { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+        
+        .container:hover {
+            box-shadow: 
+                0 2px 6px rgba(0, 0, 0, 0.06),
+                0 8px 24px rgba(0, 0, 0, 0.12),
+                0 16px 48px rgba(0, 0, 0, 0.16);
+        }
+        
+        /* Header gradient bar like dashboard */
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 50%, var(--secondary) 100%);
+        }
+        
+        .title {
+            color: var(--text-primary);
+            font-size: 2.75rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+        
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+            margin-bottom: 2.5rem;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+        }
+        
         .btn {
-            padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none;
-            font-weight: 600; color: white; transition: transform 0.2s;
+            padding: 0.875rem 1.75rem;
+            border-radius: var(--radius-lg);
+            text-decoration: none;
+            font-weight: 600;
+            color: white;
+            font-size: 0.95rem;
+            position: relative;
+            overflow: hidden;
+            border: none;
+            cursor: pointer;
+            
+            /* Enhanced transitions */
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0);
         }
-        .btn:hover { transform: translateY(-2px); }
-        .btn-primary { background: #3b82f6; }
-        .btn-success { background: #10b981; }
-        .btn-warning { background: #f59e0b; }
-        .status { margin-top: 2rem; color: #9ca3af; font-size: 0.9rem; }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn:active {
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--success) 0%, #10b981 100%);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning) 0%, #f59e0b 100%);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .status {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: var(--bg-surface);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            color: var(--text-tertiary);
+            font-size: 0.875rem;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(2rem);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 640px) {
+            .container { padding: 2rem; margin: 1rem; }
+            .title { font-size: 2.25rem; }
+            .buttons { flex-direction: column; align-items: center; }
+            .btn { width: 200px; }
+        }
     </style>
 </head>
 <body>
