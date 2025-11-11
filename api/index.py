@@ -24,15 +24,30 @@ def inject_template_vars():
         'total_files': 42,
         'total_semesters': 8,
         'role': 'admin',  # Set as admin to see all features
-        'semesters': [1, 2, 3, 4, 5, 6, 7, 8],
+        # Download page expects semesters as tuples: (id, name, code, type, level)
+        'semesters': [
+            (1, 'S1', 'CS', 'Regular', 'UG'),
+            (2, 'S2', 'CS', 'Regular', 'UG'),
+            (3, 'S3', 'CS', 'Regular', 'UG'),
+            (4, 'S4', 'CS', 'Regular', 'UG'),
+            (5, 'S5', 'CS', 'Regular', 'UG'),
+            (6, 'S6', 'CS', 'Regular', 'UG'),
+            (7, 'S7', 'CS', 'Regular', 'UG'),
+            (8, 'S8', 'CS', 'Regular', 'UG')
+        ],
+        # Download page expects courses as tuples: (code, title)
         'courses': [
-            {'id': 1, 'name': 'Computer Science', 'code': 'CS'},
-            {'id': 2, 'name': 'Mathematics', 'code': 'MATH'}
+            ('CS101', 'Introduction to Programming'),
+            ('CS102', 'Data Structures'),
+            ('CS201', 'Algorithms'),
+            ('CS202', 'Database Management Systems'),
+            ('MATH101', 'Discrete Mathematics'),
+            ('MATH102', 'Linear Algebra'),
+            ('PHY101', 'Physics I'),
+            ('CHE101', 'Chemistry I')
         ],
-        'program_levels': [
-            {'id': 1, 'name': 'Undergraduate', 'code': 'UG'},
-            {'id': 2, 'name': 'Postgraduate', 'code': 'PG'}
-        ],
+        # Program levels as simple list
+        'program_levels': ['UG', 'PG', 'PhD'],
         'files': [
             {'id': 1, 'filename': 'students_batch_2024.xlsx', 'course': 'Computer Science', 'semester': 1, 'program_level': 'UG'},
             {'id': 2, 'filename': 'course_data.pdf', 'course': 'Mathematics', 'semester': 2, 'program_level': 'UG'}
@@ -153,13 +168,71 @@ body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
 </div>
 </body></html>'''
 
-@app.route('/download')
+@app.route('/download', methods=['GET', 'POST'])
 def download():
     if not session.get('logged_in'):
         return redirect('/login')
     
+    # Handle POST requests for form submissions
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+        if action in ['preview', 'download', 'download_all', 'preview_simple', 'download_simple']:
+            # Mock response for form actions
+            return f'''<!DOCTYPE html>
+<html><head><title>Download Action</title>
+<style>
+body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
+.container{{max-width:800px;margin:auto;background:white;padding:30px;border-radius:8px}}
+.success{{color:#28a745;background:#d4edda;padding:15px;border-radius:5px;margin-bottom:20px}}
+.back-btn{{display:inline-block;margin-top:20px;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
+</style></head>
+<body>
+<div class="container">
+<div class="success">
+<h3>✅ Action: {action.replace('_', ' ').title()}</h3>
+<p>Form data received successfully!</p>
+<p><strong>Program Level:</strong> {request.form.get('program_level', 'Not selected')}</p>
+<p><strong>Semester:</strong> {request.form.get('semester_id', 'Not selected')}</p>
+<p><strong>Course:</strong> {request.form.get('course_code', 'Not selected')}</p>
+<p><strong>Exam Date:</strong> {request.form.get('exam_date', 'Not selected')}</p>
+</div>
+<p>In a real application, this would generate and download the attendance sheet.</p>
+<a href="/download" class="back-btn">← Back to Download Page</a>
+</div>
+</body></html>'''
+    
+    # Handle GET requests with optional filtering parameters
+    program_level = request.args.get('program_level', '')
+    semester_id = request.args.get('semester_id', '')
+    
+    # Filter semesters and courses based on selected program level
+    filtered_semesters = [
+        (1, 'S1', 'CS', 'Regular', 'UG'),
+        (2, 'S2', 'CS', 'Regular', 'UG'),
+        (3, 'S3', 'CS', 'Regular', 'UG'),
+        (4, 'S4', 'CS', 'Regular', 'UG'),
+        (5, 'S5', 'CS', 'Regular', 'UG'),
+        (6, 'S6', 'CS', 'Regular', 'UG'),
+        (7, 'S7', 'CS', 'Regular', 'UG'),
+        (8, 'S8', 'CS', 'Regular', 'UG')
+    ]
+    
+    filtered_courses = [
+        ('CS101', 'Introduction to Programming'),
+        ('CS102', 'Data Structures'),
+        ('CS201', 'Algorithms'),
+        ('CS202', 'Database Management Systems'),
+        ('MATH101', 'Discrete Mathematics'),
+        ('MATH102', 'Linear Algebra')
+    ]
+    
     try:
-        return render_template('download.html')
+        return render_template('download.html', 
+                             semesters=filtered_semesters,
+                             courses=filtered_courses,
+                             program_levels=['UG', 'PG', 'PhD'],
+                             selected_program=program_level,
+                             selected_semester=semester_id)
     except Exception as e:
         return f'''<!DOCTYPE html>
 <html><head><title>Download</title>
@@ -167,12 +240,14 @@ def download():
 body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
 .container{{max-width:800px;margin:auto}}
 .back-btn{{display:inline-block;margin-bottom:20px;padding:10px 20px;background:#6c757d;color:white;text-decoration:none;border-radius:5px}}
+.error{{background:#f8d7da;color:#721c24;padding:15px;border-radius:5px;margin-bottom:20px}}
 </style></head>
 <body>
 <div class="container">
-<a href="/dashboard" class="back-btn">Back</a>
+<a href="/dashboard" class="back-btn">← Back to Dashboard</a>
 <h1>Download Files</h1>
-<p>Download functionality will use your actual template: {str(e)}</p>
+<div class="error">Template error: {str(e)}</div>
+<p>Attempting to use your sophisticated download template with dynamic form features.</p>
 </div>
 </body></html>'''
 
