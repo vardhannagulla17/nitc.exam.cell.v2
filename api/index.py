@@ -1,178 +1,173 @@
-from flask import Flask, request, redirect, session, render_template
-import sys
+from flask import Flask, render_template, request, redirect, session
 import os
 
-def create_application():
-    # Set up paths for templates and static files
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Template directory paths
+template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
+
+# Create Flask app
+app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
+app.secret_key = 'vercel-key-2024'
+
+# Template context processor
+@app.context_processor
+def inject_template_vars():
+    return {
+        'total_students': 250,
+        'total_courses': 15,
+        'total_files': 42,
+        'semesters': [1, 2, 3, 4, 5, 6, 7, 8],
+        'courses': [
+            {'id': 1, 'name': 'Computer Science', 'code': 'CS'},
+            {'id': 2, 'name': 'Mathematics', 'code': 'MATH'}
+        ],
+        'program_levels': [
+            {'id': 1, 'name': 'Undergraduate', 'code': 'UG'},
+            {'id': 2, 'name': 'Postgraduate', 'code': 'PG'}
+        ],
+        'files': [
+            {'id': 1, 'filename': 'students_batch_2024.xlsx', 'course': 'Computer Science', 'semester': 1, 'program_level': 'UG'},
+            {'id': 2, 'filename': 'course_data.pdf', 'course': 'Mathematics', 'semester': 2, 'program_level': 'UG'}
+        ]
+    }
+
+@app.route('/')
+def index():
+    return redirect('/login')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username and password:
+            session['logged_in'] = True
+            return redirect('/dashboard')
     
-    app = Flask(__name__, 
-                template_folder=os.path.join(project_root, 'templates'),
-                static_folder=os.path.join(project_root, 'static'))
-    app.secret_key = 'nitc-vercel-secret'
-    
-    @app.route('/')
-    def home():
-        return redirect('/login')
-    
-    @app.route('/login', methods=['GET', 'POST'])
-    def login():
-        if request.method == 'POST':
-            username = request.form.get('username')
-            password = request.form.get('password')
-            if username and password:
-                session['user'] = username
-                return redirect('/dashboard')
-        
-        try:
-            return render_template('login.html')
-        except Exception as e:
-            # Fallback if template not found
-            return '''<!DOCTYPE html>
+    try:
+        return render_template('login.html')
+    except Exception as e:
+        return f'''<!DOCTYPE html>
 <html><head><title>NITC Login</title>
 <style>
-body{font-family:Inter,Arial;background:#f8fafc;margin:0;padding:2rem;display:flex;justify-content:center;align-items:center;min-height:100vh}
-.container{background:white;padding:3rem;border-radius:1rem;box-shadow:0 10px 25px rgba(0,0,0,0.1);max-width:400px;width:100%}
-h1{color:#2563eb;text-align:center;margin-bottom:2rem}
-.form-group{margin-bottom:1.5rem}
-label{display:block;margin-bottom:0.5rem;font-weight:600}
-input{width:100%;padding:0.75rem;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:1rem}
-button{width:100%;background:#2563eb;color:white;padding:0.75rem;border:none;border-radius:0.5rem;font-size:1rem;font-weight:600;cursor:pointer}
-button:hover{background:#1d4ed8}
+body{{font-family:Arial;background:#f8fafc;margin:0;padding:2rem;display:flex;justify-content:center;align-items:center;min-height:100vh}}
+.container{{background:white;padding:3rem;border-radius:1rem;box-shadow:0 10px 25px rgba(0,0,0,0.1);max-width:400px;width:100%}}
+h1{{color:#2563eb;text-align:center;margin-bottom:2rem}}
+.form-group{{margin-bottom:1.5rem}}
+input{{width:100%;padding:0.75rem;border:1px solid #ddd;border-radius:0.5rem}}
+button{{width:100%;background:#2563eb;color:white;padding:0.75rem;border:none;border-radius:0.5rem;cursor:pointer}}
 </style></head>
 <body>
-<div class=container>
+<div class="container">
 <h1>NITC Exam Cell</h1>
-<form method=post>
-<div class=form-group><label>Username</label><input name=username required></div>
-<div class=form-group><label>Password</label><input type=password name=password required></div>
-<button type=submit>Login</button>
+<form method="POST">
+<div class="form-group">
+<input name="username" type="text" placeholder="Username" required>
+</div>
+<div class="form-group">
+<input name="password" type="password" placeholder="Password" required>
+</div>
+<button type="submit">Login</button>
 </form>
 </div>
 </body></html>'''
-    
-    @app.route('/dashboard')
-    def dashboard():
-        if 'user' not in session:
-            return redirect('/login')
-        
-        try:
-            return render_template('dashboard.html')
-        except Exception as e:
-            # Fallback if template not found
-            return '''<!DOCTYPE html>
-<html><head><title>NITC Dashboard</title>
-<style>
-body{font-family:Inter,Arial;background:#f8fafc;margin:0;padding:2rem}
-.container{max-width:1200px;margin:0 auto}
-.header{background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);margin-bottom:2rem;text-align:center}
-.header h1{color:#2563eb;margin-bottom:0.5rem}
-.nav-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem;margin-bottom:2rem}
-.nav-card{background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);text-decoration:none;color:#0f172a;text-align:center;transition:transform 0.3s}
-.nav-card:hover{transform:translateY(-4px)}
-.nav-card h3{color:#2563eb;margin-bottom:0.5rem}
-.logout{text-align:center}
-.logout-btn{background:#dc2626;color:white;padding:0.75rem 2rem;border-radius:0.5rem;text-decoration:none;font-weight:600}
-</style></head>
-<body>
-<div class=container>
-<div class=header>
-<h1>Dashboard</h1>
-<p>Welcome to NITC Exam Cell</p>
-</div>
-<div class=nav-grid>
-<a href=/upload class=nav-card><h3>Upload</h3><p>Upload files</p></a>
-<a href=/download class=nav-card><h3>Download</h3><p>Download reports</p></a>
-<a href=/api/students class=nav-card><h3>API</h3><p>Student data API</p></a>
-</div>
-<div class=logout><a href=/logout class=logout-btn>Logout</a></div>
-</div>
-</body></html>'''
-    
-    @app.route('/upload', methods=['GET', 'POST'])
-    def upload():
-        if 'user' not in session:
-            return redirect('/login')
-        
-        if request.method == 'POST':
-            # Handle file upload
-            file = request.files.get('file')
-            if file and file.filename:
-                # Process upload (simplified for Vercel)
-                return redirect('/upload?success=1')
-            else:
-                return redirect('/upload?error=1')
-        
-        try:
-            return render_template('upload.html')
-        except Exception as e:
-            # Fallback if template not found
-            return '''<!DOCTYPE html>
-<html><head><title>NITC Upload</title>
-<style>
-body{font-family:Inter,Arial;background:#f8fafc;margin:0;padding:2rem}
-.container{max-width:800px;margin:0 auto}
-.back-btn{background:#2563eb;color:white;padding:0.5rem 1rem;border-radius:0.5rem;text-decoration:none;margin-bottom:2rem;display:inline-block}
-.header{background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);margin-bottom:2rem;text-align:center}
-.upload-area{background:white;padding:3rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);text-align:center}
-input[type=file]{width:100%;padding:1rem;border:2px dashed #2563eb;border-radius:0.5rem;margin:2rem 0}
-button{background:#2563eb;color:white;padding:0.75rem 2rem;border:none;border-radius:0.5rem;font-weight:600;cursor:pointer}
-</style></head>
-<body>
-<div class=container>
-<a href=/dashboard class=back-btn>Back</a>
-<div class=header><h1>Upload Files</h1></div>
-<div class=upload-area>
-<form method=post enctype=multipart/form-data>
-<p>Select Excel file to upload</p>
-<input type=file name=file accept=.xlsx,.xls,.csv required>
-<button type=submit>Upload File</button>
-</form>
-</div>
-</div>
-</body></html>'''
-    
-    @app.route('/download')
-    def download():
-        if 'user' not in session:
-            return redirect('/login')
-        
-        try:
-            return render_template('download.html')
-        except Exception as e:
-            # Fallback if template not found
-            return '''<!DOCTYPE html>
-<html><head><title>NITC Download</title>
-<style>
-body{font-family:Inter,Arial;background:#f8fafc;margin:0;padding:2rem}
-.container{max-width:800px;margin:0 auto}
-.back-btn{background:#2563eb;color:white;padding:0.5rem 1rem;border-radius:0.5rem;text-decoration:none;margin-bottom:2rem;display:inline-block}
-.header{background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);margin-bottom:2rem;text-align:center}
-.download-area{background:white;padding:3rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);text-align:center}
-</style></head>
-<body>
-<div class=container>
-<a href=/dashboard class=back-btn>Back</a>
-<div class=header><h1>Download Files</h1></div>
-<div class=download-area>
-<p>Download functionality coming soon!</p>
-</div>
-</div>
-</body></html>'''
-    
-    @app.route('/logout')
-    def logout():
-        session.clear()
+
+@app.route('/dashboard')
+def dashboard():
+    if not session.get('logged_in'):
         return redirect('/login')
     
-    @app.route('/api/students')
-    def api_students():
-        return {'status': 'success', 'students': []}
-    
-    @app.route('/favicon.ico')
-    def favicon():
-        return '', 204
-    
-    return app
+    try:
+        return render_template('dashboard.html')
+    except Exception as e:
+        return f'''<!DOCTYPE html>
+<html><head><title>Dashboard</title>
+<style>
+body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
+.container{{max-width:1200px;margin:auto}}
+.header{{text-align:center;margin-bottom:30px;background:white;padding:20px;border-radius:8px}}
+.nav{{background:white;padding:15px;border-radius:8px;margin-bottom:20px}}
+.nav a{{margin-right:15px;text-decoration:none;color:#007bff}}
+.stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:30px}}
+.stat-card{{background:white;padding:20px;border-radius:8px;text-align:center}}
+.tiles{{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}}
+.tile{{background:white;padding:30px;border-radius:8px;text-align:center}}
+.tile a{{text-decoration:none;color:#333}}
+</style></head>
+<body>
+<div class="container">
+<div class="header">
+<h1>NITC Exam Cell Dashboard</h1>
+</div>
+<div class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/upload">Upload</a>
+<a href="/download">Download</a>
+<a href="/logout">Logout</a>
+</div>
+<div class="stats">
+<div class="stat-card"><h3>250</h3><p>Students</p></div>
+<div class="stat-card"><h3>15</h3><p>Courses</p></div>
+<div class="stat-card"><h3>42</h3><p>Files</p></div>
+</div>
+<div class="tiles">
+<div class="tile"><a href="/upload"><h3>Upload Files</h3></a></div>
+<div class="tile"><a href="/download"><h3>Download Files</h3></a></div>
+</div>
+</div>
+</body></html>'''
 
-app = create_application()
+@app.route('/upload')
+def upload():
+    if not session.get('logged_in'):
+        return redirect('/login')
+    
+    try:
+        return render_template('upload.html')
+    except Exception as e:
+        return f'''<!DOCTYPE html>
+<html><head><title>Upload</title>
+<style>
+body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
+.container{{max-width:800px;margin:auto}}
+.back-btn{{display:inline-block;margin-bottom:20px;padding:10px 20px;background:#6c757d;color:white;text-decoration:none;border-radius:5px}}
+</style></head>
+<body>
+<div class="container">
+<a href="/dashboard" class="back-btn">Back</a>
+<h1>Upload Files</h1>
+<p>Upload functionality will use your actual template: {str(e)}</p>
+</div>
+</body></html>'''
+
+@app.route('/download')
+def download():
+    if not session.get('logged_in'):
+        return redirect('/login')
+    
+    try:
+        return render_template('download.html')
+    except Exception as e:
+        return f'''<!DOCTYPE html>
+<html><head><title>Download</title>
+<style>
+body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
+.container{{max-width:800px;margin:auto}}
+.back-btn{{display:inline-block;margin-bottom:20px;padding:10px 20px;background:#6c757d;color:white;text-decoration:none;border-radius:5px}}
+</style></head>
+<body>
+<div class="container">
+<a href="/dashboard" class="back-btn">Back</a>
+<h1>Download Files</h1>
+<p>Download functionality will use your actual template: {str(e)}</p>
+</div>
+</body></html>'''
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
