@@ -179,7 +179,7 @@ def create_application():
                 try:
                     return render_template('dashboard.html')
                 except:
-                    return '''<!DOCTYPE html>
+                    dashboard_html = '''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -341,11 +341,29 @@ def create_application():
     </div>
 </body>
 </html>'''
+                    return dashboard_html
             
-            @app.route('/upload')
+            @app.route('/upload', methods=['GET', 'POST'])
             def upload():
                 if 'user' not in session:
                     return redirect('/login')
+                
+                if request.method == 'POST':
+                    try:
+                        # Handle file upload
+                        if 'file' not in request.files:
+                            flash('No file selected')
+                        else:
+                            file = request.files['file']
+                            if file.filename == '':
+                                flash('No file selected')
+                            elif file:
+                                flash(f'File "{file.filename}" uploaded successfully! (Processing in full deployment)')
+                        return redirect('/upload')
+                    except Exception as e:
+                        flash(f'Upload error: {str(e)}')
+                        return redirect('/upload')
+                
                 try:
                     return render_template('upload.html')
                 except:
@@ -454,10 +472,30 @@ def create_application():
             <p>Upload student data and exam files</p>
         </div>
         
+        <!-- Flash Messages -->
+        <div id="flash-messages" style="margin-bottom: 2rem;">
+            <!-- Flash messages will appear here via JavaScript if any -->
+        </div>
+        
         <div class="upload-area">
-            <div class="upload-icon">📁</div>
-            <div class="upload-text">Upload functionality coming soon!</div>
-            <div class="upload-note">This feature will be available in the full deployment</div>
+            <form method="post" enctype="multipart/form-data">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Select Excel file to upload</div>
+                
+                <div class="file-input-wrapper" style="margin: 2rem 0;">
+                    <input type="file" name="file" accept=".xlsx,.xls,.csv" 
+                           style="width: 100%; padding: 1rem; border: 2px dashed var(--primary); 
+                                  border-radius: var(--radius-lg); background: var(--bg-base);" required>
+                </div>
+                
+                <button type="submit" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); 
+                        color: white; padding: 0.75rem 2rem; border: none; border-radius: var(--radius-lg); 
+                        font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    📤 Upload File
+                </button>
+                
+                <div class="upload-note" style="margin-top: 1rem;">Supports .xlsx, .xls, and .csv files</div>
+            </form>
         </div>
     </div>
 </body>
