@@ -1,7 +1,14 @@
-from flask import Flask, request, redirect, session
+from flask import Flask, request, redirect, session, render_template
+import sys
+import os
 
 def create_application():
-    app = Flask(__name__)
+    # Set up paths for templates and static files
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    app = Flask(__name__, 
+                template_folder=os.path.join(project_root, 'templates'),
+                static_folder=os.path.join(project_root, 'static'))
     app.secret_key = 'nitc-vercel-secret'
     
     @app.route('/')
@@ -12,14 +19,19 @@ def create_application():
     def login():
         if request.method == 'POST':
             username = request.form.get('username')
-            if username:
+            password = request.form.get('password')
+            if username and password:
                 session['user'] = username
                 return redirect('/dashboard')
         
-        return '''<!DOCTYPE html>
+        try:
+            return render_template('login.html')
+        except Exception as e:
+            # Fallback if template not found
+            return '''<!DOCTYPE html>
 <html><head><title>NITC Login</title>
 <style>
-body{font-family:Arial;background:#f8fafc;margin:0;padding:2rem;display:flex;justify-content:center;align-items:center;min-height:100vh}
+body{font-family:Inter,Arial;background:#f8fafc;margin:0;padding:2rem;display:flex;justify-content:center;align-items:center;min-height:100vh}
 .container{background:white;padding:3rem;border-radius:1rem;box-shadow:0 10px 25px rgba(0,0,0,0.1);max-width:400px;width:100%}
 h1{color:#2563eb;text-align:center;margin-bottom:2rem}
 .form-group{margin-bottom:1.5rem}
@@ -30,7 +42,7 @@ button:hover{background:#1d4ed8}
 </style></head>
 <body>
 <div class=container>
-<h1> NITC Exam Cell</h1>
+<h1>NITC Exam Cell</h1>
 <form method=post>
 <div class=form-group><label>Username</label><input name=username required></div>
 <div class=form-group><label>Password</label><input type=password name=password required></div>
@@ -44,10 +56,14 @@ button:hover{background:#1d4ed8}
         if 'user' not in session:
             return redirect('/login')
         
-        return '''<!DOCTYPE html>
+        try:
+            return render_template('dashboard.html')
+        except Exception as e:
+            # Fallback if template not found
+            return '''<!DOCTYPE html>
 <html><head><title>NITC Dashboard</title>
 <style>
-body{font-family:Arial;background:#f8fafc;margin:0;padding:2rem}
+body{font-family:Inter,Arial;background:#f8fafc;margin:0;padding:2rem}
 .container{max-width:1200px;margin:0 auto}
 .header{background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);margin-bottom:2rem;text-align:center}
 .header h1{color:#2563eb;margin-bottom:0.5rem}
@@ -61,13 +77,13 @@ body{font-family:Arial;background:#f8fafc;margin:0;padding:2rem}
 <body>
 <div class=container>
 <div class=header>
-<h1> Dashboard</h1>
+<h1>Dashboard</h1>
 <p>Welcome to NITC Exam Cell</p>
 </div>
 <div class=nav-grid>
-<a href=/upload class=nav-card><h3> Upload</h3><p>Upload files</p></a>
-<a href=/download class=nav-card><h3> Download</h3><p>Download reports</p></a>
-<a href=/api/students class=nav-card><h3> API</h3><p>Student data API</p></a>
+<a href=/upload class=nav-card><h3>Upload</h3><p>Upload files</p></a>
+<a href=/download class=nav-card><h3>Download</h3><p>Download reports</p></a>
+<a href=/api/students class=nav-card><h3>API</h3><p>Student data API</p></a>
 </div>
 <div class=logout><a href=/logout class=logout-btn>Logout</a></div>
 </div>
@@ -79,12 +95,22 @@ body{font-family:Arial;background:#f8fafc;margin:0;padding:2rem}
             return redirect('/login')
         
         if request.method == 'POST':
-            return redirect('/upload?msg=uploaded')
+            # Handle file upload
+            file = request.files.get('file')
+            if file and file.filename:
+                # Process upload (simplified for Vercel)
+                return redirect('/upload?success=1')
+            else:
+                return redirect('/upload?error=1')
         
-        return '''<!DOCTYPE html>
+        try:
+            return render_template('upload.html')
+        except Exception as e:
+            # Fallback if template not found
+            return '''<!DOCTYPE html>
 <html><head><title>NITC Upload</title>
 <style>
-body{font-family:Arial;background:#f8fafc;margin:0;padding:2rem}
+body{font-family:Inter,Arial;background:#f8fafc;margin:0;padding:2rem}
 .container{max-width:800px;margin:0 auto}
 .back-btn{background:#2563eb;color:white;padding:0.5rem 1rem;border-radius:0.5rem;text-decoration:none;margin-bottom:2rem;display:inline-block}
 .header{background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);margin-bottom:2rem;text-align:center}
@@ -94,11 +120,10 @@ button{background:#2563eb;color:white;padding:0.75rem 2rem;border:none;border-ra
 </style></head>
 <body>
 <div class=container>
-<a href=/dashboard class=back-btn> Back</a>
-<div class=header><h1> Upload Files</h1></div>
+<a href=/dashboard class=back-btn>Back</a>
+<div class=header><h1>Upload Files</h1></div>
 <div class=upload-area>
 <form method=post enctype=multipart/form-data>
-<div></div>
 <p>Select Excel file to upload</p>
 <input type=file name=file accept=.xlsx,.xls,.csv required>
 <button type=submit>Upload File</button>
@@ -111,10 +136,15 @@ button{background:#2563eb;color:white;padding:0.75rem 2rem;border:none;border-ra
     def download():
         if 'user' not in session:
             return redirect('/login')
-        return '''<!DOCTYPE html>
+        
+        try:
+            return render_template('download.html')
+        except Exception as e:
+            # Fallback if template not found
+            return '''<!DOCTYPE html>
 <html><head><title>NITC Download</title>
 <style>
-body{font-family:Arial;background:#f8fafc;margin:0;padding:2rem}
+body{font-family:Inter,Arial;background:#f8fafc;margin:0;padding:2rem}
 .container{max-width:800px;margin:0 auto}
 .back-btn{background:#2563eb;color:white;padding:0.5rem 1rem;border-radius:0.5rem;text-decoration:none;margin-bottom:2rem;display:inline-block}
 .header{background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);margin-bottom:2rem;text-align:center}
@@ -122,10 +152,9 @@ body{font-family:Arial;background:#f8fafc;margin:0;padding:2rem}
 </style></head>
 <body>
 <div class=container>
-<a href=/dashboard class=back-btn> Back</a>
-<div class=header><h1> Download Files</h1></div>
+<a href=/dashboard class=back-btn>Back</a>
+<div class=header><h1>Download Files</h1></div>
 <div class=download-area>
-<div></div>
 <p>Download functionality coming soon!</p>
 </div>
 </div>
