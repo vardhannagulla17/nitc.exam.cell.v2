@@ -9,13 +9,21 @@ static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 app.secret_key = 'vercel-key-2024'
 
+# Add datetime filter for templates
+@app.template_filter('datetime')
+def datetime_filter(dt):
+    return dt.strftime('%Y-%m-%d %H:%M') if dt else ''
+
 # Template context processor
 @app.context_processor
 def inject_template_vars():
+    from datetime import datetime
     return {
         'total_students': 250,
         'total_courses': 15,
         'total_files': 42,
+        'total_semesters': 8,
+        'role': 'admin',  # Set as admin to see all features
         'semesters': [1, 2, 3, 4, 5, 6, 7, 8],
         'courses': [
             {'id': 1, 'name': 'Computer Science', 'code': 'CS'},
@@ -28,6 +36,11 @@ def inject_template_vars():
         'files': [
             {'id': 1, 'filename': 'students_batch_2024.xlsx', 'course': 'Computer Science', 'semester': 1, 'program_level': 'UG'},
             {'id': 2, 'filename': 'course_data.pdf', 'course': 'Mathematics', 'semester': 2, 'program_level': 'UG'}
+        ],
+        'uploaded_files': [
+            {'name': 'students_batch_2024.xlsx', 'size': 2048576, 'uploaded_at': datetime(2024, 12, 19, 10, 30)},
+            {'name': 'course_data.pdf', 'size': 870400, 'uploaded_at': datetime(2024, 12, 18, 15, 45)},
+            {'name': 'semester_results.xlsx', 'size': 1536000, 'uploaded_at': datetime(2024, 12, 17, 9, 20)}
         ]
     }
 
@@ -162,6 +175,21 @@ body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
 <p>Download functionality will use your actual template: {str(e)}</p>
 </div>
 </body></html>'''
+
+@app.route('/upload_file')
+def upload_file():
+    # Redirect to the upload page
+    return redirect('/upload')
+
+@app.route('/download_attendance')
+def download_attendance():
+    # Redirect to the download page  
+    return redirect('/download')
+
+@app.route('/delete_file/<filename>')
+def delete_file(filename):
+    # Mock file deletion - in real app this would delete the file
+    return redirect('/dashboard')
 
 @app.route('/logout')
 def logout():
