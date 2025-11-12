@@ -1,4 +1,8 @@
-from flask import Flask, render_template, request, redirect, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, session, flash, jsonify, make_response, send_file
+import os
+import io
+from datetime import datetime
+import json
 import os
 
 # Template directory paths
@@ -58,6 +62,301 @@ def inject_template_vars():
             {'name': 'semester_results.xlsx', 'size': 1536000, 'uploaded_at': datetime(2024, 12, 17, 9, 20)}
         ]
     }
+
+def generate_attendance_sheet_html(course_code, exam_date, semester_id, program_level, format_type):
+    """Generate a professional HTML attendance sheet for download"""
+    
+    # Mock student data
+    students = [
+        "Aadhya Sharma", "Arjun Patel", "Bhavya Reddy", "Chetan Kumar", "Divya Nair",
+        "Eshan Gupta", "Fiza Khan", "Gaurav Singh", "Harini Rao", "Ishaan Verma",
+        "Janhvi Agarwal", "Karthik Menon", "Lavanya Iyer", "Manav Sharma", "Nandini Joshi",
+        "Ojas Pandey", "Priya Nair", "Rohan Kumar", "Shreya Patel", "Tanvi Reddy",
+        "Uday Singh", "Vaishnavi Gupta", "Winnie Thomas", "Yash Agarwal", "Zara Ali",
+        "Aditi Sharma", "Bharat Kumar", "Chitra Menon", "Dev Patel", "Eshita Singh",
+        "Fahad Khan", "Gitika Rao", "Harsh Verma", "Isha Agarwal", "Jai Sharma",
+        "Kavya Nair", "Laksh Gupta", "Meera Patel", "Nikhil Singh", "Pooja Reddy",
+        "Rahul Kumar", "Sanya Sharma", "Tejas Patel", "Uma Singh", "Varun Gupta"
+    ]
+    
+    # Generate roll numbers
+    roll_prefix = "CS21B" if course_code.startswith("CS") else "MT21B" if course_code.startswith("MATH") else "PH21B"
+    
+    course_names = {
+        'CS101': 'Introduction to Programming',
+        'CS102': 'Data Structures and Algorithms',
+        'CS201': 'Advanced Algorithms',
+        'CS202': 'Database Management Systems',
+        'MATH101': 'Discrete Mathematics',
+        'MATH102': 'Linear Algebra',
+        'PHY101': 'Physics I',
+        'CHE101': 'Chemistry I'
+    }
+    
+    course_name = course_names.get(course_code, 'Selected Course')
+    
+    html_content = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Sheet - {course_code} - {exam_date}</title>
+    <style>
+        @page {{ 
+            size: A4 landscape; 
+            margin: 0.5in; 
+        }}
+        
+        * {{ 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }}
+        
+        body {{
+            font-family: 'Times New Roman', serif;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #000;
+            background: white;
+        }}
+        
+        .header {{
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #000;
+            padding-bottom: 15px;
+        }}
+        
+        .header h1 {{
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }}
+        
+        .header h2 {{
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }}
+        
+        .course-info {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+        }}
+        
+        .info-item {{
+            font-weight: bold;
+        }}
+        
+        .attendance-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            border: 2px solid #000;
+        }}
+        
+        .attendance-table th,
+        .attendance-table td {{
+            border: 1px solid #000;
+            padding: 8px 6px;
+            text-align: center;
+            vertical-align: middle;
+        }}
+        
+        .attendance-table th {{
+            background: #e9ecef;
+            font-weight: bold;
+            font-size: 11px;
+        }}
+        
+        .roll-col {{ width: 80px; }}
+        .name-col {{ width: 180px; text-align: left; }}
+        .sign-col {{ width: 120px; height: 25px; }}
+        .bio-col {{ width: 80px; }}
+        .sheets-col {{ width: 80px; }}
+        
+        .signature-line {{
+            border-bottom: 1px solid #ccc;
+            height: 20px;
+            margin: 2px 0;
+        }}
+        
+        .footer {{
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 30px;
+            border-top: 2px solid #000;
+            padding-top: 15px;
+        }}
+        
+        .footer-section {{
+            text-align: center;
+        }}
+        
+        .signature-box {{
+            border: 1px solid #000;
+            height: 60px;
+            margin-top: 10px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 5px;
+            font-size: 10px;
+        }}
+        
+        .notes {{
+            margin-top: 20px;
+            padding: 10px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            font-size: 10px;
+        }}
+        
+        .notes ul {{
+            list-style-type: disc;
+            margin-left: 20px;
+        }}
+        
+        .print-info {{
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #007bff;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 10px;
+        }}
+        
+        @media print {{
+            .print-info {{ display: none; }}
+            body {{ font-size: 10px; }}
+            .attendance-table th,
+            .attendance-table td {{ padding: 4px 3px; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="print-info">Press Ctrl+P to print</div>
+    
+    <div class="header">
+        <h1>National Institute of Technology Calicut</h1>
+        <h2>Examination Attendance Sheet</h2>
+    </div>
+    
+    <div class="course-info">
+        <div>
+            <div class="info-item">Course: {course_code} - {course_name}</div>
+            <div class="info-item">Program: {program_level or "B.Tech"}</div>
+            <div class="info-item">Semester: S{semester_id}</div>
+        </div>
+        <div>
+            <div class="info-item">Examination Date: {exam_date}</div>
+            <div class="info-item">Format: {format_type}</div>
+            <div class="info-item">Total Students: {len(students)}</div>
+        </div>
+    </div>
+    
+    <table class="attendance-table">
+        <thead>
+            <tr>
+                <th class="roll-col">Roll No.</th>
+                <th class="name-col">Student Name</th>
+                <th class="sign-col">Signature</th>'''
+    
+    if format_type == "Detailed":
+        html_content += '''
+                <th class="bio-col">Bio Break<br>(Time)</th>
+                <th class="sheets-col">Additional<br>Sheets</th>'''
+    
+    html_content += '''
+            </tr>
+        </thead>
+        <tbody>'''
+    
+    # Generate student rows
+    for i, student_name in enumerate(students, 1):
+        roll_no = f"{roll_prefix}{i:03d}"
+        html_content += f'''
+            <tr>
+                <td class="roll-col">{roll_no}</td>
+                <td class="name-col">{student_name}</td>
+                <td class="sign-col"><div class="signature-line"></div></td>'''
+        
+        if format_type == "Detailed":
+            html_content += '''
+                <td class="bio-col"><div class="signature-line"></div></td>
+                <td class="sheets-col"><div class="signature-line"></div></td>'''
+        
+        html_content += '''
+            </tr>'''
+    
+    html_content += '''
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <div class="footer-section">
+            <strong>Invigilator Details</strong>
+            <div class="signature-box">
+                Name & Signature
+            </div>
+        </div>
+        
+        <div class="footer-section">
+            <strong>Summary</strong>
+            <div style="margin-top: 10px; text-align: left;">
+                <div>Total Students: <strong>''' + str(len(students)) + '''</strong></div>
+                <div>Present: ________</div>
+                <div>Absent: ________</div>
+            </div>
+        </div>
+        
+        <div class="footer-section">
+            <strong>Examination Office</strong>
+            <div class="signature-box">
+                Received & Verified
+            </div>
+        </div>
+    </div>
+    
+    <div class="notes">
+        <strong>Important Instructions:</strong>
+        <ul>
+            <li>Students must sign in the designated signature column</li>'''
+    
+    if format_type == "Detailed":
+        html_content += '''
+            <li>Record bio-break times accurately in the Bio Break column</li>
+            <li>Note the number of additional answer sheets in the respective column</li>'''
+    
+    html_content += '''
+            <li>This attendance sheet must be submitted to the Examination Office immediately after the exam</li>
+            <li>Any discrepancies should be reported to the Examination Office</li>
+            <li>Ensure all signatures are clear and legible</li>
+        </ul>
+    </div>
+    
+    <script>
+        // Auto-print option
+        window.onload = function() {
+            if(confirm('Do you want to print this attendance sheet now?')) {
+                window.print();
+            }
+        }
+    </script>
+</body>
+</html>'''
+    
+    return html_content
 
 @app.route('/')
 def index():
@@ -233,47 +532,45 @@ def download():
         if action in ['preview', 'download', 'download_all', 'preview_simple', 'download_simple']:
             # Simulate different actions with appropriate responses
             if action == 'download_all':
-                return f'''<!DOCTYPE html>
-<html><head><title>Bulk Download</title>
-<style>
-body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
-.container{{max-width:900px;margin:auto;background:white;padding:30px;border-radius:8px}}
-.success{{color:#155724;background:#d4edda;padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid #c3e6cb}}
-.download-info{{background:#fff3cd;padding:15px;border-radius:5px;margin:15px 0;border:1px solid #ffeaa7}}
-.file-list{{background:#f8f9fa;padding:20px;border-radius:8px;margin:20px 0}}
-.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
-.download-btn{{background:#28a745;margin-left:10px}}
-</style></head>
-<body>
-<div class="container">
-<div class="success">
-<h3>📦 Bulk Download Generated Successfully!</h3>
-<p>All attendance sheets have been prepared for download.</p>
-</div>
-<div class="download-info">
-<h4>📋 Download Details:</h4>
-<p><strong>Program Level:</strong> {program_level}</p>
-<p><strong>Semester:</strong> {semester_id}</p>
-<p><strong>Exam Date:</strong> {exam_date}</p>
-<p><strong>Total Courses:</strong> 6 courses</p>
-</div>
-<div class="file-list">
-<h4>📁 Generated Files (ZIP Package):</h4>
-<ul>
-<li>CS101_Introduction_to_Programming_Attendance.html</li>
-<li>CS102_Data_Structures_Attendance.html</li>
-<li>CS201_Algorithms_Attendance.html</li>
-<li>CS202_Database_Management_Attendance.html</li>
-<li>MATH101_Discrete_Mathematics_Attendance.html</li>
-<li>MATH102_Linear_Algebra_Attendance.html</li>
-</ul>
-<p><strong>Package Size:</strong> ~2.4 MB</p>
-</div>
-<p><strong>📥 In a real application, your download would start automatically.</strong></p>
-<a href="/download" class="back-btn">← Back to Download Page</a>
-<a href="#" class="back-btn download-btn" onclick="alert('Download would start here!')">📥 Download ZIP File</a>
-</div>
-</body></html>'''
+                # Generate a ZIP file with all course attendance sheets
+                import zipfile
+                
+                zip_buffer = io.BytesIO()
+                
+                # List of all courses for the semester
+                all_courses = [
+                    ('CS101', 'Introduction to Programming'),
+                    ('CS102', 'Data Structures'),
+                    ('CS201', 'Algorithms'),
+                    ('CS202', 'Database Management Systems'),
+                    ('MATH101', 'Discrete Mathematics'),
+                    ('MATH102', 'Linear Algebra')
+                ]
+                
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    for course_code_item, course_name in all_courses:
+                        # Generate HTML for each course
+                        html_content = generate_attendance_sheet_html(
+                            course_code=course_code_item,
+                            exam_date=exam_date,
+                            semester_id=semester_id,
+                            program_level=program_level,
+                            format_type="Detailed"
+                        )
+                        
+                        # Add to ZIP
+                        filename = f"{course_code_item}_{course_name.replace(' ', '_')}_Attendance_{exam_date}.html"
+                        zip_file.writestr(filename, html_content)
+                
+                zip_buffer.seek(0)
+                
+                # Create response with ZIP download
+                response = make_response(zip_buffer.getvalue())
+                zip_filename = f"All_Attendance_Sheets_{program_level}_S{semester_id}_{exam_date}.zip"
+                response.headers['Content-Disposition'] = f'attachment; filename="{zip_filename}"'
+                response.headers['Content-Type'] = 'application/zip'
+                
+                return response
             
             elif action in ['preview', 'preview_simple']:
                 format_type = "Simple" if "simple" in action else "Detailed"
@@ -395,44 +692,23 @@ body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
             
             else:  # download or download_simple
                 format_type = "Simple" if "simple" in action else "Detailed"
-                return f'''<!DOCTYPE html>
-<html><head><title>Download Complete</title>
-<style>
-body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
-.container{{max-width:800px;margin:auto;background:white;padding:30px;border-radius:8px}}
-.success{{color:#155724;background:#d4edda;padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid #c3e6cb}}
-.download-info{{background:#f8f9fa;padding:15px;border-radius:5px;margin:15px 0}}
-.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
-</style></head>
-<body>
-<div class="container">
-<div class="success">
-<h3>📥 Download Completed Successfully!</h3>
-<p>The {format_type.lower()} attendance sheet has been generated.</p>
-</div>
-<div class="download-info">
-<h4>📋 File Details:</h4>
-<p><strong>File Name:</strong> {course_code}_Attendance_{format_type}_{exam_date}.html</p>
-<p><strong>Course:</strong> {course_code}</p>
-<p><strong>Format:</strong> {format_type}</p>
-<p><strong>Program Level:</strong> {program_level}</p>
-<p><strong>Semester:</strong> {semester_id}</p>
-<p><strong>Exam Date:</strong> {exam_date}</p>
-<p><strong>File Size:</strong> ~85 KB</p>
-</div>
-<p><strong>📄 The attendance sheet includes:</strong></p>
-<ul>
-<li>Student roll numbers and names</li>
-<li>Signature columns</li>
-{"<li>Bio break tracking</li><li>Additional answer sheets column</li>" if format_type == "Detailed" else ""}
-<li>Invigilator signature section</li>
-<li>NITC official formatting</li>
-</ul>
-<p><em>In a real application, the file would be downloaded to your computer.</em></p>
-<a href="/download" class="back-btn">← Back to Download Page</a>
-<a href="/dashboard" class="back-btn" style="background:#28a745;margin-left:10px">📊 Go to Dashboard</a>
-</div>
-</body></html>'''
+                
+                # Generate actual HTML attendance sheet
+                html_content = generate_attendance_sheet_html(
+                    course_code=course_code,
+                    exam_date=exam_date,
+                    semester_id=semester_id,
+                    program_level=program_level,
+                    format_type=format_type
+                )
+                
+                # Create response with file download
+                response = make_response(html_content)
+                filename = f"{course_code}_Attendance_{format_type}_{exam_date}.html"
+                response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                response.headers['Content-Type'] = 'text/html; charset=utf-8'
+                
+                return response
     
     # Handle GET requests with optional filtering parameters
     program_level = request.args.get('program_level', '')
