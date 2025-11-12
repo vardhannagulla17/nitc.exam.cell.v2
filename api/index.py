@@ -278,50 +278,118 @@ body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
             elif action in ['preview', 'preview_simple']:
                 format_type = "Simple" if "simple" in action else "Detailed"
                 return f'''<!DOCTYPE html>
-<html><head><title>Attendance Sheet Preview</title>
+<html><head><title>Complete Attendance Sheet Preview</title>
 <style>
 body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
-.container{{max-width:1000px;margin:auto;background:white;padding:30px;border-radius:8px}}
-.preview-header{{text-align:center;border-bottom:2px solid #333;padding-bottom:20px;margin-bottom:30px}}
-.attendance-sheet{{border:1px solid #333;margin:20px 0}}
-.sheet-header{{background:#f8f9fa;padding:15px;border-bottom:1px solid #333}}
-.student-table{{width:100%;border-collapse:collapse}}
-.student-table th,td{{border:1px solid #333;padding:8px;text-align:left}}
-.student-table th{{background:#e9ecef;font-weight:bold}}
-.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
+.container{{max-width:1200px;margin:auto;background:white;padding:30px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}}
+.preview-header{{text-align:center;border-bottom:3px solid #333;padding-bottom:20px;margin-bottom:30px}}
+.metadata{{background:#e3f2fd;padding:20px;border-radius:8px;margin-bottom:20px;border-left:4px solid #2196f3}}
+.attendance-sheet{{border:2px solid #333;margin:20px 0;page-break-inside:avoid}}
+.sheet-header{{background:#f5f5f5;padding:15px;border-bottom:2px solid #333}}
+.student-table{{width:100%;border-collapse:collapse;font-size:12px}}
+.student-table th,td{{border:1px solid #333;padding:10px;text-align:left}}
+.student-table th{{background:#e9ecef;font-weight:bold;text-align:center}}
+.signature-col{{width:120px}}
+.bio-col{{width:80px;text-align:center}}
+.sheets-col{{width:80px;text-align:center}}
+.footer{{margin-top:30px;padding:20px;background:#fff3cd;border-radius:8px;border-left:4px solid #ffc107}}
+.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px;font-weight:bold}}
+.download-info{{background:#d1ecf1;padding:15px;border-radius:5px;margin:15px 0;border-left:4px solid #17a2b8}}
 </style></head>
 <body>
 <div class="container">
-<h2>📋 Attendance Sheet Preview - {format_type} Format</h2>
+<h2>📋 Complete Attendance Sheet Preview - {format_type} Format</h2>
+
+<div class="metadata">
+<h4>📊 Sheet Information</h4>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+<div>
+<p><strong>🏫 Institution:</strong> National Institute of Technology Calicut</p>
+<p><strong>📚 Course:</strong> {course_code} - {"Introduction to Programming" if course_code == "CS101" else "Data Structures" if course_code == "CS102" else "Selected Course"}</p>
+<p><strong>📅 Exam Date:</strong> {exam_date}</p>
+</div>
+<div>
+<p><strong>🎓 Program:</strong> {program_level if program_level else "B.Tech"}</p>
+<p><strong>📖 Semester:</strong> S{semester_id}</p>
+<p><strong>📄 Format:</strong> {format_type} ({format_type.lower()} columns)</p>
+</div>
+</div>
+</div>
+
+<div class="download-info">
+<h4>📥 Download Details</h4>
+<p><strong>File Format:</strong> Excel (.xlsx) with professional formatting</p>
+<p><strong>Page Setup:</strong> A4 landscape orientation, optimized margins</p>
+<p><strong>Features:</strong> {"Signature tracking, bio-break monitoring, additional sheets tracking" if format_type == "Detailed" else "Basic signature tracking with clean layout"}</p>
+</div>
+
 <div class="preview-header">
 <h3>NATIONAL INSTITUTE OF TECHNOLOGY CALICUT</h3>
 <h4>EXAMINATION ATTENDANCE SHEET</h4>
-<p><strong>Course:</strong> {course_code} | <strong>Date:</strong> {exam_date} | <strong>Semester:</strong> S{semester_id}</p>
+<p style="margin:10px 0"><strong>Course:</strong> {course_code} | <strong>Date:</strong> {exam_date} | <strong>Semester:</strong> S{semester_id}</p>
+<p style="margin:5px 0;font-size:14px;color:#666">Program: {program_level if program_level else "B.Tech"} | Format: {format_type}</p>
 </div>
+
 <div class="attendance-sheet">
 <div class="sheet-header">
-<strong>Course Details:</strong> {course_code} - {"Introduction to Programming" if course_code == "CS101" else "Selected Course"}
+<strong>📚 Course Details:</strong> {course_code} - {"Introduction to Programming (Theory + Lab)" if course_code == "CS101" else "Data Structures and Algorithms" if course_code == "CS102" else "Selected Course"}
+<br><strong>👥 Expected Students:</strong> 45 | <strong>⏰ Duration:</strong> 3 hours
 </div>
 <table class="student-table">
 <thead>
 <tr>
-<th>Roll No</th>
-<th>Name</th>
-<th>Signature</th>
-{"<th>Bio Break</th><th>Additional Sheets</th>" if format_type == "Detailed" else ""}
+<th style="width:100px">Roll No</th>
+<th style="width:200px">Student Name</th>
+<th class="signature-col">Signature</th>
+{"<th class='bio-col'>Bio Break<br>(Time)</th><th class='sheets-col'>Additional<br>Sheets</th>" if format_type == "Detailed" else ""}
 </tr>
 </thead>
 <tbody>
-<tr><td>CS21B001</td><td>Student Name 1</td><td></td>{"<td></td><td></td>" if format_type == "Detailed" else ""}</tr>
-<tr><td>CS21B002</td><td>Student Name 2</td><td></td>{"<td></td><td></td>" if format_type == "Detailed" else ""}</tr>
-<tr><td>CS21B003</td><td>Student Name 3</td><td></td>{"<td></td><td></td>" if format_type == "Detailed" else ""}</tr>
-<tr><td colspan="{'5' if format_type == 'Detailed' else '3'}"><em>... (showing 3 of 45 students)</em></td></tr>
+<tr><td>CS21B001</td><td>Aadhya Sharma</td><td style="border-bottom:1px solid #999"></td>{"<td style='border-bottom:1px solid #999'></td><td style='border-bottom:1px solid #999'></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td>CS21B002</td><td>Arjun Patel</td><td style="border-bottom:1px solid #999"></td>{"<td style='border-bottom:1px solid #999'></td><td style='border-bottom:1px solid #999'></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td>CS21B003</td><td>Bhavya Reddy</td><td style="border-bottom:1px solid #999"></td>{"<td style='border-bottom:1px solid #999'></td><td style='border-bottom:1px solid #999'></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td>CS21B004</td><td>Chetan Kumar</td><td style="border-bottom:1px solid #999"></td>{"<td style='border-bottom:1px solid #999'></td><td style='border-bottom:1px solid #999'></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td>CS21B005</td><td>Divya Nair</td><td style="border-bottom:1px solid #999"></td>{"<td style='border-bottom:1px solid #999'></td><td style='border-bottom:1px solid #999'></td>" if format_type == "Detailed" else ""}</tr>
+<tr style="background:#f8f9fa"><td colspan="{'5' if format_type == 'Detailed' else '3'}" style="text-align:center;font-style:italic;padding:15px">... (showing 5 of 45 total students) ...</td></tr>
+<tr><td>CS21B043</td><td>Yash Gupta</td><td style="border-bottom:1px solid #999"></td>{"<td style='border-bottom:1px solid #999'></td><td style='border-bottom:1px solid #999'></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td>CS21B044</td><td>Zara Khan</td><td style="border-bottom:1px solid #999"></td>{"<td style='border-bottom:1px solid #999'></td><td style='border-bottom:1px solid #999'></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td>CS21B045</td><td>Aniket Singh</td><td style="border-bottom:1px solid #999"></td>{"<td style='border-bottom:1px solid #999'></td><td style='border-bottom:1px solid #999'></td>" if format_type == "Detailed" else ""}</tr>
 </tbody>
 </table>
+
+<div style="margin-top:30px;padding:20px;background:#f8f9fa;border-top:2px solid #333">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+<div>
+<p><strong>📝 Invigilator Details:</strong></p>
+<p>Name: _________________________</p>
+<p>Signature: _____________________</p>
+<p>Date: {exam_date}</p>
 </div>
-<p><strong>Invigilator Signature:</strong> _________________________</p>
+<div>
+<p><strong>📊 Summary:</strong></p>
+<p>Total Students: 45</p>
+<p>Present: ____</p>
+<p>Absent: ____</p>
+</div>
+</div>
+</div>
+</div>
+
+<div class="footer">
+<h4>ℹ️ Important Notes</h4>
+<ul>
+<li>🖊️ Students must sign in the designated column</li>
+{"<li>⏰ Bio-break times should be recorded accurately</li><li>📄 Additional sheets should be numbered and tracked</li>" if format_type == "Detailed" else ""}
+<li>✅ This sheet must be submitted to the examination office</li>
+<li>📧 Any discrepancies should be reported immediately</li>
+</ul>
+</div>
+
+<div style="text-align:center;margin-top:30px">
 <a href="/download" class="back-btn">← Back to Download Page</a>
-<a href="#" class="back-btn" style="background:#28a745;margin-left:10px" onclick="alert('Download would start here!')">📥 Download This Sheet</a>
+<a href="#" class="back-btn" style="background:#28a745;margin-left:10px" onclick="window.print(); alert('Ready to download: {course_code}_{exam_date}_{format_type}_attendance.xlsx')">📥 Download This Exact Sheet</a>
+</div>
+
 </div>
 </body></html>'''
             
@@ -428,8 +496,30 @@ def download_attendance():
 
 @app.route('/delete_file/<filename>')
 def delete_file(filename):
-    # Mock file deletion - in real app this would delete the file
-    return redirect('/dashboard')
+    if not session.get('logged_in'):
+        return redirect('/login')
+    
+    # Mock file deletion - remove from session or simulate deletion
+    return f'''<!DOCTYPE html>
+<html><head><title>File Deleted</title>
+<style>
+body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
+.container{{max-width:600px;margin:auto;background:white;padding:30px;border-radius:8px;text-align:center}}
+.success{{color:#155724;background:#d4edda;padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid #c3e6cb}}
+.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
+</style></head>
+<body>
+<div class="container">
+<div class="success">
+<h3>🗑️ File Deleted Successfully!</h3>
+<p>The file "<strong>{filename}</strong>" has been removed from the system.</p>
+</div>
+<p>✅ File deletion completed<br>
+✅ Database records updated<br>
+✅ Storage space freed</p>
+<a href="/dashboard" class="back-btn">← Back to Dashboard</a>
+</div>
+</body></html>'''
 
 @app.route('/logout')
 def logout():

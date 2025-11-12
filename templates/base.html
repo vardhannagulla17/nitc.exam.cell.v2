@@ -6,6 +6,10 @@
     <title>{% block title %}Exam Cell Application{% endblock %}</title>
     <!-- Main stylesheet with enhanced typography and design -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Clean download page styles -->
+    {% if request.endpoint == 'download_file' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/download-clean.css') }}">
+    {% endif %}
     <!-- Login specific styles -->
     {% if request.endpoint == 'login' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
