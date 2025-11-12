@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, flash, jsonify
 import os
 
 # Template directory paths
@@ -145,11 +145,58 @@ body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
 </div>
 </body></html>'''
 
-@app.route('/upload')
+@app.route('/upload', methods=['GET', 'POST'])
 def upload():
     if not session.get('logged_in'):
         return redirect('/login')
     
+    # Handle POST requests for file uploads
+    if request.method == 'POST':
+        # Get form data
+        academic_year = request.form.get('academic_year', '')
+        semester = request.form.get('semester', '')
+        program_level = request.form.get('program_level', '')
+        uploaded_file = request.files.get('file')
+        
+        # Mock successful upload response
+        return f'''<!DOCTYPE html>
+<html><head><title>Upload Success</title>
+<style>
+body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
+.container{{max-width:800px;margin:auto;background:white;padding:30px;border-radius:8px}}
+.success{{color:#155724;background:#d4edda;padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid #c3e6cb}}
+.details{{background:#f8f9fa;padding:15px;border-radius:5px;margin:20px 0}}
+.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
+h3{{color:#155724;margin-bottom:15px}}
+</style></head>
+<body>
+<div class="container">
+<div class="success">
+<h3>✅ File Upload Successful!</h3>
+<p>Your Excel file has been processed successfully.</p>
+</div>
+<div class="details">
+<h4>Upload Details:</h4>
+<p><strong>Academic Year:</strong> {academic_year or 'Not specified'}</p>
+<p><strong>Semester:</strong> {semester or 'Not specified'}</p>
+<p><strong>Program Level:</strong> {program_level or 'Not specified'}</p>
+<p><strong>File:</strong> {uploaded_file.filename if uploaded_file and uploaded_file.filename else 'No file selected'}</p>
+<p><strong>File Size:</strong> {f"{len(uploaded_file.read())} bytes" if uploaded_file else "0 bytes"}</p>
+</div>
+<p><strong>📊 Processing Summary:</strong></p>
+<ul>
+<li>✅ File validation completed</li>
+<li>✅ Data structure verified</li>
+<li>✅ Database records updated</li>
+<li>✅ Upload logged successfully</li>
+</ul>
+<p>In a real application, this would process the Excel file and update the database.</p>
+<a href="/upload" class="back-btn">← Upload Another File</a>
+<a href="/dashboard" class="back-btn" style="background:#28a745;margin-left:10px">📊 Go to Dashboard</a>
+</div>
+</body></html>'''
+    
+    # Handle GET requests - show the upload form
     try:
         return render_template('upload.html')
     except Exception as e:
@@ -157,14 +204,16 @@ def upload():
 <html><head><title>Upload</title>
 <style>
 body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
-.container{{max-width:800px;margin:auto}}
+.container{{max-width:800px;margin:auto;background:white;padding:30px;border-radius:8px}}
 .back-btn{{display:inline-block;margin-bottom:20px;padding:10px 20px;background:#6c757d;color:white;text-decoration:none;border-radius:5px}}
+.error{{background:#f8d7da;color:#721c24;padding:15px;border-radius:5px;margin-bottom:20px}}
 </style></head>
 <body>
 <div class="container">
-<a href="/dashboard" class="back-btn">Back</a>
+<a href="/dashboard" class="back-btn">← Back to Dashboard</a>
 <h1>Upload Files</h1>
-<p>Upload functionality will use your actual template: {str(e)}</p>
+<div class="error">Template error: {str(e)}</div>
+<p>Attempting to use your sophisticated upload template with form handling.</p>
 </div>
 </body></html>'''
 
@@ -176,28 +225,144 @@ def download():
     # Handle POST requests for form submissions
     if request.method == 'POST':
         action = request.form.get('action', '')
+        program_level = request.form.get('program_level', 'Not selected')
+        semester_id = request.form.get('semester_id', 'Not selected')
+        course_code = request.form.get('course_code', 'Not selected')
+        exam_date = request.form.get('exam_date', 'Not selected')
+        
         if action in ['preview', 'download', 'download_all', 'preview_simple', 'download_simple']:
-            # Mock response for form actions
-            return f'''<!DOCTYPE html>
-<html><head><title>Download Action</title>
+            # Simulate different actions with appropriate responses
+            if action == 'download_all':
+                return f'''<!DOCTYPE html>
+<html><head><title>Bulk Download</title>
 <style>
 body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
-.container{{max-width:800px;margin:auto;background:white;padding:30px;border-radius:8px}}
-.success{{color:#28a745;background:#d4edda;padding:15px;border-radius:5px;margin-bottom:20px}}
-.back-btn{{display:inline-block;margin-top:20px;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
+.container{{max-width:900px;margin:auto;background:white;padding:30px;border-radius:8px}}
+.success{{color:#155724;background:#d4edda;padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid #c3e6cb}}
+.download-info{{background:#fff3cd;padding:15px;border-radius:5px;margin:15px 0;border:1px solid #ffeaa7}}
+.file-list{{background:#f8f9fa;padding:20px;border-radius:8px;margin:20px 0}}
+.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
+.download-btn{{background:#28a745;margin-left:10px}}
 </style></head>
 <body>
 <div class="container">
 <div class="success">
-<h3>✅ Action: {action.replace('_', ' ').title()}</h3>
-<p>Form data received successfully!</p>
-<p><strong>Program Level:</strong> {request.form.get('program_level', 'Not selected')}</p>
-<p><strong>Semester:</strong> {request.form.get('semester_id', 'Not selected')}</p>
-<p><strong>Course:</strong> {request.form.get('course_code', 'Not selected')}</p>
-<p><strong>Exam Date:</strong> {request.form.get('exam_date', 'Not selected')}</p>
+<h3>📦 Bulk Download Generated Successfully!</h3>
+<p>All attendance sheets have been prepared for download.</p>
 </div>
-<p>In a real application, this would generate and download the attendance sheet.</p>
+<div class="download-info">
+<h4>📋 Download Details:</h4>
+<p><strong>Program Level:</strong> {program_level}</p>
+<p><strong>Semester:</strong> {semester_id}</p>
+<p><strong>Exam Date:</strong> {exam_date}</p>
+<p><strong>Total Courses:</strong> 6 courses</p>
+</div>
+<div class="file-list">
+<h4>📁 Generated Files (ZIP Package):</h4>
+<ul>
+<li>CS101_Introduction_to_Programming_Attendance.html</li>
+<li>CS102_Data_Structures_Attendance.html</li>
+<li>CS201_Algorithms_Attendance.html</li>
+<li>CS202_Database_Management_Attendance.html</li>
+<li>MATH101_Discrete_Mathematics_Attendance.html</li>
+<li>MATH102_Linear_Algebra_Attendance.html</li>
+</ul>
+<p><strong>Package Size:</strong> ~2.4 MB</p>
+</div>
+<p><strong>📥 In a real application, your download would start automatically.</strong></p>
 <a href="/download" class="back-btn">← Back to Download Page</a>
+<a href="#" class="back-btn download-btn" onclick="alert('Download would start here!')">📥 Download ZIP File</a>
+</div>
+</body></html>'''
+            
+            elif action in ['preview', 'preview_simple']:
+                format_type = "Simple" if "simple" in action else "Detailed"
+                return f'''<!DOCTYPE html>
+<html><head><title>Attendance Sheet Preview</title>
+<style>
+body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
+.container{{max-width:1000px;margin:auto;background:white;padding:30px;border-radius:8px}}
+.preview-header{{text-align:center;border-bottom:2px solid #333;padding-bottom:20px;margin-bottom:30px}}
+.attendance-sheet{{border:1px solid #333;margin:20px 0}}
+.sheet-header{{background:#f8f9fa;padding:15px;border-bottom:1px solid #333}}
+.student-table{{width:100%;border-collapse:collapse}}
+.student-table th,td{{border:1px solid #333;padding:8px;text-align:left}}
+.student-table th{{background:#e9ecef;font-weight:bold}}
+.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
+</style></head>
+<body>
+<div class="container">
+<h2>📋 Attendance Sheet Preview - {format_type} Format</h2>
+<div class="preview-header">
+<h3>NATIONAL INSTITUTE OF TECHNOLOGY CALICUT</h3>
+<h4>EXAMINATION ATTENDANCE SHEET</h4>
+<p><strong>Course:</strong> {course_code} | <strong>Date:</strong> {exam_date} | <strong>Semester:</strong> S{semester_id}</p>
+</div>
+<div class="attendance-sheet">
+<div class="sheet-header">
+<strong>Course Details:</strong> {course_code} - {"Introduction to Programming" if course_code == "CS101" else "Selected Course"}
+</div>
+<table class="student-table">
+<thead>
+<tr>
+<th>Roll No</th>
+<th>Name</th>
+<th>Signature</th>
+{"<th>Bio Break</th><th>Additional Sheets</th>" if format_type == "Detailed" else ""}
+</tr>
+</thead>
+<tbody>
+<tr><td>CS21B001</td><td>Student Name 1</td><td></td>{"<td></td><td></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td>CS21B002</td><td>Student Name 2</td><td></td>{"<td></td><td></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td>CS21B003</td><td>Student Name 3</td><td></td>{"<td></td><td></td>" if format_type == "Detailed" else ""}</tr>
+<tr><td colspan="{'5' if format_type == 'Detailed' else '3'}"><em>... (showing 3 of 45 students)</em></td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Invigilator Signature:</strong> _________________________</p>
+<a href="/download" class="back-btn">← Back to Download Page</a>
+<a href="#" class="back-btn" style="background:#28a745;margin-left:10px" onclick="alert('Download would start here!')">📥 Download This Sheet</a>
+</div>
+</body></html>'''
+            
+            else:  # download or download_simple
+                format_type = "Simple" if "simple" in action else "Detailed"
+                return f'''<!DOCTYPE html>
+<html><head><title>Download Complete</title>
+<style>
+body{{font-family:Arial;margin:0;padding:20px;background:#f8f9fa}}
+.container{{max-width:800px;margin:auto;background:white;padding:30px;border-radius:8px}}
+.success{{color:#155724;background:#d4edda;padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid #c3e6cb}}
+.download-info{{background:#f8f9fa;padding:15px;border-radius:5px;margin:15px 0}}
+.back-btn{{display:inline-block;margin-top:20px;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px}}
+</style></head>
+<body>
+<div class="container">
+<div class="success">
+<h3>📥 Download Completed Successfully!</h3>
+<p>The {format_type.lower()} attendance sheet has been generated.</p>
+</div>
+<div class="download-info">
+<h4>📋 File Details:</h4>
+<p><strong>File Name:</strong> {course_code}_Attendance_{format_type}_{exam_date}.html</p>
+<p><strong>Course:</strong> {course_code}</p>
+<p><strong>Format:</strong> {format_type}</p>
+<p><strong>Program Level:</strong> {program_level}</p>
+<p><strong>Semester:</strong> {semester_id}</p>
+<p><strong>Exam Date:</strong> {exam_date}</p>
+<p><strong>File Size:</strong> ~85 KB</p>
+</div>
+<p><strong>📄 The attendance sheet includes:</strong></p>
+<ul>
+<li>Student roll numbers and names</li>
+<li>Signature columns</li>
+{"<li>Bio break tracking</li><li>Additional answer sheets column</li>" if format_type == "Detailed" else ""}
+<li>Invigilator signature section</li>
+<li>NITC official formatting</li>
+</ul>
+<p><em>In a real application, the file would be downloaded to your computer.</em></p>
+<a href="/download" class="back-btn">← Back to Download Page</a>
+<a href="/dashboard" class="back-btn" style="background:#28a745;margin-left:10px">📊 Go to Dashboard</a>
 </div>
 </body></html>'''
     
