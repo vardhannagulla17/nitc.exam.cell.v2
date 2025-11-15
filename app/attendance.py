@@ -13,7 +13,8 @@ from werkzeug.utils import secure_filename
 def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False):
     """Generate HTML attendance sheet for a specific course and date using NITC format"""
     # For Vercel deployment, always use in_memory=True
-    if current_app.config.get('IS_VERCEL'):
+    IS_VERCEL = os.environ.get('VERCEL') in ('1', 'true', 'True', True)
+    if IS_VERCEL or current_app.config.get('IS_VERCEL'):
         in_memory = True
     
     # Only create folders if we're not in memory mode

@@ -3,6 +3,7 @@ from werkzeug.utils import secure_filename
 import os
 import sys
 import time
+from io import BytesIO
 
 # Add the current directory to Python path so we can import from nitc.exam.cell.v1.app
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -86,10 +87,11 @@ def get_uploaded_files():
             # Use in-memory storage on Vercel
             for filename, file_data in UPLOAD_STORAGE.items():
                 try:
+                    from datetime import datetime
                     file_info = {
                         'name': filename,
                         'size': len(file_data['content']),
-                        'uploaded_at': file_data['uploaded_at']
+                        'uploaded_at': datetime.fromtimestamp(file_data['uploaded_at']) if isinstance(file_data['uploaded_at'], (int, float)) else file_data['uploaded_at']
                     }
                     files.append(file_info)
                 except Exception as e:
@@ -103,12 +105,13 @@ def get_uploaded_files():
 
             for filename in os.listdir(UPLOAD_FOLDER):
                 try:
+                    from datetime import datetime
                     filepath = os.path.join(UPLOAD_FOLDER, filename)
                     if os.path.isfile(filepath):
                         file_info = {
                             'name': filename,
                             'size': os.path.getsize(filepath),
-                            'uploaded_at': os.path.getctime(filepath)
+                            'uploaded_at': datetime.fromtimestamp(os.path.getctime(filepath))
                         }
                         files.append(file_info)
                 except Exception as e:
@@ -260,9 +263,21 @@ def delete_file(filename):
         return redirect(url_for('dashboard'))
     
     try:
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        file_deleted = False
+        
+        if IS_VERCEL:
+            # Delete from in-memory storage
+            if filename in UPLOAD_STORAGE:
+                del UPLOAD_STORAGE[filename]
+                file_deleted = True
+        else:
+            # Delete from filesystem
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                file_deleted = True
+        
+        if file_deleted:
             flash(f'File {filename} has been deleted successfully.', 'success')
         else:
             flash(f'File {filename} not found.', 'error')
@@ -342,21 +357,27 @@ def upload_file():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             
-            if IS_VERCEL:
-                # Store in memory on Vercel
-                content = file.read()
-                UPLOAD_STORAGE[filename] = {
-                    'content': content,
-                    'uploaded_at': time.time()
-                }
-                # Create BytesIO for processing
-                file_obj = BytesIO(content)
-                success, message = load_excel_to_db(file_obj, academic_year, semester_type, sheet_type, exam_type)
-            else:
-                # Store on filesystem in local dev
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
-                success, message = load_excel_to_db(filepath, academic_year, semester_type, sheet_type, exam_type)
+            try:
+                if IS_VERCEL:
+                    # Store in memory on Vercel
+                    content = file.read()
+                    UPLOAD_STORAGE[filename] = {
+                        'content': content,
+                        'uploaded_at': time.time()
+                    }
+                    # Create BytesIO for processing
+                    file_obj = BytesIO(content)
+                    success, message = load_excel_to_db(file_obj, academic_year, semester_type, sheet_type, exam_type)
+                else:
+                    # Store on filesystem in local dev
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    # Ensure the upload directory exists
+                    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                    file.save(filepath)
+                    success, message = load_excel_to_db(filepath, academic_year, semester_type, sheet_type, exam_type)
+            except Exception as file_error:
+                flash(f'Error saving file: {str(file_error)}', 'error')
+                return redirect(request.url)
             
             if success:
                 flash(message, 'success')
@@ -439,20 +460,21 @@ def download_attendance():
                     # Generate ZIP in memory
                     zip_data, message = generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=True)
                     if zip_data:
-                        flash(message, 'success')
                         return send_file(
                             BytesIO(zip_data),
                             mimetype='application/zip',
                             as_attachment=True,
                             download_name=f'attendance_sheets_{semester_id}_{exam_date}.zip'
                         )
+                    else:
+                        flash(f'Error generating ZIP: {message}', 'error')
                 else:
                     # Generate ZIP on filesystem
                     filepath, message = generate_all_attendance_sheets_zip(semester_id, exam_date)
-                    if filepath:
-                        flash(message, 'success')
+                    if filepath and os.path.exists(filepath):
                         return send_file(filepath, as_attachment=True)
-                flash(message, 'error')
+                    else:
+                        flash(f'Error generating ZIP: {message}', 'error')
                     
             elif action == 'preview' and course_code:
                 print(f"DEBUG: Generating preview for {course_code}")
@@ -460,16 +482,34 @@ def download_attendance():
                     
                 if html_content:
                     return html_content
-                flash(message, 'error')
+                else:
+                    flash(f'Error generating preview: {message}', 'error')
                     
             elif action == 'download' and course_code:
                 print(f"DEBUG: Generating download for {course_code}")
-                filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
-                    
-                if filepath:
-                    flash(message, 'success')
-                    return send_file(filepath, as_attachment=True)
-                flash(message, 'error')
+                if IS_VERCEL:
+                    # For Vercel, generate in memory and send directly
+                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True)
+                    if html_content:
+                        # Create a proper filename for download
+                        safe_course = secure_filename(str(course_code))
+                        safe_date = secure_filename(str(exam_date))
+                        filename = f"Attendance_{safe_course}_{safe_date}.html"
+                        return send_file(
+                            BytesIO(html_content.encode('utf-8')),
+                            mimetype='text/html',
+                            as_attachment=True,
+                            download_name=filename
+                        )
+                    else:
+                        flash(f'Error generating download: {message}', 'error')
+                else:
+                    # For local, generate file and send
+                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
+                    if filepath and os.path.exists(filepath):
+                        return send_file(filepath, as_attachment=True)
+                    else:
+                        flash(f'Error generating download: {message}', 'error')
             else:
                 if not course_code:
                     flash('Please select a course!', 'error')
@@ -477,28 +517,34 @@ def download_attendance():
                     flash('Invalid action specified!', 'error')
         except Exception as e:
             print(f"DEBUG: Error during attendance sheet generation: {str(e)}")
-            flash(f'An error occurred: {str(e)}', 'error')
+            flash(f'An error occurred while generating attendance sheet: {str(e)}', 'error')
     
     # Handle program level and semester selection from URL parameters
-    program_level = request.args.get('program_level')
-    semester_id = request.args.get('semester_id')
+    program_level = request.args.get('program_level') or selected_program
+    semester_id = request.args.get('semester_id') or selected_semester
     
     print(f"Download route: program_level={program_level}, semester_id={semester_id}")
     
-    if program_level:
-        selected_program = program_level
-        semesters = get_semesters_for_program_level(program_level)
-        print(f"Found {len(semesters)} semesters for program level {program_level}")
-    
-    if semester_id:
-        selected_semester = semester_id
+    try:
         if program_level:
-            print(f"Getting courses for semester {semester_id} and program {program_level}")
-            courses = get_courses_for_semester(semester_id, program_level)
-        else:
-            print(f"Getting all courses for semester {semester_id}")
-            courses = get_courses_for_semester(semester_id)
-        print(f"Found {len(courses)} courses")
+            selected_program = program_level
+            semesters = get_semesters_for_program_level(program_level)
+            print(f"Found {len(semesters)} semesters for program level {program_level}")
+        
+        if semester_id:
+            selected_semester = semester_id
+            if program_level:
+                print(f"Getting courses for semester {semester_id} and program {program_level}")
+                courses = get_courses_for_semester(semester_id, program_level)
+            else:
+                print(f"Getting all courses for semester {semester_id}")
+                courses = get_courses_for_semester(semester_id)
+            print(f"Found {len(courses)} courses")
+    except Exception as e:
+        print(f"Error loading semester/course data: {str(e)}")
+        flash(f'Error loading data: {str(e)}', 'error')
+        courses = []
+        semesters = []
 
     # Prepare template data
     template_data = {
