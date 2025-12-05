@@ -3,7 +3,22 @@ import os
 import io
 from datetime import datetime
 import json
-import os
+import uuid
+from io import BytesIO
+
+# Try to import optional dependencies
+try:
+    from supabase import create_client, Client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+    print("Warning: Supabase not available. Using mock data only.")
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv is optional for production
 
 # Template directory paths
 template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
@@ -11,7 +26,21 @@ static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
 
 # Create Flask app
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
-app.secret_key = 'vercel-key-2024'
+app.secret_key = os.environ.get('SECRET_KEY', 'vercel-key-2024')
+
+# Initialize Supabase client
+supabase = None
+SUPABASE_BUCKET = os.environ.get('SUPABASE_BUCKET', 'uploads')
+
+if SUPABASE_AVAILABLE:
+    SUPABASE_URL = os.environ.get('SUPABASE_URL')
+    SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY')
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        except Exception as e:
+            print(f"Failed to initialize Supabase client: {str(e)}")
+            supabase = None
 
 # Add datetime filter for templates
 @app.template_filter('datetime')
