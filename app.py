@@ -7,19 +7,15 @@ from io import BytesIO
 import uuid
 from datetime import datetime
 
-# Try to import optional dependencies
-try:
-    from supabase import create_client, Client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-    print("Warning: Supabase not available. File storage will use filesystem only.")
-
+# Load environment variables
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass  # dotenv is optional for production
+
+# Import Supabase client
+from supabase_client import supabase
 
 # Add the current directory to Python path so we can import from nitc.exam.cell.v1.app
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -28,19 +24,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this')
 
-# Initialize Supabase client
-supabase = None
+# Supabase bucket name
 SUPABASE_BUCKET = os.environ.get('SUPABASE_BUCKET', 'uploads')
-
-if SUPABASE_AVAILABLE:
-    SUPABASE_URL = os.environ.get('SUPABASE_URL')
-    SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY')
-    if SUPABASE_URL and SUPABASE_KEY:
-        try:
-            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        except Exception as e:
-            print(f"Failed to initialize Supabase client: {str(e)}")
-            supabase = None
 
 # Add datetime filter
 @app.template_filter('datetime')
@@ -113,10 +98,12 @@ def get_uploaded_files():
     """Get list of uploaded files with their details"""
     files = []
     try:
-        if supabase and IS_VERCEL:
-            # Use Supabase storage on Vercel
+        # Try Supabase first if available
+        if supabase:
+            print("DEBUG: Fetching files from Supabase")
             try:
                 result = supabase.storage.from_(SUPABASE_BUCKET).list()
+                print(f"DEBUG: Supabase list result: {len(result) if result else 0} files")
                 for file_obj in result:
                     if file_obj['name'] and not file_obj['name'].endswith('/'):
                         file_info = {
@@ -125,29 +112,34 @@ def get_uploaded_files():
                             'uploaded_at': datetime.fromisoformat(file_obj['updated_at'].replace('Z', '+00:00')) if file_obj.get('updated_at') else datetime.now()
                         }
                         files.append(file_info)
+                        print(f"DEBUG: Added Supabase file: {file_obj['name']}")
             except Exception as e:
-                print(f"Error fetching files from Supabase: {str(e)}")
-                return files
+                print(f"DEBUG: Error fetching files from Supabase: {str(e)}")
+                # Continue to try local filesystem
+        
+        # Also check local filesystem (or use as fallback)
+        if not os.path.exists(UPLOAD_FOLDER):
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         else:
-            # Use filesystem in local development
-            if not os.path.exists(UPLOAD_FOLDER):
-                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-                return files
-
+            print(f"DEBUG: Checking local filesystem: {UPLOAD_FOLDER}")
             for filename in os.listdir(UPLOAD_FOLDER):
                 try:
                     filepath = os.path.join(UPLOAD_FOLDER, filename)
                     if os.path.isfile(filepath):
-                        file_info = {
-                            'name': filename,
-                            'size': os.path.getsize(filepath),
-                            'uploaded_at': datetime.fromtimestamp(os.path.getctime(filepath))
-                        }
-                        files.append(file_info)
+                        # Avoid duplicates if file exists in both places
+                        if not any(f['name'] == filename for f in files):
+                            file_info = {
+                                'name': filename,
+                                'size': os.path.getsize(filepath),
+                                'uploaded_at': datetime.fromtimestamp(os.path.getctime(filepath))
+                            }
+                            files.append(file_info)
+                            print(f"DEBUG: Added local file: {filename}")
                 except Exception as e:
                     print(f"Error processing file {filename}: {str(e)}")
                     continue
         
+        print(f"DEBUG: Total files found: {len(files)}")
         # Sort files by upload date, newest first
         return sorted(files, key=lambda x: x['uploaded_at'], reverse=True)
     except Exception as e:
@@ -295,20 +287,27 @@ def delete_file(filename):
     try:
         file_deleted = False
         
-        if supabase and IS_VERCEL:
-            # Delete from Supabase storage
+        # Try to delete from Supabase first if available
+        if supabase:
+            print(f"DEBUG: Attempting to delete {filename} from Supabase")
             try:
                 result = supabase.storage.from_(SUPABASE_BUCKET).remove([filename])
+                print(f"DEBUG: Supabase delete result: {result}")
                 if result:
                     file_deleted = True
+                    print(f"DEBUG: Successfully deleted from Supabase: {filename}")
             except Exception as e:
-                print(f"Error deleting from Supabase: {str(e)}")
-        else:
-            # Delete from filesystem
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            if os.path.exists(filepath):
+                print(f"DEBUG: Error deleting from Supabase: {str(e)}")
+        
+        # Also try to delete from local filesystem
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if os.path.exists(filepath):
+            try:
                 os.remove(filepath)
                 file_deleted = True
+                print(f"DEBUG: Successfully deleted from local filesystem: {filename}")
+            except Exception as e:
+                print(f"DEBUG: Error deleting from filesystem: {str(e)}")
         
         if file_deleted:
             flash(f'File {filename} has been deleted successfully.', 'success')
@@ -395,28 +394,38 @@ def upload_file():
                 content = file.read()
                 file.seek(0)  # Reset file pointer
                 
-                if supabase and IS_VERCEL:
-                    # Upload to Supabase storage
+                # Try Supabase first if available, then fallback to local storage
+                supabase_success = False
+                if supabase:
+                    print(f"DEBUG: Attempting Supabase upload for {filename}")
                     unique_filename = f"{uuid.uuid4()}_{filename}"
                     try:
                         result = supabase.storage.from_(SUPABASE_BUCKET).upload(
                             unique_filename, 
                             content,
-                            file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+                            file_options={
+                                "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "upsert": "true"
+                            }
                         )
+                        print(f"DEBUG: Supabase upload result: {result}")
                         if result:
+                            supabase_success = True
+                            print(f"DEBUG: Successfully uploaded to Supabase: {unique_filename}")
                             # Use BytesIO for processing
                             file_obj = BytesIO(content)
                             success, message = load_excel_to_db(file_obj, academic_year, semester_type, sheet_type, exam_type)
                         else:
-                            flash('Error uploading file to storage.', 'error')
-                            return redirect(request.url)
+                            print("DEBUG: Supabase upload returned empty result")
                     except Exception as supabase_error:
-                        print(f"Supabase upload error: {str(supabase_error)}")
-                        flash(f'Error uploading to storage: {str(supabase_error)}', 'error')
-                        return redirect(request.url)
-                else:
-                    # Store on filesystem in local dev
+                        print(f"DEBUG: Supabase upload error: {str(supabase_error)}")
+                        print(f"DEBUG: Supabase URL configured: {bool(os.environ.get('SUPABASE_URL'))}")
+                        print(f"DEBUG: Supabase Key configured: {bool(os.environ.get('SUPABASE_ANON_KEY'))}")
+                        print(f"DEBUG: Supabase Bucket: {SUPABASE_BUCKET}")
+                
+                # Fallback to local filesystem if Supabase failed or not available
+                if not supabase_success:
+                    print(f"DEBUG: Using local filesystem storage for {filename}")
                     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     # Ensure the upload directory exists
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
