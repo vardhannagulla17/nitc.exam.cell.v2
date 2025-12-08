@@ -1,0 +1,693 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Absentee Sheet{% endblock %}
+
+{% block content %}
+<div class="download-page">
+    <div class="page-header">
+        <h1><i class="fas fa-user-times"></i> Generate Absentee Sheet</h1>
+        <p>Mark absent students and generate absentee list</p>
+    </div>
+
+    <div class="content-grid">
+        <!-- Left: Search and Add Section -->
+        <div class="form-section">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-search"></i> Search Student</h2>
+                    <p>Select course and enter roll number</p>
+                </div>
+
+                <form method="POST" action="/absentee" style="padding: 1.5rem;">
+                    <input type="hidden" name="action" value="search_student">
+                    <input type="hidden" name="course_code" id="course_code_hidden">
+                    
+                    <div class="form-field">
+                        <label for="course_code_input">
+                            <i class="fas fa-code"></i> Course Code
+                        </label>
+                        <input type="text" id="course_code_input" 
+                               placeholder="Enter course code (e.g., ME1401E)"
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                    </div>
+                    
+                    <div class="form-field">
+                        <label for="course_name_input">
+                            <i class="fas fa-book"></i> Course Name
+                        </label>
+                        <input type="text" id="course_name_input" 
+                               placeholder="Or enter/select course name"
+                               list="course_name_list"
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                        <datalist id="course_name_list">
+                            {% for code, title in all_courses %}
+                            <option value="{{ title }}" data-code="{{ code }}">{{ code }}</option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    
+                    <script>
+                        // Course data mapping
+                        const courseData = {
+                            {% for code, title in all_courses %}
+                            "{{ code }}": "{{ title }}",
+                            {% endfor %}
+                        };
+                        
+                        const courseTitleToCode = {
+                            {% for code, title in all_courses %}
+                            "{{ title }}": "{{ code }}",
+                            {% endfor %}
+                        };
+                        
+                        // When course code is entered
+                        document.getElementById('course_code_input').addEventListener('input', function() {
+                            const code = this.value.trim().toUpperCase();
+                            const courseNameInput = document.getElementById('course_name_input');
+                            
+                            if (courseData[code]) {
+                                courseNameInput.value = courseData[code];
+                                document.getElementById('course_code_hidden').value = code;
+                            } else {
+                                courseNameInput.value = '';
+                                document.getElementById('course_code_hidden').value = this.value.trim();
+                            }
+                        });
+                        
+                        // When course name is entered/selected
+                        document.getElementById('course_name_input').addEventListener('input', function() {
+                            const title = this.value.trim();
+                            const courseCodeInput = document.getElementById('course_code_input');
+                            
+                            if (courseTitleToCode[title]) {
+                                courseCodeInput.value = courseTitleToCode[title];
+                                document.getElementById('course_code_hidden').value = courseTitleToCode[title];
+                            } else {
+                                // Try partial match
+                                let found = false;
+                                for (const [courseTitle, courseCode] of Object.entries(courseTitleToCode)) {
+                                    if (courseTitle.toLowerCase().includes(title.toLowerCase()) && title.length > 3) {
+                                        courseCodeInput.value = courseCode;
+                                        document.getElementById('course_code_hidden').value = courseCode;
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if (!found) {
+                                    courseCodeInput.value = '';
+                                    document.getElementById('course_code_hidden').value = '';
+                                }
+                            }
+                        });
+                        
+                        // Sync on blur to handle datalist selection
+                        document.getElementById('course_name_input').addEventListener('blur', function() {
+                            const title = this.value.trim();
+                            if (courseTitleToCode[title]) {
+                                document.getElementById('course_code_input').value = courseTitleToCode[title];
+                                document.getElementById('course_code_hidden').value = courseTitleToCode[title];
+                            }
+                        });
+                    </script>
+
+                    <div class="form-field">
+                        <label for="roll_no">
+                            <i class="fas fa-id-card"></i> Roll Number
+                        </label>
+                        <input type="text" name="roll_no" id="roll_no" 
+                               placeholder="e.g., B210001ME" required
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                        <i class="fas fa-search"></i> Search Student
+                    </button>
+                </form>
+            </div>
+
+            <!-- Student Details (if found) -->
+            {% if student_info %}
+            <div class="card student-found-card">
+                <div class="card-header success-header">
+                    <h3><i class="fas fa-check-circle"></i> Student Found</h3>
+                </div>
+                <div class="student-details">
+                    <div class="detail-row">
+                        <span class="detail-label"><i class="fas fa-id-badge"></i> Roll Number:</span>
+                        <span class="detail-value">{{ student_info.roll_no }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label"><i class="fas fa-user"></i> Name:</span>
+                        <span class="detail-value">{{ student_info.name }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label"><i class="fas fa-code"></i> Course Code:</span>
+                        <span class="detail-value">{{ student_info.course_code }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label"><i class="fas fa-book-open"></i> Course Title:</span>
+                        <span class="detail-value">{{ student_info.course_title }}</span>
+                    </div>
+
+                    <form method="POST" action="/absentee" style="margin-top: 1.5rem;">
+                        <input type="hidden" name="action" value="add_absentee">
+                        <input type="hidden" name="roll_no" value="{{ student_info.roll_no }}">
+                        <input type="hidden" name="name" value="{{ student_info.name }}">
+                        <input type="hidden" name="course_code" value="{{ student_info.course_code }}">
+                        <input type="hidden" name="course_title" value="{{ student_info.course_title }}">
+                        
+                        <button type="submit" class="btn btn-success" style="width: 100%;">
+                            <i class="fas fa-user-plus"></i> Mark as Absent
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right: Absentee List -->
+        <div class="info-section">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-list"></i> Absentee List</h3>
+                    {% if course_info %}
+                    <p style="margin-top: 0.5rem; font-size: 0.9rem;">
+                        <strong>{{ course_info.course_code }}:</strong> {{ course_info.course_title }}
+                    </p>
+                    {% endif %}
+                </div>
+
+                {% if absentees %}
+                <div style="padding: 1rem;">
+                    <div class="absentee-count-badge">
+                        <i class="fas fa-users"></i>
+                        <strong>Total Absentees: {{ absentees|length }}</strong>
+                    </div>
+
+                    <div class="absentee-list-container">
+                        {% for student in absentees %}
+                        <div class="absentee-item">
+                            <div class="absentee-info">
+                                <div class="absentee-roll">
+                                    <i class="fas fa-id-card"></i> {{ student.roll_no }}
+                                </div>
+                                <div class="absentee-name">{{ student.name }}</div>
+                            </div>
+                            <form method="POST" action="/absentee" style="margin: 0;">
+                                <input type="hidden" name="action" value="remove_absentee">
+                                <input type="hidden" name="index" value="{{ loop.index0 }}">
+                                <button type="submit" class="btn btn-danger btn-sm" 
+                                        onclick="return confirm('Remove this student from absentee list?');">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Download Actions -->
+                    <div class="download-actions">
+                        <div class="form-field">
+                            <label for="exam_date_download">
+                                <i class="fas fa-calendar"></i> Exam Date
+                            </label>
+                            <input type="date" id="exam_date_download" name="exam_date" 
+                                   class="date-input">
+                        </div>
+
+                        <div class="action-buttons">
+                            <form method="POST" action="/absentee" target="_blank">
+                                <input type="hidden" name="action" value="preview_absentees">
+                                <input type="hidden" name="exam_date" id="exam_date_preview">
+                                <button type="submit" class="btn btn-preview"
+                                        onclick="document.getElementById('exam_date_preview').value = document.getElementById('exam_date_download').value;">
+                                    <i class="fas fa-eye"></i> Preview
+                                </button>
+                            </form>
+
+                            <form method="POST" action="/absentee">
+                                <input type="hidden" name="action" value="download_absentees">
+                                <input type="hidden" name="exam_date" id="exam_date_hidden">
+                                <button type="submit" class="btn btn-primary"
+                                        onclick="document.getElementById('exam_date_hidden').value = document.getElementById('exam_date_download').value;">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                            </form>
+
+                            <form method="POST" action="/absentee">
+                                <input type="hidden" name="action" value="clear_absentees">
+                                <button type="submit" class="btn btn-danger"
+                                        onclick="return confirm('Clear all absentees from the list?');">
+                                    <i class="fas fa-trash-alt"></i> Clear
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-clipboard-list"></i>
+                    <p class="empty-title">No absentees marked yet</p>
+                    <p class="empty-subtitle">Search for students and add them to create your absentee list</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Info Card -->
+            <div class="card info-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-info-circle"></i> Quick Guide</h3>
+                </div>
+                <div class="instructions">
+                    <div class="instruction-step">
+                        <span class="step-number">1</span>
+                        <span>Type course code OR enter course name</span>
+                    </div>
+                    <div class="instruction-step">
+                        <span class="step-number">2</span>
+                        <span>Enter student's roll number</span>
+                    </div>
+                    <div class="instruction-step">
+                        <span class="step-number">3</span>
+                        <span>Verify student details shown</span>
+                    </div>
+                    <div class="instruction-step">
+                        <span class="step-number">4</span>
+                        <span>Click "Mark as Absent" to add</span>
+                    </div>
+                    <div class="instruction-step">
+                        <span class="step-number">5</span>
+                        <span>Repeat for all absent students</span>
+                    </div>
+                    <div class="instruction-step">
+                        <span class="step-number">6</span>
+                        <span>Preview before downloading</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Set today's date as default
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('exam_date_download');
+    if (dateInput && !dateInput.value) {
+        dateInput.valueAsDate = new Date();
+    }
+});
+</script>
+
+<style>
+.download-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.page-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 2.5rem;
+    border-radius: 12px;
+    color: white;
+}
+
+.page-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+}
+
+.page-header p {
+    font-size: 1.125rem;
+    opacity: 0.95;
+}
+
+.content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.card-header h2,
+.card-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.card-header p {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.875rem;
+    opacity: 0.95;
+}
+
+.form-field {
+    margin-bottom: 1.5rem;
+}
+
+.form-field label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #334155;
+    font-size: 0.95rem;
+}
+
+.form-field i {
+    margin-right: 0.5rem;
+    color: #667eea;
+}
+
+.form-field input[type="text"],
+.form-field input[type="date"],
+.date-input {
+    width: 100%;
+    padding: 0.875rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-field input:focus,
+.date-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn {
+    padding: 0.875rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    width: 100%;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-preview {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.btn-preview:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(238, 9, 121, 0.4);
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    width: auto;
+}
+
+/* Student Found Card */
+.student-found-card {
+    border: 2px solid #38ef7d;
+    animation: slideIn 0.3s ease-out;
+}
+
+.success-header {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+}
+
+.student-details {
+    padding: 1.5rem;
+}
+
+.detail-row {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    border-left: 3px solid #667eea;
+}
+
+.detail-label {
+    font-weight: 600;
+    color: #64748b;
+    min-width: 140px;
+    font-size: 0.9rem;
+}
+
+.detail-label i {
+    margin-right: 0.5rem;
+    color: #667eea;
+}
+
+.detail-value {
+    color: #1e293b;
+    font-weight: 500;
+}
+
+/* Absentee List */
+.absentee-count-badge {
+    padding: 1rem;
+    background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #2d3436;
+}
+
+.absentee-list-container {
+    max-height: 450px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.absentee-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.absentee-list-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.absentee-list-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.absentee-list-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.absentee-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    transition: background 0.2s;
+}
+
+.absentee-item:hover {
+    background: #f8fafc;
+}
+
+.absentee-info {
+    flex: 1;
+}
+
+.absentee-roll {
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+}
+
+.absentee-roll i {
+    color: #667eea;
+    margin-right: 0.5rem;
+}
+
+.absentee-name {
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+/* Download Actions */
+.download-actions {
+    padding: 1.5rem;
+    border-top: 2px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.action-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+/* Empty State */
+.empty-state {
+    padding: 4rem 2rem;
+    text-align: center;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+}
+
+.empty-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+
+.empty-subtitle {
+    color: #94a3b8;
+    font-size: 0.95rem;
+}
+
+/* Instructions */
+.info-card .card-header {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.instructions {
+    padding: 1.5rem;
+}
+
+.instruction-step {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    transition: transform 0.2s;
+}
+
+.instruction-step:hover {
+    transform: translateX(5px);
+    background: #f1f5f9;
+}
+
+.step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.instruction-step span:last-child {
+    color: #475569;
+    font-size: 0.95rem;
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .download-page {
+        padding: 1rem;
+    }
+    
+    .page-header {
+        padding: 2rem 1rem;
+    }
+    
+    .page-header h1 {
+        font-size: 1.75rem;
+    }
+}
+</style>
+{% endblock %}

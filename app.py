@@ -619,6 +619,266 @@ def download_attendance():
     
     return render_template('download.html', **template_data)
 
+@app.route('/absentee', methods=['GET', 'POST'])
+def absentee_sheet():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get all courses from all semesters
+    all_courses = []
+    try:
+        import sqlite3
+        conn = sqlite3.connect('exam_cell.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT db_name FROM semesters')
+        semester_dbs = cursor.fetchall()
+        conn.close()
+        
+        course_set = set()
+        for (db_name,) in semester_dbs:
+            if db_name and os.path.exists(db_name):
+                sem_conn = sqlite3.connect(db_name)
+                sem_cursor = sem_conn.cursor()
+                sem_cursor.execute('SELECT DISTINCT course_code, course_title FROM students ORDER BY course_code')
+                courses = sem_cursor.fetchall()
+                for code, title in courses:
+                    course_set.add((code, title))
+                sem_conn.close()
+        
+        all_courses = sorted(list(course_set), key=lambda x: x[0])
+    except Exception as e:
+        print(f"Error loading courses: {e}")
+    
+    absentees = []
+    student_info = None
+    course_info = None
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'search_student':
+            course_code = request.form.get('course_code', '').strip()
+            roll_no = request.form.get('roll_no', '').strip()
+            
+            if course_code and roll_no:
+                import sqlite3
+                conn = sqlite3.connect('exam_cell.db')
+                cursor = conn.cursor()
+                cursor.execute('SELECT db_name FROM semesters')
+                semester_dbs = cursor.fetchall()
+                conn.close()
+                
+                for (db_name,) in semester_dbs:
+                    if db_name and os.path.exists(db_name):
+                        try:
+                            sem_conn = sqlite3.connect(db_name)
+                            sem_cursor = sem_conn.cursor()
+                            sem_cursor.execute(
+                                'SELECT roll_no, name, course_code, course_title FROM students WHERE course_code = ? AND roll_no = ?',
+                                (course_code, roll_no)
+                            )
+                            result = sem_cursor.fetchone()
+                            sem_conn.close()
+                            
+                            if result:
+                                student_info = {
+                                    'roll_no': result[0],
+                                    'name': result[1],
+                                    'course_code': result[2],
+                                    'course_title': result[3]
+                                }
+                                break
+                        except:
+                            continue
+                
+                if not student_info:
+                    flash('Student not found for this course and roll number.', 'error')
+            else:
+                flash('Please select course and enter roll number.', 'error')
+        
+        elif action == 'add_absentee':
+            roll_no = request.form.get('roll_no', '').strip()
+            name = request.form.get('name', '').strip()
+            course_code = request.form.get('course_code', '').strip()
+            course_title = request.form.get('course_title', '').strip()
+            
+            if 'absentees' not in session:
+                session['absentees'] = []
+            
+            if not any(a['roll_no'] == roll_no and a['course_code'] == course_code for a in session['absentees']):
+                session['absentees'].append({
+                    'roll_no': roll_no,
+                    'name': name,
+                    'course_code': course_code,
+                    'course_title': course_title
+                })
+                session.modified = True
+                flash(f'Added {name} ({roll_no}) to absentee list.', 'success')
+            else:
+                flash('Student already in absentee list.', 'warning')
+        
+        elif action == 'remove_absentee':
+            index = int(request.form.get('index', -1))
+            if 'absentees' in session and 0 <= index < len(session['absentees']):
+                removed = session['absentees'].pop(index)
+                session.modified = True
+                flash(f'Removed {removed["name"]} from absentee list.', 'info')
+        
+        elif action == 'preview_absentees':
+            if 'absentees' in session and len(session['absentees']) > 0:
+                exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+                html_content = generate_absentee_html(session['absentees'], exam_date)
+                return html_content
+            else:
+                flash('No absentees to preview.', 'error')
+        
+        elif action == 'download_absentees':
+            if 'absentees' in session and len(session['absentees']) > 0:
+                exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+                html_content = generate_absentee_html(session['absentees'], exam_date)
+                
+                course_code = session['absentees'][0]['course_code']
+                filename = f"Absentees_{course_code}_{exam_date}.html"
+                
+                return send_file(
+                    BytesIO(html_content.encode('utf-8')),
+                    mimetype='text/html',
+                    as_attachment=True,
+                    download_name=filename
+                )
+            else:
+                flash('No absentees to download.', 'error')
+        
+        elif action == 'clear_absentees':
+            session.pop('absentees', None)
+            session.modified = True
+            flash('Absentee list cleared.', 'info')
+    
+    if 'absentees' in session:
+        absentees = session['absentees']
+        if len(absentees) > 0:
+            course_info = {
+                'course_code': absentees[0]['course_code'],
+                'course_title': absentees[0]['course_title']
+            }
+    
+    return render_template('absentee.html',
+                         all_courses=all_courses,
+                         absentees=absentees,
+                         course_info=course_info,
+                         student_info=student_info)
+
+def generate_absentee_html(absentees, exam_date):
+    """Generate HTML for absentee list"""
+    if not absentees:
+        return ""
+    
+    course_code = absentees[0]['course_code']
+    course_title = absentees[0]['course_title']
+    
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Absentee List - {course_code}</title>
+    <style>
+        @page {{
+            size: A4 landscape;
+            margin: 15mm;
+        }}
+        body {{
+            font-family: 'Times New Roman', serif;
+            margin: 0;
+            padding: 20px;
+            font-size: 12pt;
+        }}
+        .header {{
+            text-align: center;
+            margin-bottom: 20px;
+        }}
+        .header h1 {{
+            font-size: 18pt;
+            margin: 5px 0;
+        }}
+        .header h2 {{
+            font-size: 14pt;
+            margin: 5px 0;
+            font-weight: normal;
+        }}
+        .course-info {{
+            margin: 20px 0;
+            font-size: 12pt;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }}
+        th, td {{
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }}
+        th {{
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }}
+        .footer {{
+            margin-top: 30px;
+            font-size: 11pt;
+        }}
+        @media print {{
+            body {{ padding: 0; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>National Institute of Technology Calicut</h1>
+        <h2>Absentee List</h2>
+    </div>
+    
+    <div class="course-info">
+        <strong>Course Code:</strong> {course_code}<br>
+        <strong>Course Title:</strong> {course_title}<br>
+        <strong>Exam Date:</strong> {datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')}<br>
+        <strong>Total Absentees:</strong> {len(absentees)}
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>S.No</th>
+                <th>Roll Number</th>
+                <th>Student Name</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+    
+    for idx, student in enumerate(absentees, 1):
+        html += f"""            <tr>
+                <td>{idx}</td>
+                <td>{student['roll_no']}</td>
+                <td>{student['name']}</td>
+            </tr>
+"""
+    
+    html += """        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p>
+            <strong>Invigilator's Signature:</strong> _____________________
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <strong>Date:</strong> _____________________
+        </p>
+    </div>
+</body>
+</html>"""
+    
+    return html
+
 # Initialize the application and run
 if __name__ == '__main__':
     # Initialize DB when running locally

@@ -54,6 +54,17 @@
                     <i class="fas fa-file-code"></i> Generate Sheets
                 </a>
             </div>
+            
+            <div class="tile" onclick="location.href='{{ url_for('absentee_sheet') }}'">
+                <div class="tile-icon">
+                    <i class="fas fa-user-times"></i>
+                </div>
+                <h3>Generate Absentee Sheet</h3>
+                <p>Mark absent students and generate absentee list</p>
+                <a href="{{ url_for('absentee_sheet') }}" class="btn btn-primary">
+                    <i class="fas fa-list"></i> Absentee Sheet
+                </a>
+            </div>
         </div>
         
         {% if role == 'admin' and uploaded_files %}
