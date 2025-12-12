@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Create Flask app and configure it
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this')
+app.secret_key = os.environ.get('SECRET_KEY', 'd82!$bvoRH1#beb5841OWH$w')
 
 # Supabase bucket name
 SUPABASE_BUCKET = os.environ.get('SUPABASE_BUCKET', 'uploads')
@@ -225,6 +225,15 @@ from app.attendance import (
     generate_attendance_sheet,
     generate_all_attendance_sheets_zip
 )
+
+# Initialize database for Vercel (serverless) environment
+# In local development, this is done in if __name__ == '__main__' block
+if IS_VERCEL:
+    try:
+        init_db()
+        print("✅ Database initialized for Vercel environment")
+    except Exception as e:
+        print(f"⚠️ Database initialization error: {e}")
 
 # Error handler for 500 errors
 @app.errorhandler(500)
