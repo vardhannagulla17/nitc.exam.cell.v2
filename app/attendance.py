@@ -7,6 +7,10 @@ from io import BytesIO
 from helpers.utils import sort_by_roll_number
 from flask import current_app
 from werkzeug.utils import secure_filename
+from supabase_client import supabase
+
+# Check if we should use Supabase
+USE_SUPABASE_DB = bool(os.environ.get('VERCEL', False) and supabase)
 
 # Get download folder path
 
@@ -27,21 +31,32 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             download_folder = tempfile.mkdtemp(prefix='downloads_')
     try:
         # Get semester information
-        import sqlite3
-        db_path = os.path.join(current_app.config['BASE_DIR'], 'exam_cell.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute('SELECT academic_year, semester_type, degree_level, exam_type, db_name FROM semesters WHERE id = ?', (semester_id,))
-        semester_info = cursor.fetchone()
-        conn.close()
+        if USE_SUPABASE_DB:
+            result = supabase.table('semesters').select('academic_year, semester_type, degree_level, exam_type, db_name').eq('id', semester_id).execute()
+            if not result.data:
+                return None, "Semester not found"
+            semester_info = result.data[0]
+            academic_year = semester_info['academic_year']
+            semester_type = semester_info['semester_type']
+            degree_level = semester_info['degree_level']
+            exam_type = semester_info['exam_type']
+            db_name = semester_info['db_name']
+        else:
+            import sqlite3
+            db_path = os.path.join(current_app.config['BASE_DIR'], 'exam_cell.db')
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute('SELECT academic_year, semester_type, degree_level, exam_type, db_name FROM semesters WHERE id = ?', (semester_id,))
+            semester_info = cursor.fetchone()
+            conn.close()
+            
+            if not semester_info:
+                return None, "Semester not found"
+            
+            academic_year, semester_type, degree_level, exam_type, db_name = semester_info
         
-        if not semester_info:
-            return None, "Semester not found"
-        
-        academic_year, semester_type, degree_level, exam_type, db_name = semester_info
-        
-        # Get students from semester-specific database
-        students_sorted = get_sorted_students(db_name, course_code)
+        # Get students from database
+        students_sorted = get_sorted_students(semester_id, course_code) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code)
         if not students_sorted:
             return None, "No students found for this course"
         
@@ -84,26 +99,36 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
     """Generate all attendance sheets for a semester and create a ZIP file with program and course folders.
     When in_memory=True, returns (zip_bytes, message) instead of (filepath, message)."""
     try:
-        # Get base directory and ensure download folder exists
-        base_dir = current_app.config['BASE_DIR']
-        download_folder = current_app.config['DOWNLOAD_FOLDER']
-        os.makedirs(download_folder, exist_ok=True)
+        # Get semester information
+        if USE_SUPABASE_DB:
+            result = supabase.table('semesters').select('academic_year, semester_type, degree_level, exam_type, db_name').eq('id', semester_id).execute()
+            if not result.data:
+                return None, "Semester not found"
+            semester_info = result.data[0]
+            academic_year = semester_info['academic_year']
+            semester_type = semester_info['semester_type']
+            degree_level = semester_info['degree_level']
+            exam_type = semester_info['exam_type']
+            db_name = semester_info['db_name']
+        else:
+            base_dir = current_app.config['BASE_DIR']
+            download_folder = current_app.config['DOWNLOAD_FOLDER']
+            os.makedirs(download_folder, exist_ok=True)
+            
+            db_path = os.path.join(base_dir, 'exam_cell.db')
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute('SELECT academic_year, semester_type, degree_level, exam_type, db_name FROM semesters WHERE id = ?', (semester_id,))
+            semester_info = cursor.fetchone()
+            conn.close()
+            
+            if not semester_info:
+                return None, "Semester not found"
+            
+            academic_year, semester_type, degree_level, exam_type, db_name = semester_info
         
-        # Connect to database using absolute path
-        db_path = os.path.join(base_dir, 'exam_cell.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute('SELECT academic_year, semester_type, degree_level, exam_type, db_name FROM semesters WHERE id = ?', (semester_id,))
-        semester_info = cursor.fetchone()
-        conn.close()
-        
-        if not semester_info:
-            return None, "Semester not found"
-        
-        academic_year, semester_type, degree_level, exam_type, db_name = semester_info
-        
-        # Get all courses from semester-specific database
-        courses = get_courses(db_name)
+        # Get all courses from database
+        courses = get_courses(semester_id if USE_SUPABASE_DB else db_name)
         if not courses:
             return None, "No courses found for this semester"
         
@@ -255,40 +280,65 @@ Each course folder contains:
         return None, f"Error generating bulk attendance sheets: {str(e)}"
 
 # Helper functions
-def get_sorted_students(db_name, course_code):
-    """Get sorted list of students for a course"""
+def get_sorted_students(db_name_or_semester_id, course_code):
+    \"\"\"Get sorted list of students for a course\"\"\"
     import sqlite3
     try:
-        # Ensure db_name is an absolute path
-        if not os.path.isabs(db_name):
-            db_name = os.path.join(current_app.config['BASE_DIR'], db_name)
-        sem_conn = sqlite3.connect(db_name)
-        cursor = sem_conn.cursor()
-        cursor.execute('''
-            SELECT roll_no, name, course_title, main_instructor, program_name 
-            FROM students 
-            WHERE course_code = ? 
-            ORDER BY roll_no
-        ''', (course_code,))
-        students = cursor.fetchall()
-        sem_conn.close()
-        return sort_by_roll_number(students)
-    except sqlite3.Error:
+        if USE_SUPABASE_DB:
+            # db_name_or_semester_id is semester_id when using Supabase
+            semester_id = db_name_or_semester_id
+            result = supabase.table('students').select('roll_no, name, course_title, main_instructor, program_name').eq('semester_id', semester_id).eq('course_code', course_code).execute()
+            students = [(row['roll_no'], row['name'], row['course_title'], row['main_instructor'], row['program_name']) for row in result.data]
+            return sort_by_roll_number(students)
+        else:
+            # db_name_or_semester_id is db_name when using SQLite
+            db_name = db_name_or_semester_id
+            if not os.path.isabs(db_name):
+                db_name = os.path.join(current_app.config['BASE_DIR'], db_name)
+            sem_conn = sqlite3.connect(db_name)
+            cursor = sem_conn.cursor()
+            cursor.execute('''
+                SELECT roll_no, name, course_title, main_instructor, program_name 
+                FROM students 
+                WHERE course_code = ? 
+                ORDER BY roll_no
+            ''', (course_code,))
+            students = cursor.fetchall()
+            sem_conn.close()
+            return sort_by_roll_number(students)
+    except Exception as e:
+        print(f\"Error in get_sorted_students: {e}\")
         return []
 
-def get_courses(db_name):
-    """Get all courses from a semester database"""
+def get_courses(db_name_or_semester_id):
+    """Get all courses from a semester"""
     import sqlite3
     try:
-        if not os.path.isabs(db_name):
-            db_name = os.path.join(current_app.config['BASE_DIR'], db_name)
-        sem_conn = sqlite3.connect(db_name)
-        cursor = sem_conn.cursor()
-        cursor.execute('SELECT DISTINCT course_code, course_title FROM students ORDER BY course_code')
-        courses = cursor.fetchall()
-        sem_conn.close()
-        return courses
-    except sqlite3.Error:
+        if USE_SUPABASE_DB:
+            semester_id = db_name_or_semester_id
+            result = supabase.table('students').select('course_code, course_title').eq('semester_id', semester_id).execute()
+            
+            # Get unique courses
+            courses_dict = {}
+            for row in result.data:
+                code = row['course_code']
+                if code not in courses_dict:
+                    courses_dict[code] = row['course_title']
+            
+            courses = sorted([(code, title) for code, title in courses_dict.items()])
+            return courses
+        else:
+            db_name = db_name_or_semester_id
+            if not os.path.isabs(db_name):
+                db_name = os.path.join(current_app.config['BASE_DIR'], db_name)
+            sem_conn = sqlite3.connect(db_name)
+            cursor = sem_conn.cursor()
+            cursor.execute('SELECT DISTINCT course_code, course_title FROM students ORDER BY course_code')
+            courses = cursor.fetchall()
+            sem_conn.close()
+            return courses
+    except Exception as e:
+        print(f"Error in get_courses: {e}")
         return []
 
 # HTML generation functions

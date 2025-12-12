@@ -156,64 +156,83 @@ from app.models import (
 def get_semester_stats():
     """Calculate actual statistics from the database"""
     try:
-        import sqlite3
-        conn = sqlite3.connect('exam_cell.db')
-        cursor = conn.cursor()
-
-        # Get all semester databases
-        cursor.execute('SELECT db_name FROM semesters')
-        semester_dbs = cursor.fetchall()
+        from app.database import USE_SUPABASE_DB
         
-        # Filter out entries whose DB files no longer exist and clean them up
-        existing_semester_dbs = []
-        missing_db_names = []
-        for (db_name,) in semester_dbs:
-            abs_db_path = db_name if os.path.isabs(db_name) else os.path.join(app.config['BASE_DIR'], db_name)
-            if db_name and os.path.exists(abs_db_path):
-                existing_semester_dbs.append((db_name,))
-            else:
-                missing_db_names.append(db_name)
-        if missing_db_names:
-            try:
-                cursor.executemany('DELETE FROM semesters WHERE db_name = ?', [(n,) for n in missing_db_names if n])
-                conn.commit()
-            except Exception as _cleanup_err:
-                pass
-        semester_dbs = existing_semester_dbs
-        
-        total_students = 0
-        unique_courses = set()
-        total_semesters = len(semester_dbs)
+        if USE_SUPABASE_DB:
+            # Query Supabase for stats
+            semesters_result = supabase.table('semesters').select('id').execute()
+            total_semesters = len(semesters_result.data) if semesters_result.data else 0
+            
+            students_result = supabase.table('students').select('id, course_code').execute()
+            total_students = len(students_result.data) if students_result.data else 0
+            
+            unique_courses = set(row['course_code'] for row in students_result.data) if students_result.data else set()
+            
+            return {
+                'total_students': total_students,
+                'total_courses': len(unique_courses),
+                'total_semesters': total_semesters
+            }
+        else:
+            # SQLite for local development
+            import sqlite3
+            conn = sqlite3.connect('exam_cell.db')
+            cursor = conn.cursor()
 
-        # Calculate totals from each semester database
-        for (db_name,) in semester_dbs:
-            try:
+            # Get all semester databases
+            cursor.execute('SELECT db_name FROM semesters')
+            semester_dbs = cursor.fetchall()
+            
+            # Filter out entries whose DB files no longer exist
+            existing_semester_dbs = []
+            missing_db_names = []
+            for (db_name,) in semester_dbs:
                 abs_db_path = db_name if os.path.isabs(db_name) else os.path.join(app.config['BASE_DIR'], db_name)
-                sem_conn = sqlite3.connect(abs_db_path)
-                sem_cursor = sem_conn.cursor()
-                
-                # Count total student records (each enrollment row)
-                sem_cursor.execute('SELECT COUNT(*) FROM students')
-                student_count = sem_cursor.fetchone()[0]
-                total_students += student_count
+                if db_name and os.path.exists(abs_db_path):
+                    existing_semester_dbs.append((db_name,))
+                else:
+                    missing_db_names.append(db_name)
+            if missing_db_names:
+                try:
+                    cursor.executemany('DELETE FROM semesters WHERE db_name = ?', [(n,) for n in missing_db_names if n])
+                    conn.commit()
+                except Exception as _cleanup_err:
+                    pass
+            semester_dbs = existing_semester_dbs
+            
+            total_students = 0
+            unique_courses = set()
+            total_semesters = len(semester_dbs)
 
-                # Get unique course codes
-                sem_cursor.execute('SELECT DISTINCT course_code FROM students')
-                courses = sem_cursor.fetchall()
-                unique_courses.update(course[0] for course in courses)
+            # Calculate totals from each semester database
+            for (db_name,) in semester_dbs:
+                try:
+                    abs_db_path = db_name if os.path.isabs(db_name) else os.path.join(app.config['BASE_DIR'], db_name)
+                    sem_conn = sqlite3.connect(abs_db_path)
+                    sem_cursor = sem_conn.cursor()
+                    
+                    # Count total student records
+                    sem_cursor.execute('SELECT COUNT(*) FROM students')
+                    student_count = sem_cursor.fetchone()[0]
+                    total_students += student_count
 
-                sem_conn.close()
-            except Exception as e:
-                print(f"Error processing semester database {db_name}: {str(e)}")
-                continue
+                    # Get unique course codes
+                    sem_cursor.execute('SELECT DISTINCT course_code FROM students')
+                    courses = sem_cursor.fetchall()
+                    unique_courses.update(course[0] for course in courses)
 
-        conn.close()
-        
-        return {
-            'total_students': total_students,
-            'total_courses': len(unique_courses),
-            'total_semesters': total_semesters
-        }
+                    sem_conn.close()
+                except Exception as e:
+                    print(f"Error processing semester database {db_name}: {str(e)}")
+                    continue
+
+            conn.close()
+            
+            return {
+                'total_students': total_students,
+                'total_courses': len(unique_courses),
+                'total_semesters': total_semesters
+            }
     except Exception as e:
         print(f"Error calculating semester stats: {str(e)}")
         return {
