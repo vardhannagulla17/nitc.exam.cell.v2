@@ -281,7 +281,7 @@ Each course folder contains:
 
 # Helper functions
 def get_sorted_students(db_name_or_semester_id, course_code):
-    \"\"\"Get sorted list of students for a course\"\"\"
+    """Get sorted list of students for a course"""
     import sqlite3
     try:
         if USE_SUPABASE_DB:
@@ -307,7 +307,7 @@ def get_sorted_students(db_name_or_semester_id, course_code):
             sem_conn.close()
             return sort_by_roll_number(students)
     except Exception as e:
-        print(f\"Error in get_sorted_students: {e}\")
+        print(f"Error in get_sorted_students: {e}")
         return []
 
 def get_courses(db_name_or_semester_id):
