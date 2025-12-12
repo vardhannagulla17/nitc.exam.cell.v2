@@ -185,6 +185,10 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
         exam_type: Exam type (midsem/endsem)
     """
     try:
+        # Debug info
+        import os
+        print(f"DEBUG: VERCEL={os.environ.get('VERCEL')}, USE_SUPABASE_DB={USE_SUPABASE_DB}, supabase={'initialized' if supabase else 'None'}")
+        
         # Read Excel file - handle both file path and BytesIO object
         if hasattr(file_source, 'read'):
             df = pd.read_excel(file_source, engine='openpyxl')
@@ -203,28 +207,37 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
                 df = df.iloc[0:0].copy()
         
         if USE_SUPABASE_DB:
-            # Supabase PostgreSQL implementation
-            db_name = f"{academic_year}_{semester_type}_{sheet_type}_{exam_type}"
+            if not supabase:
+                return False, "Error: Supabase not configured. Please check SUPABASE_URL and SUPABASE_ANON_KEY environment variables."
             
-            # Insert or update semester record
-            semester_data = {
-                'academic_year': academic_year,
-                'semester_type': semester_type,
-                'degree_level': sheet_type,
-                'exam_type': exam_type,
-                'db_name': db_name
-            }
-            
-            # Check if semester exists
-            existing = supabase.table('semesters').select('id').eq('db_name', db_name).execute()
-            if existing.data:
-                semester_id = existing.data[0]['id']
-                # Delete old students for this semester
-                supabase.table('students').delete().eq('semester_id', semester_id).execute()
-            else:
-                # Create new semester
-                result = supabase.table('semesters').insert(semester_data).execute()
-                semester_id = result.data[0]['id']
+            try:
+                # Supabase PostgreSQL implementation
+                db_name = f"{academic_year}_{semester_type}_{sheet_type}_{exam_type}"
+                
+                # Insert or update semester record
+                semester_data = {
+                    'academic_year': academic_year,
+                    'semester_type': semester_type,
+                    'degree_level': sheet_type,
+                    'exam_type': exam_type,
+                    'db_name': db_name
+                }
+                
+                # Check if semester exists
+                existing = supabase.table('semesters').select('id').eq('db_name', db_name).execute()
+                if existing.data:
+                    semester_id = existing.data[0]['id']
+                    # Delete old students for this semester
+                    supabase.table('students').delete().eq('semester_id', semester_id).execute()
+                else:
+                    # Create new semester
+                    result = supabase.table('semesters').insert(semester_data).execute()
+                    semester_id = result.data[0]['id']
+            except Exception as supabase_error:
+                error_msg = str(supabase_error)
+                if 'relation' in error_msg.lower() and 'does not exist' in error_msg.lower():
+                    return False, "Database tables not found. Please run the SQL script in Supabase SQL Editor (see supabase_schema.sql)"
+                return False, f"Supabase error: {error_msg}"
             
             # Prepare student data for batch insert
             students_data = []
