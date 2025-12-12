@@ -57,24 +57,23 @@ def init_db():
         )
     ''')
     
-    # Create default admin user
-    default_password = generate_password_hash('admin123')
-    cursor.execute('''
-        INSERT OR IGNORE INTO users (username, password_hash, role) 
-        VALUES (?, ?, ?)
-    ''', ('admin', default_password, 'admin'))
-    
-    # Create sample staff users
-    staff_password = generate_password_hash('staff123')
-    sample_staff = [
-        ('staff1', staff_password, 'staff'),
-        ('staff2', staff_password, 'staff'),
-        ('staff3', staff_password, 'staff')
+    # Create default admin users
+    admin_users = [
+        ('vardhan', generate_password_hash('vardhan123'), 'admin'),
+        ('pavan', generate_password_hash('pavan123'), 'admin'),
+        ('abhinav', generate_password_hash('abhinav123'), 'admin'),
+        ('saketh', generate_password_hash('saketh123'), 'admin')
     ]
     cursor.executemany('''
         INSERT OR IGNORE INTO users (username, password_hash, role) 
         VALUES (?, ?, ?)
-    ''', sample_staff)
+    ''', admin_users)
+    
+    # Create staff user
+    cursor.execute('''
+        INSERT OR IGNORE INTO users (username, password_hash, role) 
+        VALUES (?, ?, ?)
+    ''', ('staff', generate_password_hash('staff123'), 'staff'))
     
     conn.commit()
     conn.close()

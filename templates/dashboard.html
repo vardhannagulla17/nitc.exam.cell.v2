@@ -44,17 +44,6 @@
             </div>
             {% endif %}
             
-            <div class="tile" onclick="location.href='{{ url_for('download_attendance') }}'">
-                <div class="tile-icon">
-                    <i class="fas fa-download"></i>
-                </div>
-                <h3>Generate Attendance Sheets</h3>
-                <p>Download course-wise attendance sheets for examination dates</p>
-                <a href="{{ url_for('download_attendance') }}" class="btn btn-primary">
-                    <i class="fas fa-file-code"></i> Generate Sheets
-                </a>
-            </div>
-            
             <div class="tile" onclick="location.href='{{ url_for('absentee_sheet') }}'">
                 <div class="tile-icon">
                     <i class="fas fa-user-times"></i>
@@ -63,6 +52,17 @@
                 <p>Mark absent students and generate absentee list</p>
                 <a href="{{ url_for('absentee_sheet') }}" class="btn btn-primary">
                     <i class="fas fa-list"></i> Absentee Sheet
+                </a>
+            </div>
+            
+            <div class="tile" onclick="location.href='{{ url_for('download_attendance') }}'">
+                <div class="tile-icon">
+                    <i class="fas fa-download"></i>
+                </div>
+                <h3>Generate Attendance Sheets</h3>
+                <p>Download course-wise attendance sheets for examination dates</p>
+                <a href="{{ url_for('download_attendance') }}" class="btn btn-primary">
+                    <i class="fas fa-file-code"></i> Generate Sheets
                 </a>
             </div>
         </div>
