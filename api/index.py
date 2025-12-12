@@ -1,30 +1,22 @@
 # Vercel serverless function entry point
-# This imports and exposes the main Flask app from app.py
 import sys
 import os
 
-# Add parent directory to Python path so all imports work
+# Get parent directory (project root)
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Change to parent directory so relative imports work
+os.chdir(parent_dir)
+
+# Add parent directory to Python path
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-# Now import the Flask app - all routes and configurations are in app.py
-try:
-    from app import app
-except Exception as e:
-    # Fallback: Create minimal error reporting app
-    from flask import Flask
-    app = Flask(__name__)
-    
-    @app.route('/')
-    def error():
-        return f"""
-        <h1>Import Error</h1>
-        <p>Failed to import main app: {str(e)}</p>
-        <p>Python path: {sys.path}</p>
-        <p>Current dir: {os.getcwd()}</p>
-        <p>Parent dir: {parent_dir}</p>
-        <p>Files in parent: {os.listdir(parent_dir) if os.path.exists(parent_dir) else 'N/A'}</p>
-        """, 500
+# Import the Flask app from app.py using importlib to avoid package/module conflict
+import importlib.util
+spec = importlib.util.spec_from_file_location("main_app", os.path.join(parent_dir, "app.py"))
+main_app = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(main_app)
 
-# This 'app' variable is what Vercel will use as the WSGI application
+# Get the Flask app instance - this is what Vercel will use
+app = main_app.app
