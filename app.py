@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Create Flask app and configure it
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'd82!$bvoRH1#beb5841OWH$w')
+app.secret_key = os.environ.get('SECRET_KEY', 'nitc-exam-cell-secret-key-2025')
 
 # Supabase bucket name
 SUPABASE_BUCKET = os.environ.get('SUPABASE_BUCKET', 'uploads')
@@ -158,7 +158,7 @@ def get_semester_stats():
     try:
         from app.database import USE_SUPABASE_DB
         
-        if USE_SUPABASE_DB:
+        if USE_SUPABASE_DB and supabase:
             # Query Supabase for stats
             semesters_result = supabase.table('semesters').select('id').execute()
             total_semesters = len(semesters_result.data) if semesters_result.data else 0
@@ -275,12 +275,32 @@ def index():
 # Test route for Vercel debugging
 @app.route('/health')
 def health_check():
-    return {
+    """Health check endpoint to verify setup"""
+    import os
+    from app.database import USE_SUPABASE_DB
+    
+    is_vercel = bool(os.environ.get('VERCEL'))
+    supabase_url = bool(os.environ.get('SUPABASE_URL'))
+    supabase_key = bool(os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_ANON_KEY'))
+    supabase_configured = supabase is not None
+    
+    status = {
         'status': 'ok',
-        'vercel': IS_VERCEL,
-        'python_path': sys.path[:3],
+        'environment': 'Vercel' if is_vercel else 'Local',
+        'vercel_detected': is_vercel,
+        'supabase_url_set': supabase_url,
+        'supabase_key_set': supabase_key,
+        'supabase_client_initialized': supabase_configured,
+        'using_supabase_db': USE_SUPABASE_DB,
+        'python_path': sys.path[:2],
         'base_dir': BASE_DIR
     }
+    
+    # Add warning if on Vercel without Supabase
+    if is_vercel and not USE_SUPABASE_DB:
+        status['warning'] = 'Running on Vercel WITHOUT Supabase - data will not persist! Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.'
+    
+    return status
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
