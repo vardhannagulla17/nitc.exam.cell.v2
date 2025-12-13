@@ -7,6 +7,25 @@ from supabase_client import supabase
 
 from .database import get_db_connection, USE_SUPABASE_DB
 
+def detect_excel_column(df, possible_names):
+    """Smart column detection - tries to find the best matching column name"""
+    # Convert all column names to lowercase for comparison
+    df_columns_lower = {col.lower(): col for col in df.columns}
+    
+    # Try each possible name
+    for name in possible_names:
+        name_lower = name.lower()
+        # Exact match
+        if name_lower in df_columns_lower:
+            return df_columns_lower[name_lower]
+        
+        # Partial match (column contains the keyword)
+        for col_lower, col_original in df_columns_lower.items():
+            if name_lower in col_lower or col_lower in name_lower:
+                return col_original
+    
+    return None
+
 def init_db():
     """Initialize the database with users, semesters, and students tables"""
     if USE_SUPABASE_DB:
@@ -199,6 +218,26 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
         print(f"DEBUG: Excel columns: {list(df.columns)}")
         print(f"DEBUG: First row sample: {df.head(1).to_dict('records') if len(df) > 0 else 'No data'}")
         
+        # Detect column names using smart matching
+        col_roll = detect_excel_column(df, ['RollNo', 'Roll No', 'Roll_No', 'ROLL NO', 'Roll Number', 'Rollno'])
+        col_name = detect_excel_column(df, ['StudentName', 'Student Name', 'Name', 'STUDENT NAME', 'Student_Name', 'STUDENTNAME'])
+        col_email = detect_excel_column(df, ['Email_Id', 'Email', 'EmailId', 'Email ID', 'E-mail', 'Mail'])
+        col_sess = detect_excel_column(df, ['Student_Sess', 'Session', 'Student Session', 'Sess'])
+        col_course_code = detect_excel_column(df, ['CourseCode', 'Course Code', 'Course_Code', 'COURSE CODE'])
+        col_credits = detect_excel_column(df, ['Credits', 'Credit', 'CREDITS'])
+        col_course_title = detect_excel_column(df, ['CourseTitle', 'Course Title', 'Course_Title', 'COURSE TITLE', 'Title'])
+        col_program = detect_excel_column(df, ['ProgramName', 'Program Name', 'Program', 'PROGRAM NAME', 'Programme'])
+        col_batch = detect_excel_column(df, ['Timetable_Batch', 'Batch', 'Time Table Batch', 'TimetableBatch'])
+        col_slot = detect_excel_column(df, ['Slot_Code', 'Slot', 'Slot Code', 'SlotCode'])
+        col_instructor = detect_excel_column(df, ['Main_Instructor', 'Instructor', 'Main Instructor', 'Faculty'])
+        col_primary_mail = detect_excel_column(df, ['Primary_Mail', 'Primary Mail', 'PrimaryMail'])
+        col_category = detect_excel_column(df, ['Course_Category_Code', 'Category', 'Course Category', 'CategoryCode'])
+        
+        if not col_roll:
+            return False, "Error: Could not find Roll Number column in Excel file. Please ensure the file has a column for roll numbers."
+        
+        print(f"DEBUG: Detected columns - Roll: {col_roll}, Name: {col_name}, Course: {col_course_code}")
+        
         # Filter data based on sheet type if not combined
         if sheet_type != 'combined':
             roll_series = df.get('RollNo')
@@ -246,27 +285,20 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
             # Prepare student data for batch insert
             students_data = []
             for _, row in df.iterrows():
-                # Try different possible column names for student name
-                student_name = ''
-                for col_name in ['StudentName', 'Student Name', 'Name', 'STUDENT NAME', 'Student_Name']:
-                    if col_name in df.columns:
-                        student_name = str(row.get(col_name, ''))
-                        break
-                
                 student = {
-                    'roll_no': str(row.get('RollNo', '')),
-                    'name': student_name,
-                    'email_id': str(row.get('Email_Id', '')),
-                    'student_sess': str(row.get('Student_Sess', '')),
-                    'course_code': str(row.get('CourseCode', '')),
-                    'credits': int(row.get('Credits', 0)) if pd.notna(row.get('Credits')) else 0,
-                    'course_title': str(row.get('CourseTitle', '')),
-                    'program_name': str(row.get('ProgramName', '')),
-                    'timetable_batch': str(row.get('Timetable_Batch', '')),
-                    'slot_code': str(row.get('Slot_Code', '')),
-                    'main_instructor': str(row.get('Main_Instructor', '')),
-                    'primary_mail': str(row.get('Primary_Mail', '')),
-                    'course_category_code': str(row.get('Course_Category_Code', '')),
+                    'roll_no': str(row.get(col_roll, '')) if col_roll else '',
+                    'name': str(row.get(col_name, '')) if col_name else '',
+                    'email_id': str(row.get(col_email, '')) if col_email else '',
+                    'student_sess': str(row.get(col_sess, '')) if col_sess else '',
+                    'course_code': str(row.get(col_course_code, '')) if col_course_code else '',
+                    'credits': int(row.get(col_credits, 0)) if col_credits and pd.notna(row.get(col_credits)) else 0,
+                    'course_title': str(row.get(col_course_title, '')) if col_course_title else '',
+                    'program_name': str(row.get(col_program, '')) if col_program else '',
+                    'timetable_batch': str(row.get(col_batch, '')) if col_batch else '',
+                    'slot_code': str(row.get(col_slot, '')) if col_slot else '',
+                    'main_instructor': str(row.get(col_instructor, '')) if col_instructor else '',
+                    'primary_mail': str(row.get(col_primary_mail, '')) if col_primary_mail else '',
+                    'course_category_code': str(row.get(col_category, '')) if col_category else '',
                     'semester_id': semester_id
                 }
                 students_data.append(student)
@@ -305,13 +337,6 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
             
             # Insert new data
             for _, row in df.iterrows():
-                # Try different possible column names for student name
-                student_name = ''
-                for col_name in ['StudentName', 'Student Name', 'Name', 'STUDENT NAME', 'Student_Name']:
-                    if col_name in df.columns:
-                        student_name = str(row.get(col_name, ''))
-                        break
-                
                 sem_conn.execute('''
                     INSERT INTO students (
                         roll_no, name, email_id, student_sess, course_code, credits,
@@ -319,19 +344,19 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
                         main_instructor, primary_mail, course_category_code
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    str(row.get('RollNo', '')),
-                    student_name,
-                    str(row.get('Email_Id', '')),
-                    str(row.get('Student_Sess', '')),
-                    str(row.get('CourseCode', '')),
-                    int(row.get('Credits', 0)) if pd.notna(row.get('Credits')) else 0,
-                    str(row.get('CourseTitle', '')),
-                    str(row.get('ProgramName', '')),
-                    str(row.get('Timetable_Batch', '')),
-                    str(row.get('Slot_Code', '')),
-                    str(row.get('Main_Instructor', '')),
-                    str(row.get('Primary_Mail', '')),
-                    str(row.get('Course_Category_Code', ''))
+                    str(row.get(col_roll, '')) if col_roll else '',
+                    str(row.get(col_name, '')) if col_name else '',
+                    str(row.get(col_email, '')) if col_email else '',
+                    str(row.get(col_sess, '')) if col_sess else '',
+                    str(row.get(col_course_code, '')) if col_course_code else '',
+                    int(row.get(col_credits, 0)) if col_credits and pd.notna(row.get(col_credits)) else 0,
+                    str(row.get(col_course_title, '')) if col_course_title else '',
+                    str(row.get(col_program, '')) if col_program else '',
+                    str(row.get(col_batch, '')) if col_batch else '',
+                    str(row.get(col_slot, '')) if col_slot else '',
+                    str(row.get(col_instructor, '')) if col_instructor else '',
+                    str(row.get(col_primary_mail, '')) if col_primary_mail else '',
+                    str(row.get(col_category, '')) if col_category else ''
                 ))
             
             sem_conn.commit()

@@ -249,6 +249,57 @@ def get_semester_stats():
             'total_courses': 0,
             'total_semesters': 0
         }
+
+def get_database_usage_stats():
+    """Get detailed database usage statistics for admin dashboard"""
+    try:
+        from app.database import USE_SUPABASE_DB
+        
+        if USE_SUPABASE_DB and supabase:
+            # Get breakdown by semester
+            semester_breakdown = []
+            semesters = supabase.table('semesters').select('id, academic_year, semester_type, degree_level, exam_type').execute()
+            
+            for sem in semesters.data:
+                students = supabase.table('students').select('id').eq('semester_id', sem['id']).execute()
+                semester_breakdown.append({
+                    'name': f"{sem['academic_year']} {sem['semester_type']} {sem['degree_level']} {sem['exam_type']}",
+                    'count': len(students.data) if students.data else 0
+                })
+            
+            # Get total counts
+            total_students = supabase.table('students').select('id', count='exact').execute()
+            total_semesters = len(semesters.data)
+            
+            # Estimate database size (rough calculation)
+            # Average row size: ~500 bytes (including indexes)
+            estimated_db_size_mb = (total_students.count * 500 / 1024 / 1024) if hasattr(total_students, 'count') else 0
+            
+            return {
+                'semester_breakdown': semester_breakdown,
+                'total_records': total_students.count if hasattr(total_students, 'count') else 0,
+                'total_semesters': total_semesters,
+                'estimated_size_mb': round(estimated_db_size_mb, 2),
+                'free_tier_limit_mb': 500
+            }
+        else:
+            # SQLite stats
+            import os
+            db_size = 0
+            if os.path.exists('exam_cell.db'):
+                db_size = os.path.getsize('exam_cell.db') / 1024 / 1024  # MB
+            
+            return {
+                'semester_breakdown': [],
+                'total_records': 0,
+                'total_semesters': 0,
+                'estimated_size_mb': round(db_size, 2),
+                'free_tier_limit_mb': 500
+            }
+    except Exception as e:
+        print(f"Error getting database usage stats: {e}")
+        return None
+
 from app.attendance import (
     generate_attendance_sheet,
     generate_all_attendance_sheets_zip
@@ -404,10 +455,19 @@ def dashboard():
     stats = get_semester_stats()
     uploaded_files = get_uploaded_files() if session.get('role') == 'admin' else []
     
+    # Get detailed database usage stats for admin users
+    db_usage = None
+    if session.get('role') == 'admin':
+        db_usage = get_database_usage_stats()
+    
     return render_template('dashboard.html',
                          username=session['username'],
                          role=session['role'],
                          total_students=stats['total_students'],
+                         total_courses=stats['total_courses'],
+                         total_semesters=stats['total_semesters'],
+                         uploaded_files=uploaded_files,
+                         db_usage=db_usage)
                          total_courses=stats['total_courses'],
                          total_semesters=stats['total_semesters'],
                          uploaded_files=uploaded_files)

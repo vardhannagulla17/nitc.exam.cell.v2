@@ -104,6 +104,64 @@
         </div>
         {% endif %}
 
+        {% if role == 'admin' and db_usage %}
+        <!-- Database Usage Statistics -->
+        <div class="file-management" style="margin-top: 30px;">
+            <h3>
+                <i class="fas fa-database"></i> Database Usage (Admin Only)
+            </h3>
+            <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
+                        <div style="font-size: 14px; color: #666;">Total Records</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #007bff;">{{ db_usage.total_records }}</div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                        <div style="font-size: 14px; color: #666;">Semesters</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #28a745;">{{ db_usage.total_semesters }}</div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid {{ '#dc3545' if db_usage.estimated_size_mb > 400 else '#ffc107' if db_usage.estimated_size_mb > 250 else '#17a2b8' }};">
+                        <div style="font-size: 14px; color: #666;">Estimated Size</div>
+                        <div style="font-size: 24px; font-weight: bold; color: {{ '#dc3545' if db_usage.estimated_size_mb > 400 else '#ffc107' if db_usage.estimated_size_mb > 250 else '#17a2b8' }};">
+                            {{ db_usage.estimated_size_mb }} MB
+                        </div>
+                        <div style="font-size: 12px; color: #999;">of {{ db_usage.free_tier_limit_mb }} MB free tier</div>
+                    </div>
+                </div>
+                
+                {% if db_usage.semester_breakdown %}
+                <details style="margin-top: 15px;">
+                    <summary style="cursor: pointer; padding: 10px; background: white; border-radius: 5px; font-weight: bold;">
+                        <i class="fas fa-chart-bar"></i> Breakdown by Semester
+                    </summary>
+                    <div style="margin-top: 10px; max-height: 300px; overflow-y: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #e9ecef;">
+                                    <th style="padding: 8px; text-align: left;">Semester</th>
+                                    <th style="padding: 8px; text-align: right;">Records</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sem in db_usage.semester_breakdown %}
+                                <tr style="border-bottom: 1px solid #dee2e6;">
+                                    <td style="padding: 8px;">{{ sem.name }}</td>
+                                    <td style="padding: 8px; text-align: right; font-weight: bold;">{{ sem.count }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+                {% endif %}
+                
+                <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                    <small><i class="fas fa-info-circle"></i> <strong>Tip:</strong> Delete old semester data to stay within free tier limits. Supabase free tier includes 500 MB database storage.</small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Quick Info -->
         <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
             <h3 style="color: #333; margin-bottom: 15px;">
