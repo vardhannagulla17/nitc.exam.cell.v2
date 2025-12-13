@@ -456,22 +456,30 @@ def get_program_level(roll_no):
 
 def get_semesters_for_program_level(program_level=None):
     """Get all semesters that have students from a specific program level"""
-    conn = sqlite3.connect('exam_cell.db')
-    cursor = conn.cursor()
-    
-    # Get all semesters
-    cursor.execute('''
-        SELECT DISTINCT s.id, s.academic_year, s.semester_type, s.degree_level, s.exam_type 
-        FROM semesters s
-        ORDER BY s.academic_year DESC, s.semester_type
-    ''')
-    semesters = cursor.fetchall()
-    conn.close()
-    
-    if not semesters:
-        return []
+    if USE_SUPABASE_DB and supabase:
+        try:
+            # Get all semesters from Supabase
+            result = supabase.table('semesters').select('id, academic_year, semester_type, degree_level, exam_type').order('academic_year', desc=True).order('semester_type').execute()
+            return [(s['id'], s['academic_year'], s['semester_type'], s['degree_level'], s['exam_type']) for s in result.data]
+        except:
+            return []
+    else:
+        conn = sqlite3.connect('exam_cell.db')
+        cursor = conn.cursor()
         
-    return semesters
+        # Get all semesters
+        cursor.execute('''
+            SELECT DISTINCT s.id, s.academic_year, s.semester_type, s.degree_level, s.exam_type 
+            FROM semesters s
+            ORDER BY s.academic_year DESC, s.semester_type
+        ''')
+        semesters = cursor.fetchall()
+        conn.close()
+        
+        if not semesters:
+            return []
+            
+        return semesters
 
 def get_all_semesters():
     """Get all available semesters"""
