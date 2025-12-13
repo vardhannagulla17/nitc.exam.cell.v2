@@ -571,7 +571,7 @@ def download_attendance():
                 print("DEBUG: Generating all attendance sheets ZIP")
                 if IS_VERCEL:
                     # Generate ZIP in memory
-                    zip_data, message = generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=True)
+                    zip_data, message = generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=True, program_level=program_level)
                     if zip_data:
                         return send_file(
                             BytesIO(zip_data),
@@ -583,7 +583,7 @@ def download_attendance():
                         flash(f'Error generating ZIP: {message}', 'error')
                 else:
                     # Generate ZIP on filesystem
-                    filepath, message = generate_all_attendance_sheets_zip(semester_id, exam_date)
+                    filepath, message = generate_all_attendance_sheets_zip(semester_id, exam_date, program_level=program_level)
                     if filepath and os.path.exists(filepath):
                         return send_file(filepath, as_attachment=True)
                     else:
@@ -591,7 +591,7 @@ def download_attendance():
                     
             elif action == 'preview' and course_code:
                 print(f"DEBUG: Generating preview for {course_code}")
-                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True)
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, program_level=program_level)
                     
                 if html_content:
                     return html_content
@@ -602,7 +602,7 @@ def download_attendance():
                 print(f"DEBUG: Generating download for {course_code}")
                 if IS_VERCEL:
                     # For Vercel, generate in memory and send directly
-                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True)
+                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level)
                     if html_content:
                         # Create a proper filename for download
                         safe_course = secure_filename(str(course_code))
@@ -618,7 +618,7 @@ def download_attendance():
                         flash(f'Error generating download: {message}', 'error')
                 else:
                     # For local, generate file and send
-                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False)
+                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, program_level=program_level)
                     if filepath and os.path.exists(filepath):
                         return send_file(filepath, as_attachment=True)
                     else:

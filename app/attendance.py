@@ -12,7 +12,7 @@ from app.database import USE_SUPABASE_DB
 
 # Get download folder path
 
-def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False):
+def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None):
     """Generate HTML attendance sheet for a specific course and date using NITC format"""
     # For Vercel deployment, always use in_memory=True
     IS_VERCEL = os.environ.get('VERCEL') in ('1', 'true', 'True', True)
@@ -54,7 +54,7 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             academic_year, semester_type, degree_level, exam_type, db_name = semester_info
         
         # Get students from database
-        students_sorted = get_sorted_students(semester_id, course_code) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code)
+        students_sorted = get_sorted_students(semester_id, course_code, program_level) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code, program_level)
         if not students_sorted:
             return None, "No students found for this course"
         
@@ -93,7 +93,7 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
 # signature, bio-break and additional sheets columns and should be used
 # for both preview and download.
 
-def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
+def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False, program_level=None):
     """Generate all attendance sheets for a semester and create a ZIP file with program and course folders.
     When in_memory=True, returns (zip_bytes, message) instead of (filepath, message)."""
     try:
@@ -126,7 +126,7 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
             academic_year, semester_type, degree_level, exam_type, db_name = semester_info
         
         # Get all courses from database
-        courses = get_courses(semester_id if USE_SUPABASE_DB else db_name)
+        courses = get_courses(semester_id if USE_SUPABASE_DB else db_name, program_level)
         if not courses:
             return None, "No courses found for this semester"
         
@@ -190,37 +190,37 @@ Each course folder contains:
         for course_code, course_title in courses:
             # Determine program level based on students' roll number prefixes (B=UG, M=PG, P=PhD)
             try:
-                students_for_course = get_sorted_students(db_name, course_code) or []
+                students_for_course = get_sorted_students(semester_id if USE_SUPABASE_DB else db_name, course_code, program_level) or []
                 roll_prefixes = [str(s[0]).strip().upper()[:1] for s in students_for_course if s and s[0]]
                 has_ug = any(p == 'B' for p in roll_prefixes)
                 has_pg = any(p == 'M' for p in roll_prefixes)
                 has_phd = any(p == 'P' for p in roll_prefixes)
                 if has_pg and not has_ug and not has_phd:
-                    program_level = 'PG'
+                    detected_program_level = 'PG'
                 elif has_ug and not has_pg and not has_phd:
-                    program_level = 'UG'
+                    detected_program_level = 'UG'
                 elif has_phd and not has_ug and not has_pg:
-                    program_level = 'PhD'
+                    detected_program_level = 'PhD'
                 else:
                     # Mixed or unknown: prefer UG if present, else PG, else default UG
-                    program_level = 'UG' if has_ug else ('PG' if has_pg else ('PhD' if has_phd else 'UG'))
+                    detected_program_level = 'UG' if has_ug else ('PG' if has_pg else ('PhD' if has_phd else 'UG'))
             except Exception:
                 # Fallback to previous heuristic based on course code
-                program_level = 'PG' if course_code.startswith('M') else 'PhD' if course_code.startswith('P') else 'UG'
+                detected_program_level = 'PG' if course_code.startswith('M') else 'PhD' if course_code.startswith('P') else 'UG'
             
             # Generate detailed attendance sheet (with bio breaks)
-            html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, in_memory=True)
+            html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, in_memory=True, program_level=program_level)
             if html_content:
                 safe_course = secure_filename(str(course_code))
                 filename = f"Detailed_Attendance_{academic_year}_{semester_type}_{course_code}_{exam_date}.html"
-                rel_path = os.path.join(program_level, safe_course, filename)
+                rel_path = os.path.join(detected_program_level, safe_course, filename)
                 
                 if in_memory:
                     # Add directly to ZIP
                     zipf.writestr(rel_path, html_content)
                 else:
                     # Create course directory and write to temp dir
-                    temp_program_dir = os.path.join(temp_dir, program_level)
+                    temp_program_dir = os.path.join(temp_dir, detected_program_level)
                     course_dir = os.path.join(temp_program_dir, course_code)
                     
                     # Ensure both program and course directories exist
@@ -278,7 +278,7 @@ Each course folder contains:
         return None, f"Error generating bulk attendance sheets: {str(e)}"
 
 # Helper functions
-def get_sorted_students(db_name_or_semester_id, course_code):
+def get_sorted_students(db_name_or_semester_id, course_code, program_level=None):
     """Get sorted list of students for a course"""
     import sqlite3
     try:
@@ -287,6 +287,14 @@ def get_sorted_students(db_name_or_semester_id, course_code):
             semester_id = db_name_or_semester_id
             result = supabase.table('students').select('roll_no, name, course_title, main_instructor, program_name').eq('semester_id', semester_id).eq('course_code', course_code).execute()
             students = [(row['roll_no'], row['name'], row['course_title'], row['main_instructor'], row['program_name']) for row in result.data]
+            
+            # Filter by program level if specified
+            if program_level:
+                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
+                prefix = prefix_map.get(program_level)
+                if prefix:
+                    students = [s for s in students if s[0] and str(s[0]).startswith(prefix)]
+            
             return sort_by_roll_number(students)
         else:
             # db_name_or_semester_id is db_name when using SQLite
@@ -303,23 +311,40 @@ def get_sorted_students(db_name_or_semester_id, course_code):
             ''', (course_code,))
             students = cursor.fetchall()
             sem_conn.close()
+            
+            # Filter by program level if specified
+            if program_level:
+                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
+                prefix = prefix_map.get(program_level)
+                if prefix:
+                    students = [s for s in students if s[0] and str(s[0]).startswith(prefix)]
+            
             return sort_by_roll_number(students)
     except Exception as e:
         print(f"Error in get_sorted_students: {e}")
         return []
 
-def get_courses(db_name_or_semester_id):
-    """Get all courses from a semester"""
+def get_courses(db_name_or_semester_id, program_level=None):
+    """Get all courses from a semester, optionally filtered by program level"""
     import sqlite3
     try:
         if USE_SUPABASE_DB and supabase:
             semester_id = db_name_or_semester_id
-            result = supabase.table('students').select('course_code, course_title').eq('semester_id', semester_id).execute()
+            result = supabase.table('students').select('course_code, course_title, roll_no').eq('semester_id', semester_id).execute()
             
-            # Get unique courses
+            # Get unique courses, filter by program if specified
             courses_dict = {}
             for row in result.data:
                 code = row['course_code']
+                roll_no = row.get('roll_no', '')
+                
+                # Filter by program level if specified
+                if program_level:
+                    prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
+                    prefix = prefix_map.get(program_level)
+                    if prefix and roll_no and not str(roll_no).startswith(prefix):
+                        continue
+                
                 if code not in courses_dict:
                     courses_dict[code] = row['course_title']
             
@@ -331,10 +356,28 @@ def get_courses(db_name_or_semester_id):
                 db_name = os.path.join(current_app.config['BASE_DIR'], db_name)
             sem_conn = sqlite3.connect(db_name)
             cursor = sem_conn.cursor()
-            cursor.execute('SELECT DISTINCT course_code, course_title FROM students ORDER BY course_code')
-            courses = cursor.fetchall()
+            cursor.execute('SELECT DISTINCT course_code, course_title, roll_no FROM students ORDER BY course_code')
+            all_courses = cursor.fetchall()
             sem_conn.close()
-            return courses
+            
+            # Filter by program level if specified
+            if program_level:
+                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
+                prefix = prefix_map.get(program_level)
+                if prefix:
+                    # Group by course and check if any student in course matches prefix
+                    courses_dict = {}
+                    for code, title, roll_no in all_courses:
+                        if roll_no and str(roll_no).startswith(prefix):
+                            courses_dict[code] = title
+                    return sorted([(code, title) for code, title in courses_dict.items()])
+            
+            # Return all courses (without roll_no in output)
+            courses_dict = {}
+            for code, title, _ in all_courses:
+                if code not in courses_dict:
+                    courses_dict[code] = title
+            return sorted([(code, title) for code, title in courses_dict.items()])
     except Exception as e:
         print(f"Error in get_courses: {e}")
         return []
