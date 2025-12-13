@@ -675,25 +675,33 @@ def absentee_sheet():
     # Get all courses from all semesters
     all_courses = []
     try:
-        import sqlite3
-        conn = sqlite3.connect('exam_cell.db')
-        cursor = conn.cursor()
-        cursor.execute('SELECT db_name FROM semesters')
-        semester_dbs = cursor.fetchall()
-        conn.close()
-        
-        course_set = set()
-        for (db_name,) in semester_dbs:
-            if db_name and os.path.exists(db_name):
-                sem_conn = sqlite3.connect(db_name)
-                sem_cursor = sem_conn.cursor()
-                sem_cursor.execute('SELECT DISTINCT course_code, course_title FROM students ORDER BY course_code')
-                courses = sem_cursor.fetchall()
-                for code, title in courses:
-                    course_set.add((code, title))
-                sem_conn.close()
-        
-        all_courses = sorted(list(course_set), key=lambda x: x[0])
+        if USE_SUPABASE_DB and supabase:
+            # Get all unique courses from Supabase students table
+            result = supabase.table('students').select('course_code, course_title').execute()
+            course_set = set()
+            for row in result.data:
+                course_set.add((row['course_code'], row['course_title']))
+            all_courses = sorted(list(course_set), key=lambda x: x[0])
+        else:
+            import sqlite3
+            conn = sqlite3.connect('exam_cell.db')
+            cursor = conn.cursor()
+            cursor.execute('SELECT db_name FROM semesters')
+            semester_dbs = cursor.fetchall()
+            conn.close()
+            
+            course_set = set()
+            for (db_name,) in semester_dbs:
+                if db_name and os.path.exists(db_name):
+                    sem_conn = sqlite3.connect(db_name)
+                    sem_cursor = sem_conn.cursor()
+                    sem_cursor.execute('SELECT DISTINCT course_code, course_title FROM students ORDER BY course_code')
+                    courses = sem_cursor.fetchall()
+                    for code, title in courses:
+                        course_set.add((code, title))
+                    sem_conn.close()
+            
+            all_courses = sorted(list(course_set), key=lambda x: x[0])
     except Exception as e:
         print(f"Error loading courses: {e}")
     
@@ -709,38 +717,56 @@ def absentee_sheet():
             roll_no = request.form.get('roll_no', '').strip()
             
             if course_code and roll_no:
-                import sqlite3
-                conn = sqlite3.connect('exam_cell.db')
-                cursor = conn.cursor()
-                cursor.execute('SELECT db_name FROM semesters')
-                semester_dbs = cursor.fetchall()
-                conn.close()
-                
-                for (db_name,) in semester_dbs:
-                    if db_name and os.path.exists(db_name):
-                        try:
-                            sem_conn = sqlite3.connect(db_name)
-                            sem_cursor = sem_conn.cursor()
-                            sem_cursor.execute(
-                                'SELECT roll_no, name, course_code, course_title FROM students WHERE course_code = ? AND roll_no = ?',
-                                (course_code, roll_no)
-                            )
-                            result = sem_cursor.fetchone()
-                            sem_conn.close()
-                            
-                            if result:
-                                student_info = {
-                                    'roll_no': result[0],
-                                    'name': result[1],
-                                    'course_code': result[2],
-                                    'course_title': result[3]
-                                }
-                                break
-                        except:
-                            continue
-                
-                if not student_info:
-                    flash('Student not found for this course and roll number.', 'error')
+                if USE_SUPABASE_DB and supabase:
+                    # Search in Supabase students table
+                    try:
+                        result = supabase.table('students').select('roll_no, name, course_code, course_title').eq('course_code', course_code).eq('roll_no', roll_no).execute()
+                        if result.data and len(result.data) > 0:
+                            row = result.data[0]
+                            student_info = {
+                                'roll_no': row['roll_no'],
+                                'name': row['name'],
+                                'course_code': row['course_code'],
+                                'course_title': row['course_title']
+                            }
+                        else:
+                            flash('Student not found for this course and roll number.', 'error')
+                    except Exception as e:
+                        print(f"Error searching student: {e}")
+                        flash('Error searching for student.', 'error')
+                else:
+                    import sqlite3
+                    conn = sqlite3.connect('exam_cell.db')
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT db_name FROM semesters')
+                    semester_dbs = cursor.fetchall()
+                    conn.close()
+                    
+                    for (db_name,) in semester_dbs:
+                        if db_name and os.path.exists(db_name):
+                            try:
+                                sem_conn = sqlite3.connect(db_name)
+                                sem_cursor = sem_conn.cursor()
+                                sem_cursor.execute(
+                                    'SELECT roll_no, name, course_code, course_title FROM students WHERE course_code = ? AND roll_no = ?',
+                                    (course_code, roll_no)
+                                )
+                                result = sem_cursor.fetchone()
+                                sem_conn.close()
+                                
+                                if result:
+                                    student_info = {
+                                        'roll_no': result[0],
+                                        'name': result[1],
+                                        'course_code': result[2],
+                                        'course_title': result[3]
+                                    }
+                                    break
+                            except:
+                                continue
+                    
+                    if not student_info:
+                        flash('Student not found for this course and roll number.', 'error')
             else:
                 flash('Please select course and enter roll number.', 'error')
         

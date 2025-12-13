@@ -492,9 +492,10 @@ def get_all_semesters():
 def get_courses_for_semester(semester_id, program_level=None):
     """Get all courses for a specific semester and program level"""
     print(f"DEBUG: get_courses_for_semester called with semester_id={semester_id}, program_level={program_level}")
+    print(f"DEBUG: USE_SUPABASE_DB={USE_SUPABASE_DB}, supabase={supabase}")
     
     try:
-        if USE_SUPABASE_DB:
+        if USE_SUPABASE_DB and supabase:
             # Query students directly with semester_id filter
             query = supabase.table('students').select('course_code, course_title').eq('semester_id', semester_id)
             

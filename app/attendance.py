@@ -31,7 +31,7 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             download_folder = tempfile.mkdtemp(prefix='downloads_')
     try:
         # Get semester information
-        if USE_SUPABASE_DB:
+        if USE_SUPABASE_DB and supabase:
             result = supabase.table('semesters').select('academic_year, semester_type, degree_level, exam_type, db_name').eq('id', semester_id).execute()
             if not result.data:
                 return None, "Semester not found"
@@ -100,7 +100,7 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False):
     When in_memory=True, returns (zip_bytes, message) instead of (filepath, message)."""
     try:
         # Get semester information
-        if USE_SUPABASE_DB:
+        if USE_SUPABASE_DB and supabase:
             result = supabase.table('semesters').select('academic_year, semester_type, degree_level, exam_type, db_name').eq('id', semester_id).execute()
             if not result.data:
                 return None, "Semester not found"
@@ -284,7 +284,7 @@ def get_sorted_students(db_name_or_semester_id, course_code):
     """Get sorted list of students for a course"""
     import sqlite3
     try:
-        if USE_SUPABASE_DB:
+        if USE_SUPABASE_DB and supabase:
             # db_name_or_semester_id is semester_id when using Supabase
             semester_id = db_name_or_semester_id
             result = supabase.table('students').select('roll_no, name, course_title, main_instructor, program_name').eq('semester_id', semester_id).eq('course_code', course_code).execute()
@@ -314,7 +314,7 @@ def get_courses(db_name_or_semester_id):
     """Get all courses from a semester"""
     import sqlite3
     try:
-        if USE_SUPABASE_DB:
+        if USE_SUPABASE_DB and supabase:
             semester_id = db_name_or_semester_id
             result = supabase.table('students').select('course_code, course_title').eq('semester_id', semester_id).execute()
             
