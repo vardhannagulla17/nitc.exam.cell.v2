@@ -3,7 +3,8 @@ from pathlib import Path
 from supabase_client import supabase
 
 # Check if we should use Supabase PostgreSQL or SQLite
-USE_SUPABASE_DB = bool(os.environ.get('VERCEL', False) and supabase)
+# Use Supabase if client is available (regardless of environment)
+USE_SUPABASE_DB = supabase is not None
 
 def get_db_connection(db_name=None):
     """Get a database connection - Supabase PostgreSQL on Vercel, SQLite locally"""
