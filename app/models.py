@@ -195,6 +195,10 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
         else:
             df = pd.read_excel(file_source, engine='openpyxl')
         
+        # Debug: Print column names
+        print(f"DEBUG: Excel columns: {list(df.columns)}")
+        print(f"DEBUG: First row sample: {df.head(1).to_dict('records') if len(df) > 0 else 'No data'}")
+        
         # Filter data based on sheet type if not combined
         if sheet_type != 'combined':
             roll_series = df.get('RollNo')
@@ -242,9 +246,16 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
             # Prepare student data for batch insert
             students_data = []
             for _, row in df.iterrows():
+                # Try different possible column names for student name
+                student_name = ''
+                for col_name in ['StudentName', 'Student Name', 'Name', 'STUDENT NAME', 'Student_Name']:
+                    if col_name in df.columns:
+                        student_name = str(row.get(col_name, ''))
+                        break
+                
                 student = {
                     'roll_no': str(row.get('RollNo', '')),
-                    'name': str(row.get('StudentName', '')),
+                    'name': student_name,
                     'email_id': str(row.get('Email_Id', '')),
                     'student_sess': str(row.get('Student_Sess', '')),
                     'course_code': str(row.get('CourseCode', '')),
@@ -294,6 +305,13 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
             
             # Insert new data
             for _, row in df.iterrows():
+                # Try different possible column names for student name
+                student_name = ''
+                for col_name in ['StudentName', 'Student Name', 'Name', 'STUDENT NAME', 'Student_Name']:
+                    if col_name in df.columns:
+                        student_name = str(row.get(col_name, ''))
+                        break
+                
                 sem_conn.execute('''
                     INSERT INTO students (
                         roll_no, name, email_id, student_sess, course_code, credits,
@@ -302,7 +320,7 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     str(row.get('RollNo', '')),
-                    str(row.get('StudentName', '')),
+                    student_name,
                     str(row.get('Email_Id', '')),
                     str(row.get('Student_Sess', '')),
                     str(row.get('CourseCode', '')),
