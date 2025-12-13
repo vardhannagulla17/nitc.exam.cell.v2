@@ -8,9 +8,7 @@ from helpers.utils import sort_by_roll_number
 from flask import current_app
 from werkzeug.utils import secure_filename
 from supabase_client import supabase
-
-# Check if we should use Supabase
-USE_SUPABASE_DB = bool(os.environ.get('VERCEL', False) and supabase)
+from app.database import USE_SUPABASE_DB
 
 # Get download folder path
 

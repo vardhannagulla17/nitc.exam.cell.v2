@@ -160,19 +160,28 @@ def get_semester_stats():
         
         if USE_SUPABASE_DB and supabase:
             # Query Supabase for stats
-            semesters_result = supabase.table('semesters').select('id').execute()
-            total_semesters = len(semesters_result.data) if semesters_result.data else 0
-            
-            students_result = supabase.table('students').select('id, course_code').execute()
-            total_students = len(students_result.data) if students_result.data else 0
-            
-            unique_courses = set(row['course_code'] for row in students_result.data) if students_result.data else set()
-            
-            return {
-                'total_students': total_students,
-                'total_courses': len(unique_courses),
-                'total_semesters': total_semesters
-            }
+            print("DEBUG: Querying Supabase for semester stats...")
+            try:
+                semesters_result = supabase.table('semesters').select('id').execute()
+                total_semesters = len(semesters_result.data) if semesters_result.data else 0
+                print(f"DEBUG: Found {total_semesters} semesters")
+                
+                students_result = supabase.table('students').select('id, course_code').execute()
+                total_students = len(students_result.data) if students_result.data else 0
+                print(f"DEBUG: Found {total_students} students")
+                
+                unique_courses = set(row['course_code'] for row in students_result.data) if students_result.data else set()
+                total_courses = len(unique_courses)
+                print(f"DEBUG: Found {total_courses} unique courses")
+                
+                return {
+                    'total_students': total_students,
+                    'total_courses': total_courses,
+                    'total_semesters': total_semesters
+                }
+            except Exception as e:
+                print(f"ERROR querying Supabase in get_semester_stats: {e}")
+                return {'total_students': 0, 'total_courses': 0, 'total_semesters': 0}
         else:
             # SQLite for local development
             import sqlite3

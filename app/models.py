@@ -475,7 +475,7 @@ def get_semesters_for_program_level(program_level=None):
 
 def get_all_semesters():
     """Get all available semesters"""
-    if USE_SUPABASE_DB:
+    if USE_SUPABASE_DB and supabase:
         try:
             result = supabase.table('semesters').select('id, academic_year, semester_type, degree_level, exam_type').order('academic_year', desc=True).order('semester_type').execute()
             return [(s['id'], s['academic_year'], s['semester_type'], s['degree_level'], s['exam_type']) for s in result.data]
