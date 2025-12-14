@@ -748,15 +748,24 @@ def absentee_sheet():
     try:
         if USE_SUPABASE_DB and supabase:
             # Get all unique courses from Supabase students table
+            print(f"DEBUG Absentee: USE_SUPABASE_DB={USE_SUPABASE_DB}, supabase={supabase}")
             print(f"DEBUG Absentee: Loading courses from Supabase...")
             result = supabase.table('students').select('course_code, course_title').execute()
+            print(f"DEBUG Absentee: Query executed. result={result}")
+            print(f"DEBUG Absentee: result.data type={type(result.data)}")
             print(f"DEBUG Absentee: Got {len(result.data) if result.data else 0} rows from students table")
-            course_set = set()
-            for row in result.data:
-                course_set.add((row['course_code'], row['course_title']))
-            all_courses = sorted(list(course_set), key=lambda x: x[0])
-            print(f"DEBUG Absentee: Found {len(all_courses)} unique courses")
+            
+            if result.data:
+                course_set = set()
+                for row in result.data:
+                    if row and 'course_code' in row and 'course_title' in row:
+                        course_set.add((row['course_code'], row['course_title']))
+                all_courses = sorted(list(course_set), key=lambda x: x[0])
+                print(f"DEBUG Absentee: Found {len(all_courses)} unique courses")
+            else:
+                print(f"DEBUG Absentee: result.data is None or empty")
         else:
+            print(f"DEBUG Absentee: Using SQLite (USE_SUPABASE_DB={USE_SUPABASE_DB})")
             import sqlite3
             conn = sqlite3.connect('exam_cell.db')
             cursor = conn.cursor()
