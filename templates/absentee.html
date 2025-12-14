@@ -24,6 +24,11 @@
                     <div class="form-field">
                         <label for="course_code">
                             <i class="fas fa-book"></i> Select Course
+                            {% if all_courses %}
+                            <span style="color: #10b981; font-size: 0.875rem;">({{ all_courses|length }} available)</span>
+                            {% else %}
+                            <span style="color: #ef4444; font-size: 0.875rem;">(No courses - upload Excel first)</span>
+                            {% endif %}
                         </label>
                         <select name="course_code" id="course_code" required
                                 style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">

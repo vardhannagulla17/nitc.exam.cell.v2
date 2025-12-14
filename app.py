@@ -782,6 +782,9 @@ def absentee_sheet():
         traceback.print_exc()
     
     print(f"DEBUG Absentee: Rendering with {len(all_courses)} courses")
+    if all_courses:
+        print(f"DEBUG Absentee: First few courses: {all_courses[:3]}")
+    
     absentees = []
     student_info = None
     course_info = None
