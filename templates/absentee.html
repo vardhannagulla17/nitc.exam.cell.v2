@@ -20,95 +20,19 @@
 
                 <form method="POST" action="/absentee" style="padding: 1.5rem;">
                     <input type="hidden" name="action" value="search_student">
-                    <input type="hidden" name="course_code" id="course_code_hidden">
                     
                     <div class="form-field">
-                        <label for="course_code_input">
-                            <i class="fas fa-code"></i> Course Code
+                        <label for="course_code">
+                            <i class="fas fa-book"></i> Select Course
                         </label>
-                        <input type="text" id="course_code_input" 
-                               placeholder="Enter course code (e.g., ME1401E)"
-                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                        <select name="course_code" id="course_code" required
+                                style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                            <option value="">-- Select a Course --</option>
+                            {% for code, title in all_courses %}
+                            <option value="{{ code }}">{{ code }} - {{ title }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    
-                    <div class="form-field">
-                        <label for="course_name_input">
-                            <i class="fas fa-book"></i> Course Name
-                        </label>
-                        <input type="text" id="course_name_input" 
-                               placeholder="Or enter/select course name"
-                               list="course_name_list"
-                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
-                        <datalist id="course_name_list">
-                            {% for code, title in all_courses %}
-                            <option value="{{ title }}" data-code="{{ code }}">{{ code }}</option>
-                            {% endfor %}
-                        </datalist>
-                    </div>
-                    
-                    <script>
-                        // Course data mapping
-                        const courseData = {
-                            {% for code, title in all_courses %}
-                            "{{ code }}": "{{ title }}",
-                            {% endfor %}
-                        };
-                        
-                        const courseTitleToCode = {
-                            {% for code, title in all_courses %}
-                            "{{ title }}": "{{ code }}",
-                            {% endfor %}
-                        };
-                        
-                        // When course code is entered
-                        document.getElementById('course_code_input').addEventListener('input', function() {
-                            const code = this.value.trim().toUpperCase();
-                            const courseNameInput = document.getElementById('course_name_input');
-                            
-                            if (courseData[code]) {
-                                courseNameInput.value = courseData[code];
-                                document.getElementById('course_code_hidden').value = code;
-                            } else {
-                                courseNameInput.value = '';
-                                document.getElementById('course_code_hidden').value = this.value.trim();
-                            }
-                        });
-                        
-                        // When course name is entered/selected
-                        document.getElementById('course_name_input').addEventListener('input', function() {
-                            const title = this.value.trim();
-                            const courseCodeInput = document.getElementById('course_code_input');
-                            
-                            if (courseTitleToCode[title]) {
-                                courseCodeInput.value = courseTitleToCode[title];
-                                document.getElementById('course_code_hidden').value = courseTitleToCode[title];
-                            } else {
-                                // Try partial match
-                                let found = false;
-                                for (const [courseTitle, courseCode] of Object.entries(courseTitleToCode)) {
-                                    if (courseTitle.toLowerCase().includes(title.toLowerCase()) && title.length > 3) {
-                                        courseCodeInput.value = courseCode;
-                                        document.getElementById('course_code_hidden').value = courseCode;
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                                if (!found) {
-                                    courseCodeInput.value = '';
-                                    document.getElementById('course_code_hidden').value = '';
-                                }
-                            }
-                        });
-                        
-                        // Sync on blur to handle datalist selection
-                        document.getElementById('course_name_input').addEventListener('blur', function() {
-                            const title = this.value.trim();
-                            if (courseTitleToCode[title]) {
-                                document.getElementById('course_code_input').value = courseTitleToCode[title];
-                                document.getElementById('course_code_hidden').value = courseTitleToCode[title];
-                            }
-                        });
-                    </script>
 
                     <div class="form-field">
                         <label for="roll_no">
