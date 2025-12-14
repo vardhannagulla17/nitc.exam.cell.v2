@@ -468,9 +468,6 @@ def dashboard():
                          total_semesters=stats['total_semesters'],
                          uploaded_files=uploaded_files,
                          db_usage=db_usage)
-                         total_courses=stats['total_courses'],
-                         total_semesters=stats['total_semesters'],
-                         uploaded_files=uploaded_files)
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
