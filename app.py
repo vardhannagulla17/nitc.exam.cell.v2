@@ -460,14 +460,19 @@ def dashboard():
     if session.get('role') == 'admin':
         db_usage = get_database_usage_stats()
     
-    return render_template('dashboard.html',
+    response = make_response(render_template('dashboard.html',
                          username=session['username'],
                          role=session['role'],
                          total_students=stats['total_students'],
                          total_courses=stats['total_courses'],
                          total_semesters=stats['total_semesters'],
                          uploaded_files=uploaded_files,
-                         db_usage=db_usage)
+                         db_usage=db_usage))
+    # Prevent caching to ensure real-time stats
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
@@ -786,7 +791,9 @@ def absentee_sheet():
                 if USE_SUPABASE_DB and supabase:
                     # Search in Supabase students table
                     try:
+                        print(f"DEBUG: Searching for course={course_code}, roll={roll_no}")
                         result = supabase.table('students').select('roll_no, name, course_code, course_title').eq('course_code', course_code).eq('roll_no', roll_no).execute()
+                        print(f"DEBUG: Search result count: {len(result.data) if result.data else 0}")
                         if result.data and len(result.data) > 0:
                             row = result.data[0]
                             student_info = {
@@ -795,11 +802,14 @@ def absentee_sheet():
                                 'course_code': row['course_code'],
                                 'course_title': row['course_title']
                             }
+                            print(f"DEBUG: Found student: {student_info}")
                         else:
                             flash('Student not found for this course and roll number.', 'error')
                     except Exception as e:
-                        print(f"Error searching student: {e}")
-                        flash('Error searching for student.', 'error')
+                        print(f"ERROR searching student in Supabase: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        flash(f'Error searching for student: {str(e)}', 'error')
                 else:
                     import sqlite3
                     conn = sqlite3.connect('exam_cell.db')
