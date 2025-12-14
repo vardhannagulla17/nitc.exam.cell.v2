@@ -913,8 +913,19 @@ def generate_absentee_html(absentees, exam_date):
     if not absentees:
         return ""
     
-    course_code = absentees[0]['course_code']
-    course_title = absentees[0]['course_title']
+    # Sort absentees by roll number before generating HTML
+    from helpers.utils import sort_by_roll_number
+    # Convert dict format to tuple format for sorting
+    absentees_tuples = [(a['roll_no'], a['name'], a['course_code'], a['course_title']) for a in absentees]
+    sorted_absentees_tuples = sort_by_roll_number(absentees_tuples)
+    # Convert back to dict format
+    sorted_absentees = [
+        {'roll_no': t[0], 'name': t[1], 'course_code': t[2], 'course_title': t[3]}
+        for t in sorted_absentees_tuples
+    ]
+    
+    course_code = sorted_absentees[0]['course_code']
+    course_title = sorted_absentees[0]['course_title']
     
     html = f"""<!DOCTYPE html>
 <html>
@@ -982,7 +993,7 @@ def generate_absentee_html(absentees, exam_date):
         <strong>Course Code:</strong> {course_code}<br>
         <strong>Course Title:</strong> {course_title}<br>
         <strong>Exam Date:</strong> {datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')}<br>
-        <strong>Total Absentees:</strong> {len(absentees)}
+        <strong>Total Absentees:</strong> {len(sorted_absentees)}
     </div>
     
     <table>
@@ -996,7 +1007,7 @@ def generate_absentee_html(absentees, exam_date):
         <tbody>
 """
     
-    for idx, student in enumerate(absentees, 1):
+    for idx, student in enumerate(sorted_absentees, 1):
         html += f"""            <tr>
                 <td>{idx}</td>
                 <td>{student['roll_no']}</td>

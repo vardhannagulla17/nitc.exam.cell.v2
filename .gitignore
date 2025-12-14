@@ -47,6 +47,21 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Project specific
+*.db
+*.xlsx
+*.xls
+uploads/
+downloads/
+logs/
+.venv/
+.env
+*.png
+*.jpg
+*.jpeg
+*.msi
+FEATURE_VERIFICATION_REPORT.txt
+
 # Translations
 *.mo
 *.pot

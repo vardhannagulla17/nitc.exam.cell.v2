@@ -48,13 +48,17 @@ CREATE INDEX IF NOT EXISTS idx_students_roll_no ON students(roll_no);
 CREATE INDEX IF NOT EXISTS idx_students_program_name ON students(program_name);
 CREATE INDEX IF NOT EXISTS idx_semesters_db_name ON semesters(db_name);
 
--- Enable Row Level Security (RLS) - Optional but recommended
+-- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE semesters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (to avoid errors on re-run)
+DROP POLICY IF EXISTS "Enable all for service role" ON users;
+DROP POLICY IF EXISTS "Enable all for service role" ON semesters;
+DROP POLICY IF EXISTS "Enable all for service role" ON students;
+
 -- Create policies to allow service role to access everything
--- These policies allow the backend to perform all operations
 CREATE POLICY "Enable all for service role" ON users
     FOR ALL 
     USING (true)
@@ -70,10 +74,22 @@ CREATE POLICY "Enable all for service role" ON students
     USING (true)
     WITH CHECK (true);
 
--- Insert default admin users (passwords are hashed in the application)
--- These will be created by the init_db() function in the app
--- No need to insert here - the app will handle it
+-- Optional: Create user_files table for Supabase Storage metadata
+CREATE TABLE IF NOT EXISTS user_files (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID,
+    filename TEXT NOT NULL,
+    path TEXT NOT NULL,
+    mime TEXT,
+    size BIGINT,
+    uploaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create index on user_files for better performance
+CREATE INDEX IF NOT EXISTS idx_user_files_user_id ON user_files(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_files_filename ON user_files(filename);
 
 COMMENT ON TABLE users IS 'Stores admin and staff user accounts';
 COMMENT ON TABLE semesters IS 'Stores academic semester information';
 COMMENT ON TABLE students IS 'Stores student enrollment data per semester';
+COMMENT ON TABLE user_files IS 'Metadata for uploaded files in Supabase Storage';

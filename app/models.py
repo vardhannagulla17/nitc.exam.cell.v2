@@ -240,8 +240,8 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
         
         # Filter data based on sheet type if not combined
         if sheet_type != 'combined':
-            roll_series = df.get('RollNo')
-            if roll_series is not None:
+            if col_roll and col_roll in df.columns:
+                roll_series = df[col_roll]
                 prefixes = roll_series.astype(str).str[0].str.upper()
                 level_map = {'B': 'UG', 'M': 'PG', 'P': 'PhD'}
                 levels = prefixes.map(level_map)
