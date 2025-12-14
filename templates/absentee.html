@@ -125,7 +125,7 @@
                     </div>
 
                     <!-- Actions -->
-                    <form method="POST" action="/absentee">
+                    <form method="POST" action="/absentee" id="absenteeActionsForm">
                         <div class="form-field">
                             <label for="exam_date">
                                 <i class="fas fa-calendar-alt"></i> Exam Date
@@ -135,7 +135,7 @@
                         </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
-                            <button type="submit" name="action" value="preview_absentees" class="btn btn-secondary" formtarget="_blank">
+                            <button type="button" onclick="previewAbsentees()" class="btn btn-secondary">
                                 <i class="fas fa-eye"></i> Preview
                             </button>
                             <button type="submit" name="action" value="download_absentees" class="btn btn-primary">
@@ -177,6 +177,42 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Preview function - opens in new tab
+function previewAbsentees() {
+    const form = document.getElementById('absenteeActionsForm');
+    const examDate = document.getElementById('exam_date').value;
+    
+    if (!examDate) {
+        alert('Please select an exam date');
+        return;
+    }
+    
+    // Create a temporary form that submits to new tab
+    const tempForm = document.createElement('form');
+    tempForm.method = 'POST';
+    tempForm.action = '/absentee';
+    tempForm.target = '_blank';
+    
+    // Add action field
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'preview_absentees';
+    tempForm.appendChild(actionInput);
+    
+    // Add exam_date field
+    const dateInput = document.createElement('input');
+    dateInput.type = 'hidden';
+    dateInput.name = 'exam_date';
+    dateInput.value = examDate;
+    tempForm.appendChild(dateInput);
+    
+    // Submit the form
+    document.body.appendChild(tempForm);
+    tempForm.submit();
+    document.body.removeChild(tempForm);
+}
 </script>
 
 <style>
