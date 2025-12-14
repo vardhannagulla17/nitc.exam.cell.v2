@@ -17,6 +17,9 @@ except ImportError:
 # Import Supabase client
 from supabase_client import supabase
 
+# Import database utilities
+from app.database import USE_SUPABASE_DB
+
 # Add the current directory to Python path so we can import from nitc.exam.cell.v1.app
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
