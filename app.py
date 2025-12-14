@@ -841,7 +841,9 @@ def absentee_sheet():
             if session['absentees']:
                 exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
                 html_content = generate_absentee_html(session['absentees'], exam_date)
-                return make_response(html_content)
+                response = make_response(html_content)
+                response.headers['Content-Type'] = 'text/html; charset=utf-8'
+                return response
             else:
                 flash('No absentees to preview.', 'error')
         
