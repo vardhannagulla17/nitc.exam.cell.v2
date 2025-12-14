@@ -743,126 +743,62 @@ def absentee_sheet():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    # Get all courses from all semesters
+    # Initialize session absentees list if not exists
+    if 'absentees' not in session:
+        session['absentees'] = []
+    
+    # Get all unique courses from students table
     all_courses = []
-    try:
-        if USE_SUPABASE_DB and supabase:
-            # Get all unique courses from Supabase students table
-            print(f"DEBUG Absentee: USE_SUPABASE_DB={USE_SUPABASE_DB}, supabase={supabase}")
-            print(f"DEBUG Absentee: Loading courses from Supabase...")
-            result = supabase.table('students').select('course_code, course_title').execute()
-            print(f"DEBUG Absentee: Query executed. result={result}")
-            print(f"DEBUG Absentee: result.data type={type(result.data)}")
-            print(f"DEBUG Absentee: Got {len(result.data) if result.data else 0} rows from students table")
-            
-            if result.data:
-                course_set = set()
-                for row in result.data:
-                    if row and 'course_code' in row and 'course_title' in row:
-                        course_set.add((row['course_code'], row['course_title']))
-                all_courses = sorted(list(course_set), key=lambda x: x[0])
-                print(f"DEBUG Absentee: Found {len(all_courses)} unique courses")
-            else:
-                print(f"DEBUG Absentee: result.data is None or empty")
-        else:
-            print(f"DEBUG Absentee: Using SQLite (USE_SUPABASE_DB={USE_SUPABASE_DB})")
-            import sqlite3
-            conn = sqlite3.connect('exam_cell.db')
-            cursor = conn.cursor()
-            cursor.execute('SELECT db_name FROM semesters')
-            semester_dbs = cursor.fetchall()
-            conn.close()
-            
-            course_set = set()
-            for (db_name,) in semester_dbs:
-                if db_name and os.path.exists(db_name):
-                    sem_conn = sqlite3.connect(db_name)
-                    sem_cursor = sem_conn.cursor()
-                    sem_cursor.execute('SELECT DISTINCT course_code, course_title FROM students ORDER BY course_code')
-                    courses = sem_cursor.fetchall()
-                    for code, title in courses:
-                        course_set.add((code, title))
-                    sem_conn.close()
-            
-            all_courses = sorted(list(course_set), key=lambda x: x[0])
-    except Exception as e:
-        print(f"ERROR loading courses for absentee: {e}")
-        import traceback
-        traceback.print_exc()
+    if USE_SUPABASE_DB and supabase:
+        try:
+            response = supabase.table('students').select('course_code, course_title').execute()
+            if response.data:
+                # Create unique set of courses
+                unique_courses = {}
+                for row in response.data:
+                    code = row.get('course_code')
+                    title = row.get('course_title')
+                    if code and title and code not in unique_courses:
+                        unique_courses[code] = title
+                # Convert to sorted list of tuples
+                all_courses = sorted([(code, title) for code, title in unique_courses.items()])
+        except Exception as e:
+            print(f"Error loading courses: {e}")
+            flash('Error loading courses from database.', 'error')
     
-    print(f"DEBUG Absentee: Rendering with {len(all_courses)} courses")
-    if all_courses:
-        print(f"DEBUG Absentee: First few courses: {all_courses[:3]}")
-    
-    absentees = []
+    # Handle POST actions
     student_info = None
-    course_info = None
     
     if request.method == 'POST':
         action = request.form.get('action')
         
         if action == 'search_student':
             course_code = request.form.get('course_code', '').strip()
-            roll_no = request.form.get('roll_no', '').strip()
+            roll_no = request.form.get('roll_no', '').strip().upper()
             
-            if course_code and roll_no:
-                if USE_SUPABASE_DB and supabase:
-                    # Search in Supabase students table
-                    try:
-                        print(f"DEBUG: Searching for course={course_code}, roll={roll_no}")
-                        result = supabase.table('students').select('roll_no, name, course_code, course_title').eq('course_code', course_code).eq('roll_no', roll_no).execute()
-                        print(f"DEBUG: Search result count: {len(result.data) if result.data else 0}")
-                        if result.data and len(result.data) > 0:
-                            row = result.data[0]
-                            student_info = {
-                                'roll_no': row['roll_no'],
-                                'name': row['name'],
-                                'course_code': row['course_code'],
-                                'course_title': row['course_title']
-                            }
-                            print(f"DEBUG: Found student: {student_info}")
-                        else:
-                            flash('Student not found for this course and roll number.', 'error')
-                    except Exception as e:
-                        print(f"ERROR searching student in Supabase: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        flash(f'Error searching for student: {str(e)}', 'error')
-                else:
-                    import sqlite3
-                    conn = sqlite3.connect('exam_cell.db')
-                    cursor = conn.cursor()
-                    cursor.execute('SELECT db_name FROM semesters')
-                    semester_dbs = cursor.fetchall()
-                    conn.close()
+            if not course_code or not roll_no:
+                flash('Please select a course and enter roll number.', 'error')
+            elif USE_SUPABASE_DB and supabase:
+                try:
+                    response = supabase.table('students')\
+                        .select('roll_no, name, course_code, course_title')\
+                        .eq('course_code', course_code)\
+                        .eq('roll_no', roll_no)\
+                        .execute()
                     
-                    for (db_name,) in semester_dbs:
-                        if db_name and os.path.exists(db_name):
-                            try:
-                                sem_conn = sqlite3.connect(db_name)
-                                sem_cursor = sem_conn.cursor()
-                                sem_cursor.execute(
-                                    'SELECT roll_no, name, course_code, course_title FROM students WHERE course_code = ? AND roll_no = ?',
-                                    (course_code, roll_no)
-                                )
-                                result = sem_cursor.fetchone()
-                                sem_conn.close()
-                                
-                                if result:
-                                    student_info = {
-                                        'roll_no': result[0],
-                                        'name': result[1],
-                                        'course_code': result[2],
-                                        'course_title': result[3]
-                                    }
-                                    break
-                            except:
-                                continue
-                    
-                    if not student_info:
-                        flash('Student not found for this course and roll number.', 'error')
-            else:
-                flash('Please select course and enter roll number.', 'error')
+                    if response.data and len(response.data) > 0:
+                        row = response.data[0]
+                        student_info = {
+                            'roll_no': row['roll_no'],
+                            'name': row['name'],
+                            'course_code': row['course_code'],
+                            'course_title': row['course_title']
+                        }
+                    else:
+                        flash(f'Student {roll_no} not found in course {course_code}.', 'error')
+                except Exception as e:
+                    print(f"Error searching student: {e}")
+                    flash('Error searching for student.', 'error')
         
         elif action == 'add_absentee':
             roll_no = request.form.get('roll_no', '').strip()
@@ -870,10 +806,13 @@ def absentee_sheet():
             course_code = request.form.get('course_code', '').strip()
             course_title = request.form.get('course_title', '').strip()
             
-            if 'absentees' not in session:
-                session['absentees'] = []
+            # Check if student already in list
+            already_added = any(
+                a['roll_no'] == roll_no and a['course_code'] == course_code 
+                for a in session['absentees']
+            )
             
-            if not any(a['roll_no'] == roll_no and a['course_code'] == course_code for a in session['absentees']):
+            if not already_added:
                 session['absentees'].append({
                     'roll_no': roll_no,
                     'name': name,
@@ -886,14 +825,17 @@ def absentee_sheet():
                 flash('Student already in absentee list.', 'warning')
         
         elif action == 'remove_absentee':
-            index = int(request.form.get('index', -1))
-            if 'absentees' in session and 0 <= index < len(session['absentees']):
-                removed = session['absentees'].pop(index)
-                session.modified = True
-                flash(f'Removed {removed["name"]} from absentee list.', 'info')
+            try:
+                index = int(request.form.get('index', -1))
+                if 0 <= index < len(session['absentees']):
+                    removed = session['absentees'].pop(index)
+                    session.modified = True
+                    flash(f'Removed {removed["name"]} from list.', 'info')
+            except:
+                flash('Error removing student.', 'error')
         
         elif action == 'preview_absentees':
-            if 'absentees' in session and len(session['absentees']) > 0:
+            if session['absentees']:
                 exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
                 html_content = generate_absentee_html(session['absentees'], exam_date)
                 return html_content
@@ -901,10 +843,9 @@ def absentee_sheet():
                 flash('No absentees to preview.', 'error')
         
         elif action == 'download_absentees':
-            if 'absentees' in session and len(session['absentees']) > 0:
+            if session['absentees']:
                 exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
                 html_content = generate_absentee_html(session['absentees'], exam_date)
-                
                 course_code = session['absentees'][0]['course_code']
                 filename = f"Absentees_{course_code}_{exam_date}.html"
                 
@@ -918,21 +859,22 @@ def absentee_sheet():
                 flash('No absentees to download.', 'error')
         
         elif action == 'clear_absentees':
-            session.pop('absentees', None)
+            session['absentees'] = []
             session.modified = True
             flash('Absentee list cleared.', 'info')
     
-    if 'absentees' in session:
-        absentees = session['absentees']
-        if len(absentees) > 0:
-            course_info = {
-                'course_code': absentees[0]['course_code'],
-                'course_title': absentees[0]['course_title']
-            }
+    # Prepare course info for display
+    course_info = None
+    if session['absentees']:
+        first_absentee = session['absentees'][0]
+        course_info = {
+            'course_code': first_absentee['course_code'],
+            'course_title': first_absentee['course_title']
+        }
     
     return render_template('absentee.html',
                          all_courses=all_courses,
-                         absentees=absentees,
+                         absentees=session['absentees'],
                          course_info=course_info,
                          student_info=student_info)
 

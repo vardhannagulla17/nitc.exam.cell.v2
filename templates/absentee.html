@@ -25,9 +25,9 @@
                         <label for="course_code">
                             <i class="fas fa-book"></i> Select Course
                             {% if all_courses %}
-                            <span style="color: #10b981; font-size: 0.875rem;">({{ all_courses|length }} available)</span>
+                            <span style="color: #10b981; font-size: 0.875rem;">({{ all_courses|length }} courses)</span>
                             {% else %}
-                            <span style="color: #ef4444; font-size: 0.875rem;">(No courses - upload Excel first)</span>
+                            <span style="color: #ef4444; font-size: 0.875rem;">(Upload Excel file first)</span>
                             {% endif %}
                         </label>
                         <select name="course_code" id="course_code" required
@@ -45,139 +45,114 @@
                         </label>
                         <input type="text" name="roll_no" id="roll_no" 
                                placeholder="e.g., B210001ME" required
-                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; text-transform: uppercase;">
                     </div>
 
                     <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
                         <i class="fas fa-search"></i> Search Student
                     </button>
                 </form>
-            </div>
 
-            <!-- Student Details (if found) -->
-            {% if student_info %}
-            <div class="card student-found-card">
-                <div class="card-header success-header">
-                    <h3><i class="fas fa-check-circle"></i> Student Found</h3>
-                </div>
-                <div class="student-details">
-                    <div class="detail-row">
-                        <span class="detail-label"><i class="fas fa-id-badge"></i> Roll Number:</span>
-                        <span class="detail-value">{{ student_info.roll_no }}</span>
+                <!-- Student Info Display -->
+                {% if student_info %}
+                <div style="margin-top: 1.5rem; padding: 1.5rem; background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px;">
+                    <h3 style="color: #059669; margin-bottom: 1rem;"><i class="fas fa-user-check"></i> Student Found</h3>
+                    <div style="display: grid; gap: 0.5rem; font-size: 0.95rem;">
+                        <div><strong>Roll No:</strong> {{ student_info.roll_no }}</div>
+                        <div><strong>Name:</strong> {{ student_info.name }}</div>
+                        <div><strong>Course:</strong> {{ student_info.course_code }} - {{ student_info.course_title }}</div>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label"><i class="fas fa-user"></i> Name:</span>
-                        <span class="detail-value">{{ student_info.name }}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label"><i class="fas fa-code"></i> Course Code:</span>
-                        <span class="detail-value">{{ student_info.course_code }}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label"><i class="fas fa-book-open"></i> Course Title:</span>
-                        <span class="detail-value">{{ student_info.course_title }}</span>
-                    </div>
-
-                    <form method="POST" action="/absentee" style="margin-top: 1.5rem;">
+                    
+                    <form method="POST" action="/absentee" style="margin-top: 1rem;">
                         <input type="hidden" name="action" value="add_absentee">
                         <input type="hidden" name="roll_no" value="{{ student_info.roll_no }}">
                         <input type="hidden" name="name" value="{{ student_info.name }}">
                         <input type="hidden" name="course_code" value="{{ student_info.course_code }}">
                         <input type="hidden" name="course_title" value="{{ student_info.course_title }}">
-                        
                         <button type="submit" class="btn btn-success" style="width: 100%;">
-                            <i class="fas fa-user-plus"></i> Mark as Absent
+                            <i class="fas fa-plus-circle"></i> Add to Absentee List
                         </button>
                     </form>
                 </div>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
 
-        <!-- Right: Absentee List -->
+        <!-- Right: Absentee List Section -->
         <div class="info-section">
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="fas fa-list"></i> Absentee List</h3>
+                    <h2><i class="fas fa-list"></i> Absentee List</h2>
                     {% if course_info %}
-                    <p style="margin-top: 0.5rem; font-size: 0.9rem;">
-                        <strong>{{ course_info.course_code }}:</strong> {{ course_info.course_title }}
-                    </p>
+                    <p>{{ course_info.course_code }} - {{ course_info.course_title }}</p>
                     {% endif %}
                 </div>
 
                 {% if absentees %}
-                <div style="padding: 1rem;">
-                    <div class="absentee-count-badge">
-                        <i class="fas fa-users"></i>
-                        <strong>Total Absentees: {{ absentees|length }}</strong>
+                <div style="padding: 1.5rem;">
+                    <div style="background: #fff7ed; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; border-left: 4px solid #f59e0b;">
+                        <strong>{{ absentees|length }}</strong> student(s) marked as absent
                     </div>
 
-                    <div class="absentee-list-container">
-                        {% for student in absentees %}
-                        <div class="absentee-item">
-                            <div class="absentee-info">
-                                <div class="absentee-roll">
-                                    <i class="fas fa-id-card"></i> {{ student.roll_no }}
-                                </div>
-                                <div class="absentee-name">{{ student.name }}</div>
-                            </div>
-                            <form method="POST" action="/absentee" style="margin: 0;">
-                                <input type="hidden" name="action" value="remove_absentee">
-                                <input type="hidden" name="index" value="{{ loop.index0 }}">
-                                <button type="submit" class="btn btn-danger btn-sm" 
-                                        onclick="return confirm('Remove this student from absentee list?');">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </form>
-                        </div>
-                        {% endfor %}
+                    <!-- Absentee List Table -->
+                    <div style="max-height: 400px; overflow-y: auto; margin-bottom: 1.5rem; border: 1px solid #e5e7eb; border-radius: 6px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead style="background: #f9fafb; position: sticky; top: 0;">
+                                <tr>
+                                    <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Roll No</th>
+                                    <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
+                                    <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb; width: 80px;">Remove</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for absentee in absentees %}
+                                <tr style="border-bottom: 1px solid #f3f4f6;">
+                                    <td style="padding: 0.75rem;">{{ absentee.roll_no }}</td>
+                                    <td style="padding: 0.75rem;">{{ absentee.name }}</td>
+                                    <td style="padding: 0.75rem; text-align: center;">
+                                        <form method="POST" action="/absentee" style="display: inline;">
+                                            <input type="hidden" name="action" value="remove_absentee">
+                                            <input type="hidden" name="index" value="{{ loop.index0 }}">
+                                            <button type="submit" class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
 
-                    <!-- Download Actions -->
-                    <div class="download-actions">
+                    <!-- Actions -->
+                    <form method="POST" action="/absentee">
                         <div class="form-field">
-                            <label for="exam_date_download">
-                                <i class="fas fa-calendar"></i> Exam Date
+                            <label for="exam_date">
+                                <i class="fas fa-calendar-alt"></i> Exam Date
                             </label>
-                            <input type="date" id="exam_date_download" name="exam_date" 
-                                   class="date-input">
+                            <input type="date" name="exam_date" id="exam_date" required
+                                   style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
                         </div>
 
-                        <div class="action-buttons">
-                            <form method="POST" action="/absentee" target="_blank">
-                                <input type="hidden" name="action" value="preview_absentees">
-                                <input type="hidden" name="exam_date" id="exam_date_preview">
-                                <button type="submit" class="btn btn-preview"
-                                        onclick="document.getElementById('exam_date_preview').value = document.getElementById('exam_date_download').value;">
-                                    <i class="fas fa-eye"></i> Preview
-                                </button>
-                            </form>
-
-                            <form method="POST" action="/absentee">
-                                <input type="hidden" name="action" value="download_absentees">
-                                <input type="hidden" name="exam_date" id="exam_date_hidden">
-                                <button type="submit" class="btn btn-primary"
-                                        onclick="document.getElementById('exam_date_hidden').value = document.getElementById('exam_date_download').value;">
-                                    <i class="fas fa-download"></i> Download
-                                </button>
-                            </form>
-
-                            <form method="POST" action="/absentee">
-                                <input type="hidden" name="action" value="clear_absentees">
-                                <button type="submit" class="btn btn-danger"
-                                        onclick="return confirm('Clear all absentees from the list?');">
-                                    <i class="fas fa-trash-alt"></i> Clear
-                                </button>
-                            </form>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
+                            <button type="submit" name="action" value="preview_absentees" class="btn btn-secondary" formtarget="_blank">
+                                <i class="fas fa-eye"></i> Preview
+                            </button>
+                            <button type="submit" name="action" value="download_absentees" class="btn btn-primary">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                            <button type="submit" name="action" value="clear_absentees" class="btn btn-danger"
+                                    onclick="return confirm('Clear all absentees from the list?')">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
                         </div>
-                    </div>
+                    </form>
                 </div>
                 {% else %}
-                <div class="empty-state">
-                    <i class="fas fa-clipboard-list"></i>
-                    <p class="empty-title">No absentees marked yet</p>
-                    <p class="empty-subtitle">Search for students and add them to create your absentee list</p>
+                <div style="padding: 3rem; text-align: center; color: #9ca3af;">
+                    <i class="fas fa-clipboard-list" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.3;"></i>
+                    <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">No absentees marked yet</p>
+                    <p style="font-size: 0.9rem;">Search for students and add them to create your absentee list</p>
                 </div>
                 {% endif %}
             </div>
@@ -188,9 +163,18 @@
 <script>
 // Set today's date as default
 document.addEventListener('DOMContentLoaded', function() {
-    const dateInput = document.getElementById('exam_date_download');
+    const dateInput = document.getElementById('exam_date');
     if (dateInput && !dateInput.value) {
-        dateInput.valueAsDate = new Date();
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+    }
+    
+    // Auto-uppercase roll number
+    const rollInput = document.getElementById('roll_no');
+    if (rollInput) {
+        rollInput.addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
     }
 });
 </script>
@@ -228,37 +212,33 @@ document.addEventListener('DOMContentLoaded', function() {
     gap: 2rem;
 }
 
+@media (max-width: 968px) {
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .card {
     background: white;
     border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.07);
-    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     overflow: hidden;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
 }
 
 .card-header {
-    padding: 1.5rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
+    padding: 1.5rem;
 }
 
-.card-header h2,
-.card-header h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
+.card-header h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
 }
 
 .card-header p {
-    margin: 0.5rem 0 0 0;
-    font-size: 0.875rem;
-    opacity: 0.95;
+    opacity: 0.9;
+    font-size: 0.95rem;
 }
 
 .form-field {
@@ -269,52 +249,20 @@ document.addEventListener('DOMContentLoaded', function() {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 600;
-    color: #334155;
-    font-size: 0.95rem;
-}
-
-.form-field i {
-    margin-right: 0.5rem;
-    color: #667eea;
-}
-
-.form-field input[type="text"],
-.form-field input[type="date"],
-.date-input {
-    width: 100%;
-    padding: 0.875rem;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.form-field input:focus,
-.date-input:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    color: #374151;
 }
 
 .btn {
-    padding: 0.875rem 1.5rem;
+    padding: 0.75rem 1.5rem;
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
     font-weight: 600;
     cursor: pointer;
-    font-size: 1rem;
     transition: all 0.2s;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    text-decoration: none;
-    width: 100%;
-}
-
-.btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
 }
 
 .btn-primary {
@@ -322,268 +270,36 @@ document.addEventListener('DOMContentLoaded', function() {
     color: white;
 }
 
-.btn-primary:hover:not(:disabled) {
-    transform: translateY(-1px);
+.btn-primary:hover {
+    transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.btn-preview {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+.btn-secondary {
+    background: #6b7280;
     color: white;
 }
 
-.btn-preview:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+.btn-secondary:hover {
+    background: #4b5563;
 }
 
 .btn-success {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: #10b981;
     color: white;
 }
 
-.btn-success:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
+.btn-success:hover {
+    background: #059669;
 }
 
 .btn-danger {
-    background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+    background: #ef4444;
     color: white;
 }
 
-.btn-danger:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(238, 9, 121, 0.4);
-}
-
-.btn-sm {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-    width: auto;
-}
-
-/* Student Found Card */
-.student-found-card {
-    border: 2px solid #38ef7d;
-    animation: slideIn 0.3s ease-out;
-}
-
-.success-header {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
-}
-
-.student-details {
-    padding: 1.5rem;
-}
-
-.detail-row {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem;
-    margin-bottom: 0.5rem;
-    background: #f8fafc;
-    border-radius: 6px;
-    border-left: 3px solid #667eea;
-}
-
-.detail-label {
-    font-weight: 600;
-    color: #64748b;
-    min-width: 140px;
-    font-size: 0.9rem;
-}
-
-.detail-label i {
-    margin-right: 0.5rem;
-    color: #667eea;
-}
-
-.detail-value {
-    color: #1e293b;
-    font-weight: 500;
-}
-
-/* Absentee List */
-.absentee-count-badge {
-    padding: 1rem;
-    background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
-    border-radius: 8px;
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #2d3436;
-}
-
-.absentee-list-container {
-    max-height: 450px;
-    overflow-y: auto;
-    padding-right: 0.5rem;
-}
-
-.absentee-list-container::-webkit-scrollbar {
-    width: 6px;
-}
-
-.absentee-list-container::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 3px;
-}
-
-.absentee-list-container::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-
-.absentee-list-container::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
-
-.absentee-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem;
-    border-bottom: 1px solid #e2e8f0;
-    transition: background 0.2s;
-}
-
-.absentee-item:hover {
-    background: #f8fafc;
-}
-
-.absentee-info {
-    flex: 1;
-}
-
-.absentee-roll {
-    font-weight: 600;
-    color: #1e293b;
-    margin-bottom: 0.25rem;
-}
-
-.absentee-roll i {
-    color: #667eea;
-    margin-right: 0.5rem;
-}
-
-.absentee-name {
-    color: #64748b;
-    font-size: 0.9rem;
-}
-
-/* Download Actions */
-.download-actions {
-    padding: 1.5rem;
-    border-top: 2px solid #e2e8f0;
-    background: #f8fafc;
-}
-
-.action-buttons {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-    margin-top: 1rem;
-}
-
-/* Empty State */
-.empty-state {
-    padding: 4rem 2rem;
-    text-align: center;
-}
-
-.empty-state i {
-    font-size: 4rem;
-    color: #cbd5e1;
-    margin-bottom: 1rem;
-}
-
-.empty-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #64748b;
-    margin-bottom: 0.5rem;
-}
-
-.empty-subtitle {
-    color: #94a3b8;
-    font-size: 0.95rem;
-}
-
-/* Instructions */
-.info-card .card-header {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-}
-
-.instructions {
-    padding: 1.5rem;
-}
-
-.instruction-step {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-    background: #f8fafc;
-    border-radius: 8px;
-    transition: transform 0.2s;
-}
-
-.instruction-step:hover {
-    transform: translateX(5px);
-    background: #f1f5f9;
-}
-
-.step-number {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 50%;
-    font-weight: 700;
-    font-size: 0.9rem;
-    flex-shrink: 0;
-}
-
-.instruction-step span:last-child {
-    color: #475569;
-    font-size: 0.95rem;
-}
-
-/* Animations */
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .content-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .download-page {
-        padding: 1rem;
-    }
-    
-    .page-header {
-        padding: 2rem 1rem;
-    }
-    
-    .page-header h1 {
-        font-size: 1.75rem;
-    }
+.btn-danger:hover {
+    background: #dc2626;
 }
 </style>
 {% endblock %}
