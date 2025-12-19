@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, current_app, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, current_app, make_response, jsonify
 from werkzeug.utils import secure_filename
 import os
 import sys
@@ -573,29 +573,29 @@ def upload_file():
 def api_get_semesters(program_level):
     """Get semesters for a program level via JSON API"""
     if 'user_id' not in session:
-        return {'error': 'Unauthorized'}, 401
+        return jsonify({'error': 'Unauthorized'}), 401
     
     try:
         semesters = get_semesters_for_program_level(program_level)
         # Convert to JSON-friendly format
         result = [{'id': sem[0], 'name': sem[1]} for sem in semesters]
-        return {'semesters': result}, 200
+        return jsonify({'semesters': result}), 200
     except Exception as e:
-        return {'error': str(e)}, 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/courses/<semester_id>/<program_level>', methods=['GET'])
 def api_get_courses(semester_id, program_level):
     """Get courses for a semester and program level via JSON API"""
     if 'user_id' not in session:
-        return {'error': 'Unauthorized'}, 401
+        return jsonify({'error': 'Unauthorized'}), 401
     
     try:
         courses = get_courses_for_semester(semester_id, program_level)
         # Convert to JSON-friendly format
         result = [{'code': course[0], 'title': course[1]} for course in courses]
-        return {'courses': result}, 200
+        return jsonify({'courses': result}), 200
     except Exception as e:
-        return {'error': str(e)}, 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/download', methods=['GET', 'POST'])
 def download_attendance():
