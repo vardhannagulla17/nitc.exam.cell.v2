@@ -455,13 +455,26 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    stats = get_semester_stats()
-    uploaded_files = get_uploaded_files() if session.get('role') == 'admin' else []
+    try:
+        stats = get_semester_stats()
+    except Exception as e:
+        print(f"Error getting semester stats: {e}")
+        stats = {'total_students': 0, 'total_courses': 0, 'total_semesters': 0}
+    
+    try:
+        uploaded_files = get_uploaded_files() if session.get('role') == 'admin' else []
+    except Exception as e:
+        print(f"Error getting uploaded files: {e}")
+        uploaded_files = []
     
     # Get detailed database usage stats for admin users
     db_usage = None
     if session.get('role') == 'admin':
-        db_usage = get_database_usage_stats()
+        try:
+            db_usage = get_database_usage_stats()
+        except Exception as e:
+            print(f"Error getting database usage stats: {e}")
+            db_usage = None
     
     response = make_response(render_template('dashboard.html',
                          username=session['username'],
