@@ -123,7 +123,7 @@
 </div>
 
 <script>
-// Simple, clean JavaScript
+// Simple, clean JavaScript with AJAX for no page reloads
 const $ = id => document.getElementById(id);
 const programSelect = $('program_level');
 const semesterSelect = $('semester_id');
@@ -163,28 +163,76 @@ function updateButtons() {
     downloadAllBtn.disabled = !canDownloadAll;
 }
 
-// Program change - reload page with program
-programSelect.addEventListener('change', () => {
+// Program change - fetch semesters via AJAX
+programSelect.addEventListener('change', async () => {
     const program = programSelect.value;
+    
+    // Clear dependent fields
+    semesterSelect.innerHTML = '<option value="">Select Semester</option>';
+    courseSelect.innerHTML = '<option value="">Select Course</option>';
+    
     if (program) {
-        semesterSelect.value = '';
-        updateVisibility();
-    } else {
-        updateVisibility();
+        // Show loading state
+        semesterSelect.innerHTML = '<option value="">Loading...</option>';
+        
+        try {
+            // Fetch semesters via AJAX
+            const response = await fetch(`/api/semesters/${program}`);
+            const data = await response.json();
+            
+            if (data.semesters) {
+                semesterSelect.innerHTML = '<option value="">Select Semester</option>';
+                data.semesters.forEach(sem => {
+                    const option = document.createElement('option');
+                    option.value = sem.id;
+                    option.textContent = sem.name;
+                    semesterSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching semesters:', error);
+            semesterSelect.innerHTML = '<option value="">Error loading semesters</option>';
+        }
     }
-});
-
-// Semester change - load courses
-semesterSelect.addEventListener('change', () => {
-    const program = programSelect.value;
-    const semester = semesterSelect.value;
     
     updateVisibility();
     updateButtons();
+});
+
+// Semester change - fetch courses via AJAX
+semesterSelect.addEventListener('change', async () => {
+    const program = programSelect.value;
+    const semester = semesterSelect.value;
+    
+    // Clear courses
+    courseSelect.innerHTML = '<option value="">Select Course</option>';
     
     if (program && semester) {
-        window.location.href = `/download?program_level=${program}&semester_id=${semester}`;
+        // Show loading state
+        courseSelect.innerHTML = '<option value="">Loading courses...</option>';
+        
+        try {
+            // Fetch courses via AJAX
+            const response = await fetch(`/api/courses/${semester}/${program}`);
+            const data = await response.json();
+            
+            if (data.courses) {
+                courseSelect.innerHTML = '<option value="">Select Course</option>';
+                data.courses.forEach(course => {
+                    const option = document.createElement('option');
+                    option.value = course.code;
+                    option.textContent = `${course.code} - ${course.title}`;
+                    courseSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching courses:', error);
+            courseSelect.innerHTML = '<option value="">Error loading courses</option>';
+        }
     }
+    
+    updateVisibility();
+    updateButtons();
 });
 
 // Course/date change - update buttons
