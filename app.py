@@ -1015,22 +1015,27 @@ def admin_absentees():
         
         if action == 'approve_selected':
             selected_ids = request.form.getlist('selected_absentees')
+            print(f"[DEBUG] Approve action - selected_ids: {selected_ids}")
             if selected_ids:
                 try:
                     for absentee_id in selected_ids:
-                        supabase.table('absentees').update({
+                        print(f"[DEBUG] Approving absentee id: {absentee_id}")
+                        result = supabase.table('absentees').update({
                             'status': 'approved',
                             'approved_at': datetime.now().isoformat(),
                             'approved_by': session.get('username')
                         }).eq('id', int(absentee_id)).execute()
+                        print(f"[DEBUG] Update result: {result.data}")
                     flash(f'Approved {len(selected_ids)} absentee records.', 'success')
                     # Redirect to show approved records
                     return redirect(url_for('admin_absentees', status='approved'))
                 except Exception as e:
                     print(f"Error approving absentees: {e}")
-                    flash('Error approving absentees.', 'error')
+                    flash(f'Error approving absentees: {str(e)}', 'error')
+                    return redirect(url_for('admin_absentees'))
             else:
                 flash('No records selected.', 'warning')
+                return redirect(url_for('admin_absentees'))
         
         elif action == 'reject_selected':
             selected_ids = request.form.getlist('selected_absentees')
@@ -1045,9 +1050,11 @@ def admin_absentees():
                     return redirect(url_for('admin_absentees', status='rejected'))
                 except Exception as e:
                     print(f"Error rejecting absentees: {e}")
-                    flash('Error rejecting absentees.', 'error')
+                    flash(f'Error rejecting absentees: {str(e)}', 'error')
+                    return redirect(url_for('admin_absentees'))
             else:
                 flash('No records selected.', 'warning')
+                return redirect(url_for('admin_absentees'))
         
         elif action == 'delete_selected':
             selected_ids = request.form.getlist('selected_absentees')
@@ -1060,9 +1067,11 @@ def admin_absentees():
                     return redirect(url_for('admin_absentees'))
                 except Exception as e:
                     print(f"Error deleting absentees: {e}")
-                    flash('Error deleting absentees.', 'error')
+                    flash(f'Error deleting absentees: {str(e)}', 'error')
+                    return redirect(url_for('admin_absentees'))
             else:
                 flash('No records selected.', 'warning')
+                return redirect(url_for('admin_absentees'))
         
         elif action == 'preview_consolidated':
             exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
