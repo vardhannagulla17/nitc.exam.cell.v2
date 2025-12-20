@@ -1006,7 +1006,7 @@ def admin_absentees():
     
     # Get filter parameters
     filter_date = request.args.get('exam_date', '')
-    filter_status = request.args.get('status', 'pending')
+    filter_status = request.args.get('status', '')  # Empty = show all by default
     filter_course = request.args.get('course_code', '')
     
     # Handle POST actions
@@ -1024,6 +1024,8 @@ def admin_absentees():
                             'approved_by': session.get('username')
                         }).eq('id', int(absentee_id)).execute()
                     flash(f'Approved {len(selected_ids)} absentee records.', 'success')
+                    # Redirect to show approved records
+                    return redirect(url_for('admin_absentees', status='approved'))
                 except Exception as e:
                     print(f"Error approving absentees: {e}")
                     flash('Error approving absentees.', 'error')
@@ -1039,6 +1041,8 @@ def admin_absentees():
                             'status': 'rejected'
                         }).eq('id', int(absentee_id)).execute()
                     flash(f'Rejected {len(selected_ids)} absentee records.', 'info')
+                    # Redirect to show rejected records
+                    return redirect(url_for('admin_absentees', status='rejected'))
                 except Exception as e:
                     print(f"Error rejecting absentees: {e}")
                     flash('Error rejecting absentees.', 'error')
@@ -1052,11 +1056,32 @@ def admin_absentees():
                     for absentee_id in selected_ids:
                         supabase.table('absentees').delete().eq('id', int(absentee_id)).execute()
                     flash(f'Deleted {len(selected_ids)} absentee records.', 'info')
+                    # Redirect to refresh the page
+                    return redirect(url_for('admin_absentees'))
                 except Exception as e:
                     print(f"Error deleting absentees: {e}")
                     flash('Error deleting absentees.', 'error')
             else:
                 flash('No records selected.', 'warning')
+        
+        elif action == 'preview_consolidated':
+            exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+            try:
+                # Get all approved absentees for the date
+                query = supabase.table('absentees').select('*').eq('status', 'approved')
+                if exam_date:
+                    query = query.eq('exam_date', exam_date)
+                result = query.execute()
+                
+                if result.data:
+                    # Generate consolidated HTML for preview (not download)
+                    html_content = generate_consolidated_absentee_html(result.data, exam_date)
+                    return html_content
+                else:
+                    flash('No approved absentees found for the selected date.', 'warning')
+            except Exception as e:
+                print(f"Error previewing consolidated absentees: {e}")
+                flash('Error generating preview.', 'error')
         
         elif action == 'download_consolidated':
             exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
@@ -1196,6 +1221,7 @@ def generate_consolidated_absentee_html(absentees, exam_date):
                     <th style="width: 50px;">S.No</th>
                     <th style="width: 150px;">Roll Number</th>
                     <th>Student Name</th>
+                    <th style="width: 120px;">Course Code</th>
                 </tr>
             </thead>
             <tbody>
@@ -1205,6 +1231,7 @@ def generate_consolidated_absentee_html(absentees, exam_date):
                     <td>{idx}</td>
                     <td>{student[0]}</td>
                     <td>{student[1]}</td>
+                    <td>{student[2]}</td>
                 </tr>
 """
         html += """            </tbody>
