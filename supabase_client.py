@@ -3,8 +3,16 @@ import os
 from supabase import create_client, Client
 
 # Get Supabase credentials from environment variables
-SUPABASE_URL: str = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+# Check both standard names and NEXT_PUBLIC_ prefixed names (Vercel convention)
+SUPABASE_URL: str = (
+    os.environ.get("SUPABASE_URL") or 
+    os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+)
+SUPABASE_KEY: str = (
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or 
+    os.environ.get("SUPABASE_ANON_KEY") or
+    os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+)
 
 # Initialize Supabase client (or None if credentials not configured)
 supabase: Client = None
