@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Manage Absentees{% endblock %}
+
+{% block content %}
+<div class="download-page">
+    <div class="page-header">
+        <h1><i class="fas fa-users-cog"></i> Manage Absentees</h1>
+        <p>Review and consolidate absentee submissions from staff</p>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;">
+        <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
+            <div style="font-size: 2rem; font-weight: bold;">{{ stats.total }}</div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Total Records</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
+            <div style="font-size: 2rem; font-weight: bold;">{{ stats.pending }}</div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Pending</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
+            <div style="font-size: 2rem; font-weight: bold;">{{ stats.approved }}</div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Approved</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
+            <div style="font-size: 2rem; font-weight: bold;">{{ stats.rejected }}</div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Rejected</div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h2><i class="fas fa-filter"></i> Filter Absentees</h2>
+        </div>
+        <form method="GET" action="/admin/absentees" style="padding: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; align-items: end;">
+                <div class="form-field">
+                    <label for="exam_date"><i class="fas fa-calendar"></i> Exam Date</label>
+                    <select name="exam_date" id="exam_date" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        <option value="">All Dates</option>
+                        {% for date in unique_dates %}
+                        <option value="{{ date }}" {% if filter_date == date %}selected{% endif %}>{{ date }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="status"><i class="fas fa-check-circle"></i> Status</label>
+                    <select name="status" id="status" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        <option value="">All Status</option>
+                        <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>Approved</option>
+                        <option value="rejected" {% if filter_status == 'rejected' %}selected{% endif %}>Rejected</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="course_code"><i class="fas fa-book"></i> Course</label>
+                    <select name="course_code" id="course_code" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        <option value="">All Courses</option>
+                        {% for course in unique_courses %}
+                        <option value="{{ course }}" {% if filter_course == course %}selected{% endif %}>{{ course }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="height: fit-content;">
+                    <i class="fas fa-search"></i> Apply Filters
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Absentees Table -->
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h2><i class="fas fa-list-alt"></i> Absentee Records</h2>
+                <p>{{ absentees|length }} records found</p>
+            </div>
+        </div>
+
+        {% if absentees %}
+        <form method="POST" action="/admin/absentees" id="absenteesForm">
+            <div style="padding: 1rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <button type="button" onclick="selectAll()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                    <i class="fas fa-check-square"></i> Select All
+                </button>
+                <button type="button" onclick="deselectAll()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                    <i class="far fa-square"></i> Deselect All
+                </button>
+                <button type="submit" name="action" value="approve_selected" class="btn btn-success" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                    <i class="fas fa-check"></i> Approve Selected
+                </button>
+                <button type="submit" name="action" value="reject_selected" class="btn btn-warning" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                    <i class="fas fa-times"></i> Reject Selected
+                </button>
+                <button type="submit" name="action" value="delete_selected" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.875rem;"
+                        onclick="return confirm('Delete selected records permanently?')">
+                    <i class="fas fa-trash"></i> Delete Selected
+                </button>
+                
+                <div style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="date" name="exam_date" id="download_date" style="padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    <button type="submit" name="action" value="download_consolidated" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                        <i class="fas fa-file-download"></i> Download Consolidated
+                    </button>
+                </div>
+            </div>
+
+            <div style="max-height: 600px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead style="background: #f3f4f6; position: sticky; top: 0;">
+                        <tr>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb; width: 50px;">
+                                <input type="checkbox" id="selectAllCheckbox" onchange="toggleAll(this)">
+                            </th>
+                            <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Roll No</th>
+                            <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
+                            <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Course</th>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Exam Date</th>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Marked By</th>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for absentee in absentees %}
+                        <tr style="border-bottom: 1px solid #f3f4f6; {% if absentee.status == 'approved' %}background: #f0fdf4;{% elif absentee.status == 'rejected' %}background: #fef2f2;{% endif %}">
+                            <td style="padding: 0.75rem; text-align: center;">
+                                <input type="checkbox" name="selected_absentees" value="{{ absentee.id }}" class="absentee-checkbox">
+                            </td>
+                            <td style="padding: 0.75rem; font-weight: 500;">{{ absentee.roll_no }}</td>
+                            <td style="padding: 0.75rem;">{{ absentee.name }}</td>
+                            <td style="padding: 0.75rem;">
+                                <span style="font-weight: 500;">{{ absentee.course_code }}</span>
+                                {% if absentee.course_title %}
+                                <br><span style="font-size: 0.85rem; color: #6b7280;">{{ absentee.course_title }}</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 0.75rem; text-align: center;">{{ absentee.exam_date }}</td>
+                            <td style="padding: 0.75rem; text-align: center;">
+                                <span style="background: #e0e7ff; color: #3730a3; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
+                                    {{ absentee.marked_by }}
+                                </span>
+                            </td>
+                            <td style="padding: 0.75rem; text-align: center;">
+                                {% if absentee.status == 'pending' %}
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
+                                    <i class="fas fa-clock"></i> Pending
+                                </span>
+                                {% elif absentee.status == 'approved' %}
+                                <span style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
+                                    <i class="fas fa-check"></i> Approved
+                                </span>
+                                {% elif absentee.status == 'rejected' %}
+                                <span style="background: #fee2e2; color: #991b1b; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
+                                    <i class="fas fa-times"></i> Rejected
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </form>
+        {% else %}
+        <div style="padding: 4rem; text-align: center; color: #9ca3af;">
+            <i class="fas fa-inbox" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.3;"></i>
+            <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">No absentee records found</p>
+            <p style="font-size: 0.9rem;">Staff members haven't uploaded any absentees yet, or all records have been filtered out.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Set today's date as default for download
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('download_date');
+    if (dateInput && !dateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+    }
+});
+
+function selectAll() {
+    document.querySelectorAll('.absentee-checkbox').forEach(cb => cb.checked = true);
+    document.getElementById('selectAllCheckbox').checked = true;
+}
+
+function deselectAll() {
+    document.querySelectorAll('.absentee-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAllCheckbox').checked = false;
+}
+
+function toggleAll(checkbox) {
+    document.querySelectorAll('.absentee-checkbox').forEach(cb => cb.checked = checkbox.checked);
+}
+</script>
+
+<style>
+.btn-warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+.btn-warning:hover {
+    opacity: 0.9;
+}
+</style>
+{% endblock %}

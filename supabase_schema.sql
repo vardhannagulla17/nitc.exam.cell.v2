@@ -93,3 +93,44 @@ COMMENT ON TABLE users IS 'Stores admin and staff user accounts';
 COMMENT ON TABLE semesters IS 'Stores academic semester information';
 COMMENT ON TABLE students IS 'Stores student enrollment data per semester';
 COMMENT ON TABLE user_files IS 'Metadata for uploaded files in Supabase Storage';
+
+-- ============================================
+-- ABSENTEES TRACKING SYSTEM
+-- ============================================
+
+-- Create absentees table for staff to mark absent students
+CREATE TABLE IF NOT EXISTS absentees (
+    id BIGSERIAL PRIMARY KEY,
+    roll_no TEXT NOT NULL,
+    name TEXT NOT NULL,
+    course_code TEXT NOT NULL,
+    course_title TEXT,
+    exam_date DATE NOT NULL,
+    semester_id BIGINT REFERENCES semesters(id) ON DELETE CASCADE,
+    marked_by TEXT NOT NULL,  -- username of staff who marked
+    status TEXT DEFAULT 'pending',  -- pending, approved, rejected
+    created_at TIMESTAMP DEFAULT NOW(),
+    approved_at TIMESTAMP,
+    approved_by TEXT  -- admin who approved
+);
+
+-- Create indexes for absentees table
+CREATE INDEX IF NOT EXISTS idx_absentees_course_code ON absentees(course_code);
+CREATE INDEX IF NOT EXISTS idx_absentees_exam_date ON absentees(exam_date);
+CREATE INDEX IF NOT EXISTS idx_absentees_status ON absentees(status);
+CREATE INDEX IF NOT EXISTS idx_absentees_marked_by ON absentees(marked_by);
+CREATE INDEX IF NOT EXISTS idx_absentees_semester_id ON absentees(semester_id);
+
+-- Enable RLS for absentees
+ALTER TABLE absentees ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policy if exists
+DROP POLICY IF EXISTS "Enable all for service role" ON absentees;
+
+-- Create policy for absentees
+CREATE POLICY "Enable all for service role" ON absentees
+    FOR ALL 
+    USING (true)
+    WITH CHECK (true);
+
+COMMENT ON TABLE absentees IS 'Stores absent student records marked by staff for admin consolidation';

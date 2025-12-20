@@ -134,16 +134,36 @@
                                    style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
+                        <div class="form-field" style="margin-top: 1rem;">
+                            <label for="semester_id">
+                                <i class="fas fa-graduation-cap"></i> Semester (for upload)
+                            </label>
+                            <select name="semester_id" id="semester_id"
+                                    style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                                <option value="">-- Select Semester --</option>
+                                {% for sem in semesters %}
+                                <option value="{{ sem[0] }}">{{ sem[1] }} {{ sem[2] }} {{ sem[3] }} {{ sem[4] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
                             <button type="button" onclick="previewAbsentees()" class="btn btn-secondary">
                                 <i class="fas fa-eye"></i> Preview
                             </button>
                             <button type="submit" name="action" value="download_absentees" class="btn btn-primary">
                                 <i class="fas fa-download"></i> Download
                             </button>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
+                            <button type="submit" name="action" value="upload_to_admin" class="btn btn-success"
+                                    onclick="return confirm('Upload absentees to admin for consolidation?')">
+                                <i class="fas fa-cloud-upload-alt"></i> Upload to Admin
+                            </button>
                             <button type="submit" name="action" value="clear_absentees" class="btn btn-danger"
                                     onclick="return confirm('Clear all absentees from the list?')">
-                                <i class="fas fa-trash"></i> Clear
+                                <i class="fas fa-trash"></i> Clear List
                             </button>
                         </div>
                     </form>

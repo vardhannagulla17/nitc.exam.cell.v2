@@ -913,6 +913,48 @@ def absentee_sheet():
             else:
                 flash('No absentees to download.', 'error')
         
+        elif action == 'upload_to_admin':
+            # Staff uploads absentees to admin for consolidation
+            if session['absentees']:
+                exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+                semester_id = request.form.get('semester_id')
+                
+                if USE_SUPABASE_DB and supabase:
+                    try:
+                        # Insert each absentee into the absentees table
+                        absentees_data = []
+                        for absentee in session['absentees']:
+                            absentees_data.append({
+                                'roll_no': absentee['roll_no'],
+                                'name': absentee['name'],
+                                'course_code': absentee['course_code'],
+                                'course_title': absentee['course_title'],
+                                'exam_date': exam_date,
+                                'semester_id': int(semester_id) if semester_id else None,
+                                'marked_by': session.get('username', 'unknown'),
+                                'status': 'pending'
+                            })
+                        
+                        # Batch insert
+                        result = supabase.table('absentees').insert(absentees_data).execute()
+                        
+                        if result.data:
+                            course_code = session['absentees'][0]['course_code']
+                            count = len(session['absentees'])
+                            flash(f'Successfully uploaded {count} absentees for {course_code} to admin!', 'success')
+                            # Clear the session list after successful upload
+                            session['absentees'] = []
+                            session.modified = True
+                        else:
+                            flash('Failed to upload absentees. Please try again.', 'error')
+                    except Exception as e:
+                        print(f"Error uploading absentees: {e}")
+                        flash(f'Error uploading absentees: {str(e)}', 'error')
+                else:
+                    flash('Database not configured. Please contact administrator.', 'error')
+            else:
+                flash('No absentees to upload.', 'error')
+        
         elif action == 'clear_absentees':
             session['absentees'] = []
             session.modified = True
@@ -927,11 +969,259 @@ def absentee_sheet():
             'course_title': first_absentee['course_title']
         }
     
+    # Get semesters for the upload form
+    semesters = get_all_semesters()
+    
     return render_template('absentee.html',
                          all_courses=all_courses,
                          absentees=session['absentees'],
                          course_info=course_info,
-                         student_info=student_info)
+                         student_info=student_info,
+                         semesters=semesters)
+
+
+@app.route('/admin/absentees', methods=['GET', 'POST'])
+def admin_absentees():
+    """Admin page to view and consolidate all uploaded absentees"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Only admin can access this page
+    if session.get('role') != 'admin':
+        flash('Access denied. Only administrators can access this page.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if not USE_SUPABASE_DB or not supabase:
+        flash('Database not configured.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Get filter parameters
+    filter_date = request.args.get('exam_date', '')
+    filter_status = request.args.get('status', 'pending')
+    filter_course = request.args.get('course_code', '')
+    
+    # Handle POST actions
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'approve_selected':
+            selected_ids = request.form.getlist('selected_absentees')
+            if selected_ids:
+                try:
+                    for absentee_id in selected_ids:
+                        supabase.table('absentees').update({
+                            'status': 'approved',
+                            'approved_at': datetime.now().isoformat(),
+                            'approved_by': session.get('username')
+                        }).eq('id', int(absentee_id)).execute()
+                    flash(f'Approved {len(selected_ids)} absentee records.', 'success')
+                except Exception as e:
+                    print(f"Error approving absentees: {e}")
+                    flash('Error approving absentees.', 'error')
+            else:
+                flash('No records selected.', 'warning')
+        
+        elif action == 'reject_selected':
+            selected_ids = request.form.getlist('selected_absentees')
+            if selected_ids:
+                try:
+                    for absentee_id in selected_ids:
+                        supabase.table('absentees').update({
+                            'status': 'rejected'
+                        }).eq('id', int(absentee_id)).execute()
+                    flash(f'Rejected {len(selected_ids)} absentee records.', 'info')
+                except Exception as e:
+                    print(f"Error rejecting absentees: {e}")
+                    flash('Error rejecting absentees.', 'error')
+            else:
+                flash('No records selected.', 'warning')
+        
+        elif action == 'delete_selected':
+            selected_ids = request.form.getlist('selected_absentees')
+            if selected_ids:
+                try:
+                    for absentee_id in selected_ids:
+                        supabase.table('absentees').delete().eq('id', int(absentee_id)).execute()
+                    flash(f'Deleted {len(selected_ids)} absentee records.', 'info')
+                except Exception as e:
+                    print(f"Error deleting absentees: {e}")
+                    flash('Error deleting absentees.', 'error')
+            else:
+                flash('No records selected.', 'warning')
+        
+        elif action == 'download_consolidated':
+            exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+            try:
+                # Get all approved absentees for the date
+                query = supabase.table('absentees').select('*').eq('status', 'approved')
+                if exam_date:
+                    query = query.eq('exam_date', exam_date)
+                result = query.execute()
+                
+                if result.data:
+                    # Generate consolidated HTML
+                    html_content = generate_consolidated_absentee_html(result.data, exam_date)
+                    filename = f"Consolidated_Absentees_{exam_date}.html"
+                    
+                    return send_file(
+                        BytesIO(html_content.encode('utf-8')),
+                        mimetype='text/html',
+                        as_attachment=True,
+                        download_name=filename
+                    )
+                else:
+                    flash('No approved absentees found for the selected date.', 'warning')
+            except Exception as e:
+                print(f"Error downloading consolidated absentees: {e}")
+                flash('Error generating consolidated report.', 'error')
+    
+    # Fetch absentees based on filters
+    try:
+        query = supabase.table('absentees').select('*')
+        
+        if filter_status:
+            query = query.eq('status', filter_status)
+        if filter_date:
+            query = query.eq('exam_date', filter_date)
+        if filter_course:
+            query = query.eq('course_code', filter_course)
+        
+        result = query.order('created_at', desc=True).execute()
+        absentees_list = result.data if result.data else []
+        
+        # Get unique dates and courses for filters
+        all_data = supabase.table('absentees').select('exam_date, course_code').execute()
+        unique_dates = sorted(set(row['exam_date'] for row in all_data.data)) if all_data.data else []
+        unique_courses = sorted(set(row['course_code'] for row in all_data.data)) if all_data.data else []
+        
+        # Get statistics
+        stats = {
+            'total': len(absentees_list),
+            'pending': len([a for a in absentees_list if a['status'] == 'pending']),
+            'approved': len([a for a in absentees_list if a['status'] == 'approved']),
+            'rejected': len([a for a in absentees_list if a['status'] == 'rejected'])
+        }
+        
+    except Exception as e:
+        print(f"Error fetching absentees: {e}")
+        absentees_list = []
+        unique_dates = []
+        unique_courses = []
+        stats = {'total': 0, 'pending': 0, 'approved': 0, 'rejected': 0}
+    
+    return render_template('admin_absentees.html',
+                         absentees=absentees_list,
+                         unique_dates=unique_dates,
+                         unique_courses=unique_courses,
+                         filter_date=filter_date,
+                         filter_status=filter_status,
+                         filter_course=filter_course,
+                         stats=stats)
+
+
+def generate_consolidated_absentee_html(absentees, exam_date):
+    """Generate consolidated HTML for all approved absentees grouped by course"""
+    from helpers.utils import sort_by_roll_number
+    
+    # Group absentees by course
+    courses = {}
+    for a in absentees:
+        code = a['course_code']
+        if code not in courses:
+            courses[code] = {
+                'course_title': a.get('course_title', ''),
+                'students': []
+            }
+        courses[code]['students'].append((a['roll_no'], a['name'], a['course_code'], a.get('course_title', '')))
+    
+    # Sort students within each course
+    for code in courses:
+        courses[code]['students'] = sort_by_roll_number(courses[code]['students'])
+    
+    # Generate HTML
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Consolidated Absentee List - {exam_date}</title>
+    <style>
+        @page {{ size: A4; margin: 15mm; }}
+        body {{ font-family: 'Times New Roman', serif; margin: 0; padding: 20px; font-size: 11pt; }}
+        .header {{ text-align: center; margin-bottom: 20px; }}
+        .header h1 {{ font-size: 16pt; margin: 5px 0; }}
+        .header h2 {{ font-size: 13pt; margin: 5px 0; font-weight: normal; }}
+        .course-section {{ margin-bottom: 30px; page-break-inside: avoid; }}
+        .course-header {{ background: #f0f0f0; padding: 10px; margin-bottom: 10px; border: 1px solid #333; }}
+        .course-header h3 {{ margin: 0; font-size: 12pt; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ border: 1px solid black; padding: 6px; text-align: left; }}
+        th {{ background-color: #e0e0e0; font-weight: bold; }}
+        .summary {{ margin-top: 30px; padding: 15px; background: #f9f9f9; border: 1px solid #333; }}
+        .footer {{ margin-top: 40px; text-align: center; }}
+        @media print {{ .no-print {{ display: none; }} }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>National Institute of Technology Calicut</h1>
+        <h2>Consolidated Absentee List</h2>
+        <p><strong>Exam Date:</strong> {datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y') if exam_date else 'N/A'}</p>
+    </div>
+"""
+    
+    total_absentees = 0
+    for code in sorted(courses.keys()):
+        course = courses[code]
+        students = course['students']
+        total_absentees += len(students)
+        
+        html += f"""
+    <div class="course-section">
+        <div class="course-header">
+            <h3>{code} - {course['course_title']}</h3>
+            <p>Total Absentees: {len(students)}</p>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 50px;">S.No</th>
+                    <th style="width: 150px;">Roll Number</th>
+                    <th>Student Name</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+        for idx, student in enumerate(students, 1):
+            html += f"""                <tr>
+                    <td>{idx}</td>
+                    <td>{student[0]}</td>
+                    <td>{student[1]}</td>
+                </tr>
+"""
+        html += """            </tbody>
+        </table>
+    </div>
+"""
+    
+    html += f"""
+    <div class="summary">
+        <h3>Summary</h3>
+        <p><strong>Total Courses with Absentees:</strong> {len(courses)}</p>
+        <p><strong>Total Absentees:</strong> {total_absentees}</p>
+        <p><strong>Generated on:</strong> {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</p>
+    </div>
+    
+    <div class="footer">
+        <p>
+            <strong>Verified by:</strong> _____________________
+            &nbsp;&nbsp;&nbsp;&nbsp;
+            <strong>Date:</strong> _____________________
+        </p>
+    </div>
+</body>
+</html>"""
+    
+    return html
 
 def generate_absentee_html(absentees, exam_date):
     """Generate HTML for absentee list"""
