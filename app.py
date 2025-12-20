@@ -376,7 +376,13 @@ def login():
             return render_template('login.html')
         
         try:
+            print(f"DEBUG: Attempting login for user: {username}")
+            print(f"DEBUG: Supabase client available: {supabase is not None}")
+            print(f"DEBUG: USE_SUPABASE_DB: {USE_SUPABASE_DB}")
+            
             user = get_user_by_credentials(username, password)
+            print(f"DEBUG: get_user_by_credentials returned: {user}")
+            
             if user:
                 session['user_id'] = user['id']
                 session['username'] = user['username']
@@ -386,8 +392,11 @@ def login():
             else:
                 flash('Invalid username or password!', 'error')
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
             print(f"Login error: {e}")
-            flash('An error occurred during login. Please try again.', 'error')
+            print(f"Full traceback: {error_details}")
+            flash(f'An error occurred during login: {str(e)}', 'error')
     
     return render_template('login.html')
 
