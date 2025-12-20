@@ -425,14 +425,19 @@ def get_user_by_credentials(username, password):
     """Get user by username and password"""
     if USE_SUPABASE_DB:
         try:
-            result = supabase.table('users').select('id, password_hash, role').eq('username', username).execute()
+            if not supabase:
+                print("Supabase client not initialized")
+                return None
+            result = supabase.table('users').select('id, username, password_hash, role').eq('username', username).execute()
             if result.data and len(result.data) > 0:
                 user = result.data[0]
                 if check_password_hash(user['password_hash'], password):
-                    return {'id': user['id'], 'username': username, 'role': user['role']}
+                    return {'id': user['id'], 'username': user['username'], 'role': user['role']}
             return None
         except Exception as e:
             print(f"Supabase auth error: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     else:
         conn = get_db_connection()

@@ -53,6 +53,8 @@ coverage.xml
 *.xls
 uploads/
 downloads/
+test_app_startup.py
+test_login.py
 logs/
 .venv/
 .env

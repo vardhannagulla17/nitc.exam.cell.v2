@@ -368,18 +368,26 @@ def health_check():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
         
-        user = get_user_by_credentials(username, password)
-        if user:
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            session['role'] = user['role']
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password!', 'error')
+        if not username or not password:
+            flash('Please enter both username and password!', 'error')
+            return render_template('login.html')
+        
+        try:
+            user = get_user_by_credentials(username, password)
+            if user:
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                session['role'] = user['role']
+                flash('Login successful!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Invalid username or password!', 'error')
+        except Exception as e:
+            print(f"Login error: {e}")
+            flash('An error occurred during login. Please try again.', 'error')
     
     return render_template('login.html')
 
