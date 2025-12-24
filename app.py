@@ -1133,16 +1133,17 @@ def admin_absentees():
         absentees_list = result.data if result.data else []
         
         # Get unique dates and courses for filters
-        all_data = supabase.table('absentees').select('exam_date, course_code').execute()
-        unique_dates = sorted(set(row['exam_date'] for row in all_data.data)) if all_data.data else []
-        unique_courses = sorted(set(row['course_code'] for row in all_data.data)) if all_data.data else []
+        all_data = supabase.table('absentees').select('*').execute()
+        all_records = all_data.data if all_data.data else []
+        unique_dates = sorted(set(row['exam_date'] for row in all_records)) if all_records else []
+        unique_courses = sorted(set(row['course_code'] for row in all_records)) if all_records else []
         
-        # Get statistics
+        # Get statistics from ALL records (not filtered)
         stats = {
-            'total': len(absentees_list),
-            'pending': len([a for a in absentees_list if a['status'] == 'pending']),
-            'approved': len([a for a in absentees_list if a['status'] == 'approved']),
-            'rejected': len([a for a in absentees_list if a['status'] == 'rejected'])
+            'total': len(all_records),
+            'pending': len([a for a in all_records if a['status'] == 'pending']),
+            'approved': len([a for a in all_records if a['status'] == 'approved']),
+            'rejected': len([a for a in all_records if a['status'] == 'rejected'])
         }
         
     except Exception as e:

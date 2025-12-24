@@ -683,14 +683,14 @@ select.form-control:focus {
 /* Tiles Grid Enhancement */
 .tiles-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-xl);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-lg);
 }
 
 .tile {
     background: var(--bg-elevated);
-    border-radius: var(--radius-xl);
-    padding: var(--space-2xl);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
     text-align: center;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
@@ -698,6 +698,8 @@ select.form-control:focus {
     border: 1px solid var(--border);
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .tile::before {
@@ -723,27 +725,28 @@ select.form-control:focus {
 }
 
 .tile-icon {
-    font-size: 3rem;
-    margin-bottom: var(--space-lg);
+    font-size: 2.25rem;
+    margin-bottom: var(--space-md);
     color: var(--primary);
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 80px;
+    height: 60px;
 }
 
 .tile h3 {
     color: var(--text-primary);
-    margin-bottom: var(--space-md);
-    font-size: 1.375rem;
+    margin-bottom: var(--space-sm);
+    font-size: 1.1rem;
     font-weight: 600;
 }
 
 .tile p {
     color: var(--text-secondary);
-    margin-bottom: var(--space-lg);
-    line-height: 1.6;
-    font-size: 0.95rem;
+    margin-bottom: var(--space-md);
+    line-height: 1.5;
+    font-size: 0.85rem;
+    flex-grow: 1;
 }
 
 .tile .btn {
