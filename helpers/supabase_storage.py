@@ -3,6 +3,7 @@ Supabase Storage Utility Functions
 Handles file upload, download, and management with Supabase storage
 """
 import os
+import json
 from io import BytesIO
 from datetime import datetime
 from flask import current_app
@@ -14,6 +15,11 @@ try:
 except ImportError:
     SUPABASE_AVAILABLE = False
     print("Warning: Supabase not available in storage utility.")
+
+# Bucket names for absentee management
+PENDING_ABSENTEE_BUCKET = 'pending_absentee'
+APPROVED_ABSENTEE_BUCKET = 'approved_absentee'
+REJECTED_ABSENTEE_BUCKET = 'rejected_absentee'
 
 class SupabaseStorage:
     def __init__(self):
@@ -115,3 +121,235 @@ class SupabaseStorage:
 
 # Global instance
 storage = SupabaseStorage()
+
+
+class AbsenteeStorage:
+    """Handles absentee-specific storage operations with dedicated buckets"""
+    
+    def __init__(self):
+        self.url = os.environ.get('SUPABASE_URL')
+        self.key = os.environ.get('SUPABASE_ANON_KEY')
+        self.client = None
+        
+        if SUPABASE_AVAILABLE and self.url and self.key:
+            try:
+                self.client = create_client(self.url, self.key)
+            except Exception as e:
+                print(f"Failed to initialize Supabase client for AbsenteeStorage: {str(e)}")
+    
+    def _generate_filename(self, marked_by: str, course_code: str, exam_date: str, batch_id: str = None) -> str:
+        """Generate a unique filename for absentee records"""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if batch_id:
+            return f"{exam_date}_{course_code}_{marked_by}_{batch_id}.json"
+        return f"{exam_date}_{course_code}_{marked_by}_{timestamp}.json"
+    
+    def upload_pending_absentees(self, absentees: list, marked_by: str, exam_date: str) -> tuple:
+        """
+        Upload absentee records to pending_absentee bucket
+        Returns: (success: bool, filename: str, message: str)
+        """
+        if not self.client:
+            return False, None, "Supabase client not initialized"
+        
+        if not absentees:
+            return False, None, "No absentees to upload"
+        
+        try:
+            course_code = absentees[0].get('course_code', 'UNKNOWN')
+            filename = self._generate_filename(marked_by, course_code, exam_date)
+            
+            # Create JSON content
+            content = json.dumps({
+                'exam_date': exam_date,
+                'marked_by': marked_by,
+                'course_code': course_code,
+                'uploaded_at': datetime.now().isoformat(),
+                'absentees': absentees
+            }, indent=2)
+            
+            # Upload to pending bucket
+            result = self.client.storage.from_(PENDING_ABSENTEE_BUCKET).upload(
+                filename,
+                content.encode('utf-8'),
+                file_options={"content-type": "application/json"}
+            )
+            
+            if result:
+                return True, filename, f"Successfully uploaded {len(absentees)} absentees to pending"
+            return False, None, "Upload failed"
+            
+        except Exception as e:
+            print(f"Error uploading pending absentees: {str(e)}")
+            return False, None, f"Upload error: {str(e)}"
+    
+    def move_to_approved(self, filename: str) -> tuple:
+        """
+        Move absentee file from pending to approved bucket
+        Returns: (success: bool, message: str)
+        """
+        if not self.client:
+            return False, "Supabase client not initialized"
+        
+        try:
+            # Download from pending bucket
+            content = self.client.storage.from_(PENDING_ABSENTEE_BUCKET).download(filename)
+            if not content:
+                return False, f"File {filename} not found in pending bucket"
+            
+            # Upload to approved bucket
+            result = self.client.storage.from_(APPROVED_ABSENTEE_BUCKET).upload(
+                filename,
+                content,
+                file_options={"content-type": "application/json"}
+            )
+            
+            if result:
+                # Delete from pending bucket
+                self.client.storage.from_(PENDING_ABSENTEE_BUCKET).remove([filename])
+                return True, f"Moved {filename} to approved bucket"
+            
+            return False, "Failed to upload to approved bucket"
+            
+        except Exception as e:
+            print(f"Error moving to approved: {str(e)}")
+            return False, f"Move error: {str(e)}"
+    
+    def move_to_rejected(self, filename: str) -> tuple:
+        """
+        Move absentee file from pending to rejected bucket
+        Returns: (success: bool, message: str)
+        """
+        if not self.client:
+            return False, "Supabase client not initialized"
+        
+        try:
+            # Download from pending bucket
+            content = self.client.storage.from_(PENDING_ABSENTEE_BUCKET).download(filename)
+            if not content:
+                return False, f"File {filename} not found in pending bucket"
+            
+            # Upload to rejected bucket
+            result = self.client.storage.from_(REJECTED_ABSENTEE_BUCKET).upload(
+                filename,
+                content,
+                file_options={"content-type": "application/json"}
+            )
+            
+            if result:
+                # Delete from pending bucket
+                self.client.storage.from_(PENDING_ABSENTEE_BUCKET).remove([filename])
+                return True, f"Moved {filename} to rejected bucket"
+            
+            return False, "Failed to upload to rejected bucket"
+            
+        except Exception as e:
+            print(f"Error moving to rejected: {str(e)}")
+            return False, f"Move error: {str(e)}"
+    
+    def list_pending_absentees(self) -> list:
+        """List all files in pending_absentee bucket"""
+        if not self.client:
+            return []
+        
+        try:
+            result = self.client.storage.from_(PENDING_ABSENTEE_BUCKET).list()
+            return [f for f in result if f.get('name') and not f['name'].endswith('/')]
+        except Exception as e:
+            print(f"Error listing pending absentees: {str(e)}")
+            return []
+    
+    def list_approved_absentees(self) -> list:
+        """List all files in approved_absentee bucket"""
+        if not self.client:
+            return []
+        
+        try:
+            result = self.client.storage.from_(APPROVED_ABSENTEE_BUCKET).list()
+            return [f for f in result if f.get('name') and not f['name'].endswith('/')]
+        except Exception as e:
+            print(f"Error listing approved absentees: {str(e)}")
+            return []
+    
+    def list_rejected_absentees(self) -> list:
+        """List all files in rejected_absentee bucket"""
+        if not self.client:
+            return []
+        
+        try:
+            result = self.client.storage.from_(REJECTED_ABSENTEE_BUCKET).list()
+            return [f for f in result if f.get('name') and not f['name'].endswith('/')]
+        except Exception as e:
+            print(f"Error listing rejected absentees: {str(e)}")
+            return []
+    
+    def get_approved_absentees_data(self, exam_date: str = None) -> list:
+        """
+        Get all absentee data from approved_absentee bucket
+        Optionally filter by exam_date
+        Returns: list of absentee records
+        """
+        if not self.client:
+            return []
+        
+        try:
+            files = self.list_approved_absentees()
+            all_absentees = []
+            
+            for file_info in files:
+                filename = file_info.get('name')
+                if not filename:
+                    continue
+                
+                # Filter by exam_date if provided (filename format: {exam_date}_{course}_{user}_{ts}.json)
+                if exam_date and not filename.startswith(exam_date):
+                    continue
+                
+                try:
+                    content = self.client.storage.from_(APPROVED_ABSENTEE_BUCKET).download(filename)
+                    if content:
+                        data = json.loads(content.decode('utf-8'))
+                        absentees = data.get('absentees', [])
+                        # Add metadata to each absentee
+                        for a in absentees:
+                            a['_file'] = filename
+                            a['_marked_by'] = data.get('marked_by')
+                            a['_exam_date'] = data.get('exam_date')
+                        all_absentees.extend(absentees)
+                except Exception as e:
+                    print(f"Error reading file {filename}: {str(e)}")
+                    continue
+            
+            return all_absentees
+            
+        except Exception as e:
+            print(f"Error getting approved absentees data: {str(e)}")
+            return []
+    
+    def download_approved_file(self, filename: str) -> BytesIO:
+        """Download a specific file from approved_absentee bucket"""
+        if not self.client:
+            return None
+        
+        try:
+            content = self.client.storage.from_(APPROVED_ABSENTEE_BUCKET).download(filename)
+            return BytesIO(content) if content else None
+        except Exception as e:
+            print(f"Error downloading approved file: {str(e)}")
+            return None
+    
+    def delete_from_pending(self, filename: str) -> bool:
+        """Delete a file from pending_absentee bucket"""
+        if not self.client:
+            return False
+        
+        try:
+            self.client.storage.from_(PENDING_ABSENTEE_BUCKET).remove([filename])
+            return True
+        except Exception as e:
+            print(f"Error deleting from pending: {str(e)}")
+            return False
+
+
+# Global instance for absentee storage
+absentee_storage = AbsenteeStorage()

@@ -1,5 +1,5 @@
 -- Supabase PostgreSQL Schema for NITC Exam Cell
--- Run this in Supabase SQL Editor before deploying
+-- This version is idempotent - can be run multiple times safely
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
@@ -89,13 +89,9 @@ CREATE TABLE IF NOT EXISTS user_files (
 CREATE INDEX IF NOT EXISTS idx_user_files_user_id ON user_files(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_files_filename ON user_files(filename);
 
-COMMENT ON TABLE users IS 'Stores admin and staff user accounts';
-COMMENT ON TABLE semesters IS 'Stores academic semester information';
-COMMENT ON TABLE students IS 'Stores student enrollment data per semester';
-COMMENT ON TABLE user_files IS 'Metadata for uploaded files in Supabase Storage';
 
 -- ============================================
--- ABSENTEES TRACKING SYSTEM
+-- ABSENTEES TRACKING SYSTEM (NEW)
 -- ============================================
 
 -- Create absentees table for staff to mark absent students
@@ -107,11 +103,11 @@ CREATE TABLE IF NOT EXISTS absentees (
     course_title TEXT,
     exam_date DATE NOT NULL,
     semester_id BIGINT REFERENCES semesters(id) ON DELETE CASCADE,
-    marked_by TEXT NOT NULL,  -- username of staff who marked
-    status TEXT DEFAULT 'pending',  -- pending, approved, rejected
+    marked_by TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT NOW(),
     approved_at TIMESTAMP,
-    approved_by TEXT  -- admin who approved
+    approved_by TEXT
 );
 
 -- Create indexes for absentees table
@@ -133,4 +129,40 @@ CREATE POLICY "Enable all for service role" ON absentees
     USING (true)
     WITH CHECK (true);
 
-COMMENT ON TABLE absentees IS 'Stores absent student records marked by staff for admin consolidation';
+-- Add new columns for storage file tracking and rejection handling
+ALTER TABLE absentees ADD COLUMN IF NOT EXISTS storage_filename TEXT;
+ALTER TABLE absentees ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP;
+ALTER TABLE absentees ADD COLUMN IF NOT EXISTS rejected_by TEXT;
+
+-- Create index on storage_filename for better performance
+CREATE INDEX IF NOT EXISTS idx_absentees_storage_filename ON absentees(storage_filename);
+
+
+-- ============================================
+-- STORAGE BUCKET POLICIES
+-- ============================================
+-- Run these in Supabase SQL Editor to allow access to storage buckets
+
+-- Policy for pending_absentee bucket
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('pending_absentee', 'pending_absentee', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Allow all operations on pending_absentee" ON storage.objects
+    FOR ALL USING (bucket_id = 'pending_absentee') WITH CHECK (bucket_id = 'pending_absentee');
+
+-- Policy for approved_absentee bucket
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('approved_absentee', 'approved_absentee', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Allow all operations on approved_absentee" ON storage.objects
+    FOR ALL USING (bucket_id = 'approved_absentee') WITH CHECK (bucket_id = 'approved_absentee');
+
+-- Policy for rejected_absentee bucket
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('rejected_absentee', 'rejected_absentee', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Allow all operations on rejected_absentee" ON storage.objects
+    FOR ALL USING (bucket_id = 'rejected_absentee') WITH CHECK (bucket_id = 'rejected_absentee');

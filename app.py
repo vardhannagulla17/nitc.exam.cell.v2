@@ -17,6 +17,9 @@ except ImportError:
 # Import Supabase client
 from supabase_client import supabase
 
+# Import absentee storage for bucket operations
+from helpers.supabase_storage import absentee_storage
+
 # Import database utilities
 from app.database import USE_SUPABASE_DB
 
@@ -930,6 +933,11 @@ def absentee_sheet():
                 
                 if USE_SUPABASE_DB and supabase:
                     try:
+                        marked_by = session.get('username', 'unknown')
+                        
+                        # Generate a unique batch ID for this upload
+                        batch_id = datetime.now().strftime('%Y%m%d%H%M%S')
+                        
                         # Insert each absentee into the absentees table
                         absentees_data = []
                         for absentee in session['absentees']:
@@ -940,14 +948,26 @@ def absentee_sheet():
                                 'course_title': absentee['course_title'],
                                 'exam_date': exam_date,
                                 'semester_id': int(semester_id) if semester_id else None,
-                                'marked_by': session.get('username', 'unknown'),
-                                'status': 'pending'
+                                'marked_by': marked_by,
+                                'status': 'pending',
+                                'storage_filename': f"{exam_date}_{absentee['course_code']}_{marked_by}_{batch_id}.json"
                             })
                         
-                        # Batch insert
+                        # Batch insert to database
                         result = supabase.table('absentees').insert(absentees_data).execute()
                         
                         if result.data:
+                            # Also upload to pending_absentee bucket
+                            success, filename, msg = absentee_storage.upload_pending_absentees(
+                                session['absentees'],
+                                marked_by,
+                                exam_date
+                            )
+                            if success:
+                                print(f"[DEBUG] Also stored in pending_absentee bucket: {filename}")
+                            else:
+                                print(f"[DEBUG] Storage bucket upload failed: {msg}")
+                            
                             course_code = session['absentees'][0]['course_code']
                             count = len(session['absentees'])
                             flash(f'Successfully uploaded {count} absentees for {course_code} to admin!', 'success')
@@ -1012,20 +1032,62 @@ def admin_absentees():
     # Handle POST actions
     if request.method == 'POST':
         action = request.form.get('action')
+        print(f"[DEBUG] POST received - action: {action}")
+        print(f"[DEBUG] Form data: {dict(request.form)}")
         
         if action == 'approve_selected':
             selected_ids = request.form.getlist('selected_absentees')
             print(f"[DEBUG] Approve action - selected_ids: {selected_ids}")
             if selected_ids:
                 try:
+                    approved_records = []
                     for absentee_id in selected_ids:
                         print(f"[DEBUG] Approving absentee id: {absentee_id}")
+                        # First get the record to save to bucket
+                        record = supabase.table('absentees').select('*').eq('id', int(absentee_id)).execute()
+                        if record.data:
+                            approved_records.append(record.data[0])
+                        
+                        # Update status in database
                         result = supabase.table('absentees').update({
                             'status': 'approved',
                             'approved_at': datetime.now().isoformat(),
                             'approved_by': session.get('username')
                         }).eq('id', int(absentee_id)).execute()
                         print(f"[DEBUG] Update result: {result.data}")
+                    
+                    # Upload approved records to approved_absentee bucket
+                    if approved_records:
+                        import json
+                        exam_date = approved_records[0].get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+                        course_codes = list(set(r.get('course_code', 'UNKNOWN') for r in approved_records))
+                        filename = f"{exam_date}_approved_{datetime.now().strftime('%H%M%S')}.json"
+                        
+                        content = json.dumps({
+                            'exam_date': exam_date,
+                            'approved_by': session.get('username'),
+                            'approved_at': datetime.now().isoformat(),
+                            'courses': course_codes,
+                            'absentees': [{
+                                'roll_no': r['roll_no'],
+                                'name': r['name'],
+                                'course_code': r['course_code'],
+                                'course_title': r.get('course_title', ''),
+                                'marked_by': r.get('marked_by', '')
+                            } for r in approved_records]
+                        }, indent=2)
+                        
+                        try:
+                            from helpers.supabase_storage import APPROVED_ABSENTEE_BUCKET
+                            result = absentee_storage.client.storage.from_(APPROVED_ABSENTEE_BUCKET).upload(
+                                filename,
+                                content.encode('utf-8'),
+                                file_options={"content-type": "application/json"}
+                            )
+                            print(f"[DEBUG] Uploaded to approved bucket: {filename}")
+                        except Exception as e:
+                            print(f"[DEBUG] Error uploading to approved bucket: {e}")
+                    
                     flash(f'Approved {len(selected_ids)} absentee records.', 'success')
                     # Redirect to show approved records
                     return redirect(url_for('admin_absentees', status='approved'))
@@ -1041,10 +1103,48 @@ def admin_absentees():
             selected_ids = request.form.getlist('selected_absentees')
             if selected_ids:
                 try:
+                    rejected_records = []
                     for absentee_id in selected_ids:
+                        # First get the record to save to bucket
+                        record = supabase.table('absentees').select('*').eq('id', int(absentee_id)).execute()
+                        if record.data:
+                            rejected_records.append(record.data[0])
+                        
                         supabase.table('absentees').update({
-                            'status': 'rejected'
+                            'status': 'rejected',
+                            'approved_by': session.get('username')  # Track who rejected
                         }).eq('id', int(absentee_id)).execute()
+                    
+                    # Upload rejected records to rejected_absentee bucket
+                    if rejected_records:
+                        import json
+                        exam_date = rejected_records[0].get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+                        filename = f"{exam_date}_rejected_{datetime.now().strftime('%H%M%S')}.json"
+                        
+                        content = json.dumps({
+                            'exam_date': exam_date,
+                            'rejected_by': session.get('username'),
+                            'rejected_at': datetime.now().isoformat(),
+                            'absentees': [{
+                                'roll_no': r['roll_no'],
+                                'name': r['name'],
+                                'course_code': r['course_code'],
+                                'course_title': r.get('course_title', ''),
+                                'marked_by': r.get('marked_by', '')
+                            } for r in rejected_records]
+                        }, indent=2)
+                        
+                        try:
+                            from helpers.supabase_storage import REJECTED_ABSENTEE_BUCKET
+                            result = absentee_storage.client.storage.from_(REJECTED_ABSENTEE_BUCKET).upload(
+                                filename,
+                                content.encode('utf-8'),
+                                file_options={"content-type": "application/json"}
+                            )
+                            print(f"[DEBUG] Uploaded to rejected bucket: {filename}")
+                        except Exception as e:
+                            print(f"[DEBUG] Error uploading to rejected bucket: {e}")
+                    
                     flash(f'Rejected {len(selected_ids)} absentee records.', 'info')
                     # Redirect to show rejected records
                     return redirect(url_for('admin_absentees', status='rejected'))
@@ -1117,6 +1217,41 @@ def admin_absentees():
             except Exception as e:
                 print(f"Error downloading consolidated absentees: {e}")
                 flash('Error generating consolidated report.', 'error')
+        
+        elif action == 'download_from_storage':
+            # Download consolidated absentees from approved_absentee bucket
+            exam_date = request.form.get('exam_date', '')
+            try:
+                absentees_from_storage = absentee_storage.get_approved_absentees_data(exam_date if exam_date else None)
+                
+                if absentees_from_storage:
+                    # Generate HTML for storage absentees
+                    html_content = generate_consolidated_absentee_html(absentees_from_storage, exam_date or 'all')
+                    filename = f"Storage_Absentees_{exam_date or 'all'}.html"
+                    
+                    return send_file(
+                        BytesIO(html_content.encode('utf-8')),
+                        mimetype='text/html',
+                        as_attachment=True,
+                        download_name=filename
+                    )
+                else:
+                    flash('No approved absentees found in storage.', 'warning')
+            except Exception as e:
+                print(f"Error downloading from storage: {e}")
+                flash(f'Error downloading from storage: {str(e)}', 'error')
+        
+        elif action == 'list_storage_files':
+            # List all files in storage buckets (for debugging/admin view)
+            try:
+                pending_files = absentee_storage.list_pending_absentees()
+                approved_files = absentee_storage.list_approved_absentees()
+                rejected_files = absentee_storage.list_rejected_absentees()
+                
+                flash(f'Storage: {len(pending_files)} pending, {len(approved_files)} approved, {len(rejected_files)} rejected files.', 'info')
+            except Exception as e:
+                print(f"Error listing storage files: {e}")
+                flash(f'Error listing storage files: {str(e)}', 'error')
     
     # Fetch absentees based on filters
     try:
@@ -1146,12 +1281,24 @@ def admin_absentees():
             'rejected': len([a for a in all_records if a['status'] == 'rejected'])
         }
         
+        # Get storage bucket file counts
+        try:
+            storage_stats = {
+                'pending_files': len(absentee_storage.list_pending_absentees()),
+                'approved_files': len(absentee_storage.list_approved_absentees()),
+                'rejected_files': len(absentee_storage.list_rejected_absentees())
+            }
+        except Exception as e:
+            print(f"Error getting storage stats: {e}")
+            storage_stats = {'pending_files': 0, 'approved_files': 0, 'rejected_files': 0}
+        
     except Exception as e:
         print(f"Error fetching absentees: {e}")
         absentees_list = []
         unique_dates = []
         unique_courses = []
         stats = {'total': 0, 'pending': 0, 'approved': 0, 'rejected': 0}
+        storage_stats = {'pending_files': 0, 'approved_files': 0, 'rejected_files': 0}
     
     return render_template('admin_absentees.html',
                          absentees=absentees_list,
@@ -1160,7 +1307,8 @@ def admin_absentees():
                          filter_date=filter_date,
                          filter_status=filter_status,
                          filter_course=filter_course,
-                         stats=stats)
+                         stats=stats,
+                         storage_stats=storage_stats)
 
 
 def generate_consolidated_absentee_html(absentees, exam_date):
