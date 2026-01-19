@@ -1101,19 +1101,24 @@ def admin_absentees():
         
         elif action == 'reject_selected':
             selected_ids = request.form.getlist('selected_absentees')
+            print(f"[DEBUG] Reject action - selected_ids: {selected_ids}")
             if selected_ids:
                 try:
                     rejected_records = []
                     for absentee_id in selected_ids:
+                        print(f"[DEBUG] Rejecting absentee id: {absentee_id}")
                         # First get the record to save to bucket
                         record = supabase.table('absentees').select('*').eq('id', int(absentee_id)).execute()
                         if record.data:
                             rejected_records.append(record.data[0])
                         
-                        supabase.table('absentees').update({
+                        # Update status in database with rejected fields
+                        result = supabase.table('absentees').update({
                             'status': 'rejected',
-                            'approved_by': session.get('username')  # Track who rejected
+                            'rejected_at': datetime.now().isoformat(),
+                            'rejected_by': session.get('username')
                         }).eq('id', int(absentee_id)).execute()
+                        print(f"[DEBUG] Reject update result: {result.data}")
                     
                     # Upload rejected records to rejected_absentee bucket
                     if rejected_records:
@@ -1151,6 +1156,33 @@ def admin_absentees():
                 except Exception as e:
                     print(f"Error rejecting absentees: {e}")
                     flash(f'Error rejecting absentees: {str(e)}', 'error')
+                    return redirect(url_for('admin_absentees'))
+            else:
+                flash('No records selected.', 'warning')
+                return redirect(url_for('admin_absentees'))
+        
+        elif action == 'pending_selected':
+            selected_ids = request.form.getlist('selected_absentees')
+            print(f"[DEBUG] Pending action - selected_ids: {selected_ids}")
+            if selected_ids:
+                try:
+                    for absentee_id in selected_ids:
+                        print(f"[DEBUG] Setting pending for absentee id: {absentee_id}")
+                        # Reset status to pending and clear approval/rejection fields
+                        result = supabase.table('absentees').update({
+                            'status': 'pending',
+                            'approved_at': None,
+                            'approved_by': None,
+                            'rejected_at': None,
+                            'rejected_by': None
+                        }).eq('id', int(absentee_id)).execute()
+                        print(f"[DEBUG] Pending update result: {result.data}")
+                    
+                    flash(f'Set {len(selected_ids)} absentee records to pending.', 'info')
+                    return redirect(url_for('admin_absentees', status='pending'))
+                except Exception as e:
+                    print(f"Error setting absentees to pending: {e}")
+                    flash(f'Error setting absentees to pending: {str(e)}', 'error')
                     return redirect(url_for('admin_absentees'))
             else:
                 flash('No records selected.', 'warning')

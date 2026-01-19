@@ -47,7 +47,7 @@
             </div>
         </div>
         <div style="padding: 1rem;">
-            <form method="POST" action="/admin/absentees" style="display: flex; gap: 1rem; align-items: center;">
+            <form method="POST" action="{{ url_for('admin_absentees') }}" style="display: flex; gap: 1rem; align-items: center;">
                 <div class="form-field" style="flex: 1;">
                     <label for="storage_date"><i class="fas fa-calendar"></i> Filter by Date (optional)</label>
                     <input type="date" name="exam_date" id="storage_date" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
@@ -65,7 +65,7 @@
         <div class="card-header">
             <h2><i class="fas fa-filter"></i> Filter Absentees</h2>
         </div>
-        <form method="GET" action="/admin/absentees" style="padding: 1.5rem;">
+        <form method="GET" action="{{ url_for('admin_absentees') }}" style="padding: 1.5rem;">
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; align-items: end;">
                 <div class="form-field">
                     <label for="exam_date"><i class="fas fa-calendar"></i> Exam Date</label>
@@ -111,7 +111,7 @@
         </div>
 
         {% if absentees %}
-        <form method="POST" action="/admin/absentees" id="absenteesForm">
+        <form method="POST" action="{{ url_for('admin_absentees') }}" id="absenteesForm">
             <div style="padding: 1rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.75rem; flex-wrap: wrap;">
                 <button type="button" onclick="selectAll()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                     <i class="fas fa-check-square"></i> Select All
@@ -121,6 +121,9 @@
                 </button>
                 <button type="submit" name="action" value="approve_selected" class="btn btn-success" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                     <i class="fas fa-check"></i> Approve Selected
+                </button>
+                <button type="submit" name="action" value="pending_selected" class="btn btn-info" style="padding: 0.5rem 1rem; font-size: 0.875rem; background: linear-gradient(135deg, #f59e0b, #d97706); border: none;">
+                    <i class="fas fa-clock"></i> Set Pending
                 </button>
                 <button type="submit" name="action" value="reject_selected" class="btn btn-warning" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                     <i class="fas fa-times"></i> Reject Selected

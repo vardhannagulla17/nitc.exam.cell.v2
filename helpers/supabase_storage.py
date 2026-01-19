@@ -127,15 +127,36 @@ class AbsenteeStorage:
     """Handles absentee-specific storage operations with dedicated buckets"""
     
     def __init__(self):
-        self.url = os.environ.get('SUPABASE_URL')
-        self.key = os.environ.get('SUPABASE_ANON_KEY')
-        self.client = None
+        self._client = None
+        self._initialized = False
+    
+    @property
+    def client(self):
+        """Lazy initialization of Supabase client"""
+        if not self._initialized:
+            self._initialize_client()
+        return self._client
+    
+    def _initialize_client(self):
+        """Initialize the Supabase client with current environment variables"""
+        self._initialized = True
+        url = os.environ.get('SUPABASE_URL')
+        key = os.environ.get('SUPABASE_ANON_KEY')
         
-        if SUPABASE_AVAILABLE and self.url and self.key:
+        if SUPABASE_AVAILABLE and url and key:
             try:
-                self.client = create_client(self.url, self.key)
+                self._client = create_client(url, key)
+                print(f"[DEBUG] AbsenteeStorage client initialized successfully")
             except Exception as e:
                 print(f"Failed to initialize Supabase client for AbsenteeStorage: {str(e)}")
+                self._client = None
+        else:
+            if not SUPABASE_AVAILABLE:
+                print("[DEBUG] Supabase not available")
+            if not url:
+                print("[DEBUG] SUPABASE_URL not set")
+            if not key:
+                print("[DEBUG] SUPABASE_ANON_KEY not set")
     
     def _generate_filename(self, marked_by: str, course_code: str, exam_date: str, batch_id: str = None) -> str:
         """Generate a unique filename for absentee records"""
