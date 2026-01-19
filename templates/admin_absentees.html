@@ -9,22 +9,25 @@
         <p>Review and consolidate absentee submissions from staff</p>
     </div>
 
+    <!-- Status Message -->
+    <div id="statusMessage" style="display: none; padding: 1rem; margin-bottom: 1rem; border-radius: 8px;"></div>
+
     <!-- Statistics Cards -->
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;">
+    <div id="statsCards" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;">
         <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
-            <div style="font-size: 2rem; font-weight: bold;">{{ stats.total }}</div>
+            <div id="statTotal" style="font-size: 2rem; font-weight: bold;">{{ stats.total }}</div>
             <div style="font-size: 0.9rem; opacity: 0.9;">Total Records</div>
         </div>
         <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
-            <div style="font-size: 2rem; font-weight: bold;">{{ stats.pending }}</div>
+            <div id="statPending" style="font-size: 2rem; font-weight: bold;">{{ stats.pending }}</div>
             <div style="font-size: 0.9rem; opacity: 0.9;">Pending</div>
         </div>
         <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
-            <div style="font-size: 2rem; font-weight: bold;">{{ stats.approved }}</div>
+            <div id="statApproved" style="font-size: 2rem; font-weight: bold;">{{ stats.approved }}</div>
             <div style="font-size: 0.9rem; opacity: 0.9;">Approved</div>
         </div>
         <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
-            <div style="font-size: 2rem; font-weight: bold;">{{ stats.rejected }}</div>
+            <div id="statRejected" style="font-size: 2rem; font-weight: bold;">{{ stats.rejected }}</div>
             <div style="font-size: 0.9rem; opacity: 0.9;">Rejected</div>
         </div>
     </div>
@@ -106,34 +109,33 @@
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h2><i class="fas fa-list-alt"></i> Absentee Records</h2>
-                <p>{{ absentees|length }} records found</p>
+                <p id="recordCount">{{ absentees|length }} records found</p>
             </div>
         </div>
 
         {% if absentees %}
-        <form method="POST" action="{{ url_for('admin_absentees') }}" id="absenteesForm">
-            <div style="padding: 1rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                <button type="button" onclick="selectAll()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-                    <i class="fas fa-check-square"></i> Select All
-                </button>
-                <button type="button" onclick="deselectAll()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-                    <i class="far fa-square"></i> Deselect All
-                </button>
-                <button type="submit" name="action" value="approve_selected" class="btn btn-success" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-                    <i class="fas fa-check"></i> Approve Selected
-                </button>
-                <button type="submit" name="action" value="pending_selected" class="btn btn-info" style="padding: 0.5rem 1rem; font-size: 0.875rem; background: linear-gradient(135deg, #f59e0b, #d97706); border: none;">
-                    <i class="fas fa-clock"></i> Set Pending
-                </button>
-                <button type="submit" name="action" value="reject_selected" class="btn btn-warning" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-                    <i class="fas fa-times"></i> Reject Selected
-                </button>
-                <button type="submit" name="action" value="delete_selected" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.875rem;"
-                        onclick="return confirm('Delete selected records permanently?')">
-                    <i class="fas fa-trash"></i> Delete Selected
-                </button>
-                
-                <div style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
+        <div style="padding: 1rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" onclick="selectAll()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                <i class="fas fa-check-square"></i> Select All
+            </button>
+            <button type="button" onclick="deselectAll()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                <i class="far fa-square"></i> Deselect All
+            </button>
+            <button type="button" onclick="approveSelected()" class="btn btn-success" style="padding: 0.5rem 1rem; font-size: 0.875rem;" id="btnApprove">
+                <i class="fas fa-check"></i> Approve Selected
+            </button>
+            <button type="button" onclick="setPendingSelected()" class="btn btn-info" style="padding: 0.5rem 1rem; font-size: 0.875rem; background: linear-gradient(135deg, #f59e0b, #d97706); border: none;" id="btnPending">
+                <i class="fas fa-clock"></i> Set Pending
+            </button>
+            <button type="button" onclick="rejectSelected()" class="btn btn-warning" style="padding: 0.5rem 1rem; font-size: 0.875rem;" id="btnReject">
+                <i class="fas fa-times"></i> Reject Selected
+            </button>
+            <button type="button" onclick="deleteSelected()" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.875rem;" id="btnDelete">
+                <i class="fas fa-trash"></i> Delete Selected
+            </button>
+            
+            <div style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
+                <form method="POST" action="{{ url_for('admin_absentees') }}" style="display: flex; gap: 0.5rem; align-items: center;">
                     <input type="date" name="exam_date" id="download_date" style="padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px;">
                     <button type="submit" name="action" value="preview_consolidated" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;" formtarget="_blank">
                         <i class="fas fa-eye"></i> Preview
@@ -141,65 +143,65 @@
                     <button type="submit" name="action" value="download_consolidated" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                         <i class="fas fa-file-download"></i> Download Consolidated
                     </button>
-                </div>
+                </form>
             </div>
+        </div>
 
-            <div style="max-height: 600px; overflow-y: auto;">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead style="background: #f3f4f6; position: sticky; top: 0;">
-                        <tr>
-                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb; width: 50px;">
-                                <input type="checkbox" id="selectAllCheckbox" onchange="toggleAll(this)">
-                            </th>
-                            <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Roll No</th>
-                            <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
-                            <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Course</th>
-                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Exam Date</th>
-                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Marked By</th>
-                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for absentee in absentees %}
-                        <tr style="border-bottom: 1px solid #f3f4f6; {% if absentee.status == 'approved' %}background: #f0fdf4;{% elif absentee.status == 'rejected' %}background: #fef2f2;{% endif %}">
-                            <td style="padding: 0.75rem; text-align: center;">
-                                <input type="checkbox" name="selected_absentees" value="{{ absentee.id }}" class="absentee-checkbox">
-                            </td>
-                            <td style="padding: 0.75rem; font-weight: 500;">{{ absentee.roll_no }}</td>
-                            <td style="padding: 0.75rem;">{{ absentee.name }}</td>
-                            <td style="padding: 0.75rem;">
-                                <span style="font-weight: 500;">{{ absentee.course_code }}</span>
-                                {% if absentee.course_title %}
-                                <br><span style="font-size: 0.85rem; color: #6b7280;">{{ absentee.course_title }}</span>
-                                {% endif %}
-                            </td>
-                            <td style="padding: 0.75rem; text-align: center;">{{ absentee.exam_date }}</td>
-                            <td style="padding: 0.75rem; text-align: center;">
-                                <span style="background: #e0e7ff; color: #3730a3; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
-                                    {{ absentee.marked_by }}
-                                </span>
-                            </td>
-                            <td style="padding: 0.75rem; text-align: center;">
-                                {% if absentee.status == 'pending' %}
-                                <span style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
-                                    <i class="fas fa-clock"></i> Pending
-                                </span>
-                                {% elif absentee.status == 'approved' %}
-                                <span style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
-                                    <i class="fas fa-check"></i> Approved
-                                </span>
-                                {% elif absentee.status == 'rejected' %}
-                                <span style="background: #fee2e2; color: #991b1b; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
-                                    <i class="fas fa-times"></i> Rejected
-                                </span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </form>
+        <div style="max-height: 600px; overflow-y: auto;">
+            <table style="width: 100%; border-collapse: collapse;" id="absenteesTable">
+                <thead style="background: #f3f4f6; position: sticky; top: 0;">
+                    <tr>
+                        <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb; width: 50px;">
+                            <input type="checkbox" id="selectAllCheckbox" onchange="toggleAll(this)">
+                        </th>
+                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Roll No</th>
+                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
+                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Course</th>
+                        <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Exam Date</th>
+                        <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Marked By</th>
+                        <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb;">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="absenteesTableBody">
+                    {% for absentee in absentees %}
+                    <tr id="row-{{ absentee.id }}" data-id="{{ absentee.id }}" style="border-bottom: 1px solid #f3f4f6; {% if absentee.status == 'approved' %}background: #f0fdf4;{% elif absentee.status == 'rejected' %}background: #fef2f2;{% endif %}">
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <input type="checkbox" name="selected_absentees" value="{{ absentee.id }}" class="absentee-checkbox">
+                        </td>
+                        <td style="padding: 0.75rem; font-weight: 500;">{{ absentee.roll_no }}</td>
+                        <td style="padding: 0.75rem;">{{ absentee.name }}</td>
+                        <td style="padding: 0.75rem;">
+                            <span style="font-weight: 500;">{{ absentee.course_code }}</span>
+                            {% if absentee.course_title %}
+                            <br><span style="font-size: 0.85rem; color: #6b7280;">{{ absentee.course_title }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.75rem; text-align: center;">{{ absentee.exam_date }}</td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <span style="background: #e0e7ff; color: #3730a3; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
+                                {{ absentee.marked_by }}
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem; text-align: center;" class="status-cell">
+                            {% if absentee.status == 'pending' %}
+                            <span class="status-badge status-pending" style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
+                                <i class="fas fa-clock"></i> Pending
+                            </span>
+                            {% elif absentee.status == 'approved' %}
+                            <span class="status-badge status-approved" style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
+                                <i class="fas fa-check"></i> Approved
+                            </span>
+                            {% elif absentee.status == 'rejected' %}
+                            <span class="status-badge status-rejected" style="background: #fee2e2; color: #991b1b; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;">
+                                <i class="fas fa-times"></i> Rejected
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
         <div style="padding: 4rem; text-align: center; color: #9ca3af;">
             <i class="fas fa-inbox" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.3;"></i>
@@ -233,6 +235,180 @@ function deselectAll() {
 function toggleAll(checkbox) {
     document.querySelectorAll('.absentee-checkbox').forEach(cb => cb.checked = checkbox.checked);
 }
+
+function getSelectedIds() {
+    const checkboxes = document.querySelectorAll('.absentee-checkbox:checked');
+    return Array.from(checkboxes).map(cb => parseInt(cb.value));
+}
+
+function showMessage(message, isError = false) {
+    const msgDiv = document.getElementById('statusMessage');
+    msgDiv.textContent = message;
+    msgDiv.style.display = 'block';
+    msgDiv.style.background = isError ? '#fee2e2' : '#d1fae5';
+    msgDiv.style.color = isError ? '#991b1b' : '#065f46';
+    msgDiv.style.border = isError ? '1px solid #fecaca' : '1px solid #a7f3d0';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        msgDiv.style.display = 'none';
+    }, 5000);
+}
+
+function setButtonsLoading(loading) {
+    const buttons = ['btnApprove', 'btnPending', 'btnReject', 'btnDelete'];
+    buttons.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.disabled = loading;
+            btn.style.opacity = loading ? '0.6' : '1';
+        }
+    });
+}
+
+function updateRowStatus(id, status) {
+    const row = document.getElementById('row-' + id);
+    if (!row) return;
+    
+    // Update row background
+    row.style.background = status === 'approved' ? '#f0fdf4' : 
+                          status === 'rejected' ? '#fef2f2' : '';
+    
+    // Update status badge
+    const statusCell = row.querySelector('.status-cell');
+    if (statusCell) {
+        let badgeHtml = '';
+        if (status === 'pending') {
+            badgeHtml = '<span class="status-badge status-pending" style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;"><i class="fas fa-clock"></i> Pending</span>';
+        } else if (status === 'approved') {
+            badgeHtml = '<span class="status-badge status-approved" style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;"><i class="fas fa-check"></i> Approved</span>';
+        } else if (status === 'rejected') {
+            badgeHtml = '<span class="status-badge status-rejected" style="background: #fee2e2; color: #991b1b; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem;"><i class="fas fa-times"></i> Rejected</span>';
+        }
+        statusCell.innerHTML = badgeHtml;
+    }
+    
+    // Uncheck the checkbox
+    const checkbox = row.querySelector('.absentee-checkbox');
+    if (checkbox) checkbox.checked = false;
+}
+
+function removeRow(id) {
+    const row = document.getElementById('row-' + id);
+    if (row) {
+        row.style.transition = 'opacity 0.3s';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 300);
+    }
+}
+
+function updateStats(stats) {
+    if (stats) {
+        document.getElementById('statTotal').textContent = stats.total;
+        document.getElementById('statPending').textContent = stats.pending;
+        document.getElementById('statApproved').textContent = stats.approved;
+        document.getElementById('statRejected').textContent = stats.rejected;
+    }
+}
+
+async function performAction(action, ids) {
+    if (ids.length === 0) {
+        showMessage('No records selected!', true);
+        return null;
+    }
+    
+    setButtonsLoading(true);
+    
+    try {
+        const response = await fetch('/api/absentees/' + action, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ids: ids })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showMessage(data.message);
+            return data;
+        } else {
+            showMessage(data.error || 'Operation failed', true);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage('Network error: ' + error.message, true);
+        return null;
+    } finally {
+        setButtonsLoading(false);
+    }
+}
+
+async function refreshStats() {
+    try {
+        const response = await fetch('/api/absentees/list');
+        const data = await response.json();
+        if (data.success && data.stats) {
+            updateStats(data.stats);
+        }
+    } catch (error) {
+        console.error('Error refreshing stats:', error);
+    }
+}
+
+async function approveSelected() {
+    const ids = getSelectedIds();
+    const result = await performAction('approve', ids);
+    if (result) {
+        ids.forEach(id => updateRowStatus(id, 'approved'));
+        await refreshStats();
+        deselectAll();
+    }
+}
+
+async function rejectSelected() {
+    const ids = getSelectedIds();
+    const result = await performAction('reject', ids);
+    if (result) {
+        ids.forEach(id => updateRowStatus(id, 'rejected'));
+        await refreshStats();
+        deselectAll();
+    }
+}
+
+async function setPendingSelected() {
+    const ids = getSelectedIds();
+    const result = await performAction('pending', ids);
+    if (result) {
+        ids.forEach(id => updateRowStatus(id, 'pending'));
+        await refreshStats();
+        deselectAll();
+    }
+}
+
+async function deleteSelected() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        showMessage('No records selected!', true);
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to permanently delete ' + ids.length + ' record(s)?')) {
+        return;
+    }
+    
+    const result = await performAction('delete', ids);
+    if (result) {
+        ids.forEach(id => removeRow(id));
+        await refreshStats();
+        
+        // Update record count
+        const remaining = document.querySelectorAll('#absenteesTableBody tr').length;
+        document.getElementById('recordCount').textContent = remaining + ' records found';
+    }
+}
 </script>
 
 <style>
@@ -244,6 +420,9 @@ function toggleAll(checkbox) {
 }
 .btn-warning:hover {
     opacity: 0.9;
+}
+.btn:disabled {
+    cursor: not-allowed;
 }
 </style>
 {% endblock %}

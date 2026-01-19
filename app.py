@@ -630,6 +630,223 @@ def api_get_courses(semester_id, program_level):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+# ============================================
+# ABSENTEE MANAGEMENT API ENDPOINTS
+# ============================================
+
+@app.route('/api/absentees/approve', methods=['POST'])
+def api_approve_absentees():
+    """Approve selected absentee records via AJAX"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    if not USE_SUPABASE_DB or not supabase:
+        return jsonify({'success': False, 'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.get_json()
+        selected_ids = data.get('ids', [])
+        
+        if not selected_ids:
+            return jsonify({'success': False, 'error': 'No records selected'}), 400
+        
+        approved_count = 0
+        for absentee_id in selected_ids:
+            result = supabase.table('absentees').update({
+                'status': 'approved',
+                'approved_at': datetime.now().isoformat(),
+                'approved_by': session.get('username')
+            }).eq('id', int(absentee_id)).execute()
+            
+            if result.data:
+                approved_count += 1
+        
+        return jsonify({
+            'success': True,
+            'message': f'Approved {approved_count} record(s)',
+            'count': approved_count
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in api_approve_absentees: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/absentees/reject', methods=['POST'])
+def api_reject_absentees():
+    """Reject selected absentee records via AJAX"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    if not USE_SUPABASE_DB or not supabase:
+        return jsonify({'success': False, 'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.get_json()
+        selected_ids = data.get('ids', [])
+        
+        if not selected_ids:
+            return jsonify({'success': False, 'error': 'No records selected'}), 400
+        
+        rejected_count = 0
+        for absentee_id in selected_ids:
+            result = supabase.table('absentees').update({
+                'status': 'rejected',
+                'rejected_at': datetime.now().isoformat(),
+                'rejected_by': session.get('username')
+            }).eq('id', int(absentee_id)).execute()
+            
+            if result.data:
+                rejected_count += 1
+        
+        return jsonify({
+            'success': True,
+            'message': f'Rejected {rejected_count} record(s)',
+            'count': rejected_count
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in api_reject_absentees: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/absentees/pending', methods=['POST'])
+def api_set_pending_absentees():
+    """Set selected absentee records to pending via AJAX"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    if not USE_SUPABASE_DB or not supabase:
+        return jsonify({'success': False, 'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.get_json()
+        selected_ids = data.get('ids', [])
+        
+        if not selected_ids:
+            return jsonify({'success': False, 'error': 'No records selected'}), 400
+        
+        pending_count = 0
+        for absentee_id in selected_ids:
+            result = supabase.table('absentees').update({
+                'status': 'pending',
+                'approved_at': None,
+                'approved_by': None,
+                'rejected_at': None,
+                'rejected_by': None
+            }).eq('id', int(absentee_id)).execute()
+            
+            if result.data:
+                pending_count += 1
+        
+        return jsonify({
+            'success': True,
+            'message': f'Set {pending_count} record(s) to pending',
+            'count': pending_count
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in api_set_pending_absentees: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/absentees/delete', methods=['POST'])
+def api_delete_absentees():
+    """Delete selected absentee records via AJAX"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    if not USE_SUPABASE_DB or not supabase:
+        return jsonify({'success': False, 'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.get_json()
+        selected_ids = data.get('ids', [])
+        
+        if not selected_ids:
+            return jsonify({'success': False, 'error': 'No records selected'}), 400
+        
+        deleted_count = 0
+        for absentee_id in selected_ids:
+            result = supabase.table('absentees').delete().eq('id', int(absentee_id)).execute()
+            if result.data:
+                deleted_count += 1
+        
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {deleted_count} record(s)',
+            'count': deleted_count
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in api_delete_absentees: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/absentees/list', methods=['GET'])
+def api_list_absentees():
+    """Get list of absentees with optional filters via AJAX"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    if not USE_SUPABASE_DB or not supabase:
+        return jsonify({'success': False, 'error': 'Database not configured'}), 500
+    
+    try:
+        # Get filter parameters
+        status = request.args.get('status', '')
+        exam_date = request.args.get('exam_date', '')
+        course_code = request.args.get('course_code', '')
+        
+        query = supabase.table('absentees').select('*')
+        
+        if status:
+            query = query.eq('status', status)
+        if exam_date:
+            query = query.eq('exam_date', exam_date)
+        if course_code:
+            query = query.eq('course_code', course_code)
+        
+        result = query.order('created_at', desc=True).execute()
+        absentees = result.data if result.data else []
+        
+        # Calculate stats
+        all_result = supabase.table('absentees').select('status').execute()
+        all_records = all_result.data if all_result.data else []
+        stats = {
+            'total': len(all_records),
+            'pending': len([a for a in all_records if a['status'] == 'pending']),
+            'approved': len([a for a in all_records if a['status'] == 'approved']),
+            'rejected': len([a for a in all_records if a['status'] == 'rejected'])
+        }
+        
+        return jsonify({
+            'success': True,
+            'absentees': absentees,
+            'stats': stats
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in api_list_absentees: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/download', methods=['GET', 'POST'])
 def download_attendance():
     if 'user_id' not in session:
