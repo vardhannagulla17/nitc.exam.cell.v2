@@ -1423,7 +1423,9 @@ def admin_absentees():
                 return redirect(url_for('admin_absentees'))
         
         elif action == 'preview_consolidated':
-            exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+            exam_date = request.form.get('exam_date', '').strip()
+            if not exam_date:
+                exam_date = datetime.now().strftime('%Y-%m-%d')
             try:
                 # Get all approved absentees for the date
                 query = supabase.table('absentees').select('*').eq('status', 'approved')
@@ -1436,10 +1438,52 @@ def admin_absentees():
                     html_content = generate_consolidated_absentee_html(result.data, exam_date)
                     return html_content
                 else:
-                    flash('No approved absentees found for the selected date.', 'warning')
+                    # Return a simple HTML page with error message for the new tab
+                    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>No Absentees Found</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }}
+        .message {{ text-align: center; padding: 40px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        h2 {{ color: #f59e0b; margin-bottom: 10px; }}
+        p {{ color: #6b7280; }}
+        a {{ color: #3b82f6; text-decoration: none; }}
+    </style>
+</head>
+<body>
+    <div class="message">
+        <h2>⚠️ No Approved Absentees Found</h2>
+        <p>There are no approved absentees for the selected date: <strong>{exam_date}</strong></p>
+        <p>Please approve some absentees first or try a different date.</p>
+        <p><a href="javascript:window.close()">Close this tab</a></p>
+    </div>
+</body>
+</html>"""
             except Exception as e:
                 print(f"Error previewing consolidated absentees: {e}")
-                flash('Error generating preview.', 'error')
+                # Return a simple HTML page with error message for the new tab
+                return f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Preview Error</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }}
+        .message {{ text-align: center; padding: 40px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        h2 {{ color: #ef4444; margin-bottom: 10px; }}
+        p {{ color: #6b7280; }}
+        a {{ color: #3b82f6; text-decoration: none; }}
+    </style>
+</head>
+<body>
+    <div class="message">
+        <h2>❌ Error Generating Preview</h2>
+        <p>An error occurred while generating the consolidated absentee list.</p>
+        <p>Error: {str(e)}</p>
+        <p><a href="javascript:window.close()">Close this tab</a></p>
+    </div>
+</body>
+</html>"""
         
         elif action == 'download_consolidated':
             exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
