@@ -136,12 +136,11 @@
             
             <div style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
                 <form method="POST" action="{{ url_for('admin_absentees') }}" style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input type="date" name="exam_date" id="download_date" style="padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px;">
                     <button type="submit" name="action" value="preview_consolidated" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;" formtarget="_blank">
-                        <i class="fas fa-eye"></i> Preview
+                        <i class="fas fa-eye"></i> Preview All
                     </button>
                     <button type="submit" name="action" value="download_consolidated" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-                        <i class="fas fa-file-download"></i> Download Consolidated
+                        <i class="fas fa-file-download"></i> Download All
                     </button>
                 </form>
             </div>
@@ -213,14 +212,8 @@
 </div>
 
 <script>
-// Set today's date as default for download
-document.addEventListener('DOMContentLoaded', function() {
-    const dateInput = document.getElementById('download_date');
-    if (dateInput && !dateInput.value) {
-        const today = new Date().toISOString().split('T')[0];
-        dateInput.value = today;
-    }
-});
+// Note: Date input is intentionally left empty by default
+// Empty = show all approved absentees (no date filter)
 
 function selectAll() {
     document.querySelectorAll('.absentee-checkbox').forEach(cb => cb.checked = true);

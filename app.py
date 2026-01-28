@@ -1423,22 +1423,18 @@ def admin_absentees():
                 return redirect(url_for('admin_absentees'))
         
         elif action == 'preview_consolidated':
-            exam_date = request.form.get('exam_date', '').strip()
-            if not exam_date:
-                exam_date = datetime.now().strftime('%Y-%m-%d')
+            # Show ALL approved absentees (no date filter)
             try:
-                # Get all approved absentees for the date
-                query = supabase.table('absentees').select('*').eq('status', 'approved')
-                if exam_date:
-                    query = query.eq('exam_date', exam_date)
-                result = query.execute()
+                # Get all approved absentees
+                result = supabase.table('absentees').select('*').eq('status', 'approved').execute()
                 
                 if result.data:
                     # Generate consolidated HTML for preview (not download)
-                    html_content = generate_consolidated_absentee_html(result.data, exam_date)
+                    html_content = generate_consolidated_absentee_html(result.data)
                     return html_content
                 else:
                     # Return a simple HTML page with error message for the new tab
+                    date_info = "(no approved absentees in the system)"
                     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -1454,7 +1450,7 @@ def admin_absentees():
 <body>
     <div class="message">
         <h2>⚠️ No Approved Absentees Found</h2>
-        <p>There are no approved absentees for the selected date: <strong>{exam_date}</strong></p>
+        <p>There are no approved absentees {date_info}</p>
         <p>Please approve some absentees first or try a different date.</p>
         <p><a href="javascript:window.close()">Close this tab</a></p>
     </div>
@@ -1486,18 +1482,15 @@ def admin_absentees():
 </html>"""
         
         elif action == 'download_consolidated':
-            exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
+            # Download ALL approved absentees (no date filter)
             try:
-                # Get all approved absentees for the date
-                query = supabase.table('absentees').select('*').eq('status', 'approved')
-                if exam_date:
-                    query = query.eq('exam_date', exam_date)
-                result = query.execute()
+                # Get all approved absentees
+                result = supabase.table('absentees').select('*').eq('status', 'approved').execute()
                 
                 if result.data:
                     # Generate consolidated HTML
-                    html_content = generate_consolidated_absentee_html(result.data, exam_date)
-                    filename = f"Consolidated_Absentees_{exam_date}.html"
+                    html_content = generate_consolidated_absentee_html(result.data)
+                    filename = f"Consolidated_Absentees_{datetime.now().strftime('%Y-%m-%d')}.html"
                     
                     return send_file(
                         BytesIO(html_content.encode('utf-8')),
@@ -1506,7 +1499,7 @@ def admin_absentees():
                         download_name=filename
                     )
                 else:
-                    flash('No approved absentees found for the selected date.', 'warning')
+                    flash('No approved absentees found.', 'warning')
             except Exception as e:
                 print(f"Error downloading consolidated absentees: {e}")
                 flash('Error generating consolidated report.', 'error')
@@ -1604,9 +1597,16 @@ def admin_absentees():
                          storage_stats=storage_stats)
 
 
-def generate_consolidated_absentee_html(absentees, exam_date):
+def generate_consolidated_absentee_html(absentees):
     """Generate consolidated HTML for all approved absentees grouped by course"""
     from helpers.utils import sort_by_roll_number
+    
+    # Collect unique exam dates from absentees
+    unique_dates = sorted(set(a.get('exam_date', 'N/A') for a in absentees))
+    if len(unique_dates) == 1:
+        formatted_date = datetime.strptime(unique_dates[0], '%Y-%m-%d').strftime('%d-%m-%Y') if unique_dates[0] != 'N/A' else 'N/A'
+    else:
+        formatted_date = f"{len(unique_dates)} dates"
     
     # Group absentees by course
     courses = {}
@@ -1628,7 +1628,7 @@ def generate_consolidated_absentee_html(absentees, exam_date):
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Consolidated Absentee List - {exam_date}</title>
+    <title>Consolidated Absentee List - {formatted_date}</title>
     <style>
         @page {{ size: A4; margin: 15mm; }}
         body {{ font-family: 'Times New Roman', serif; margin: 0; padding: 20px; font-size: 11pt; }}
@@ -1650,7 +1650,7 @@ def generate_consolidated_absentee_html(absentees, exam_date):
     <div class="header">
         <h1>National Institute of Technology Calicut</h1>
         <h2>Consolidated Absentee List</h2>
-        <p><strong>Exam Date:</strong> {datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y') if exam_date else 'N/A'}</p>
+        <p><strong>Exam Date:</strong> {formatted_date}</p>
     </div>
 """
     
