@@ -107,6 +107,14 @@ ENV/
 env.bak/
 venv.bak/
 
+# Database files
+exam_cell.db
+*.db
+
+# Sample/test files
+*.pdf
+!requirements.txt
+
 # Spyder project settings
 .spyderproject
 .spyproject
