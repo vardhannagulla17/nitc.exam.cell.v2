@@ -4,9 +4,11 @@ A Flask-based web application for managing student attendance sheets for examina
 
 ## Features
 
-- **User Authentication**: Admin and staff user roles
+- **User Authentication**: Admin and staff user roles with email-based OTP verification
+- **Email-based Registration**: Staff can self-register using @nitc.ac.in email with OTP verification
+- **Exam Timetable Management**: Upload exam timetables (Excel/PDF) for auto-fill of exam dates
 - **Excel File Upload**: Upload student enrollment data from Excel files
--- **Attendance Sheet Generation**: Generate detailed attendance sheets (includes signature, bio-break and additional sheets columns)
+- **Attendance Sheet Generation**: Generate detailed attendance sheets (includes signature, bio-break and additional sheets columns)
 - **Bulk Downloads**: Download all attendance sheets as organized ZIP files
 - **Program-wise Organization**: Separate folders for UG, PG, and PhD programs
 - **Semester Management**: Handle multiple semesters and examination types
@@ -89,6 +91,21 @@ The application accepts Excel files (.xlsx, .xls) with the following expected co
 - MainInstructor
 - PrimaryMail
 - CourseCategoryCode
+
+## Environment Variables
+
+For OTP-based email verification, configure the following environment variables:
+
+```bash
+# SMTP Configuration for OTP emails
+SMTP_SERVER=smtp.gmail.com       # SMTP server address
+SMTP_PORT=587                    # SMTP port (587 for TLS)
+SMTP_USER=your-email@gmail.com   # SMTP username/email
+SMTP_PASSWORD=your-app-password  # SMTP password or app password
+SMTP_FROM=noreply@nitc.ac.in     # From email address
+```
+
+**Note**: For Gmail, you need to use an App Password (not your regular password). Enable 2FA and generate an App Password from Google Account settings.
 
 ## Development
 

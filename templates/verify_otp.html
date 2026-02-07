@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Verify OTP - Exam Cell Application{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+<style>
+    .otp-info {
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #4CAF50;
+    }
+    
+    .otp-info p {
+        margin: 0;
+        color: #2e7d32;
+        font-size: 0.95rem;
+    }
+    
+    .otp-info .email-display {
+        font-weight: 600;
+        color: #1b5e20;
+    }
+    
+    .otp-input {
+        text-align: center;
+        font-size: 1.5rem;
+        letter-spacing: 0.5rem;
+        font-weight: 600;
+    }
+    
+    .resend-section {
+        text-align: center;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e0e0e0;
+    }
+    
+    .resend-link {
+        color: #1976d2;
+        text-decoration: none;
+        font-size: 0.9rem;
+    }
+    
+    .resend-link:hover {
+        text-decoration: underline;
+    }
+    
+    .timer-text {
+        color: #666;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .back-link {
+        display: block;
+        text-align: center;
+        margin-top: 1rem;
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .back-link a {
+        color: #1976d2;
+        text-decoration: none;
+    }
+    
+    .back-link a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="login-container">
+        <div class="login-header">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='images/Correct_Logo_of_NIT_Calicut.svg') }}" alt="NITC Logo" class="nitc-logo">
+            </div>
+            <h1>Verify Your Email</h1>
+            <p>National Institute of Technology Calicut</p>
+        </div>
+        
+        <div class="login-body">
+            <div class="otp-info">
+                <p><i class="fas fa-envelope"></i> A 6-digit verification code has been sent to:</p>
+                <p class="email-display" style="margin-top: 0.5rem;">{{ email }}</p>
+            </div>
+            
+            <form method="POST" class="login-form" id="otpForm">
+                <div class="form-group">
+                    <label for="otp">
+                        Enter Verification Code
+                    </label>
+                    <div class="input-group">
+                        <input type="text" id="otp" name="otp" class="form-control otp-input" required 
+                               placeholder="000000" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code"
+                               inputmode="numeric">
+                        <div class="input-icon">
+                            <i class="fas fa-key"></i>
+                        </div>
+                    </div>
+                    <small class="form-text text-muted">Enter the 6-digit code from your email</small>
+                </div>
+
+                <button type="submit" class="btn-login" id="verifyButton">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Verify & Complete Registration</span>
+                </button>
+            </form>
+            
+            <div class="resend-section">
+                <p class="timer-text">Didn't receive the code? Check your spam folder or</p>
+                <form method="POST" action="{{ url_for('resend_otp_route') }}" style="display: inline;">
+                    <button type="submit" class="resend-link" style="background: none; border: none; cursor: pointer;">
+                        <i class="fas fa-redo"></i> Resend OTP
+                    </button>
+                </form>
+            </div>
+            
+            <div class="back-link">
+                <a href="{{ url_for('register') }}"><i class="fas fa-arrow-left"></i> Back to Registration</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-focus OTP input
+    document.getElementById('otp').focus();
+    
+    // Only allow numeric input
+    document.getElementById('otp').addEventListener('input', function(e) {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+    
+    // Auto-submit when 6 digits entered (optional UX enhancement)
+    document.getElementById('otp').addEventListener('input', function(e) {
+        if (this.value.length === 6) {
+            // Optional: auto-submit
+            // document.getElementById('otpForm').submit();
+        }
+    });
+</script>
+{% endblock %}

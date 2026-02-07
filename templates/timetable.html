@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}Exam Timetable - Exam Cell Application{% endblock %}
+
+{% block extra_css %}
+<style>
+    .timetable-container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    
+    .page-header h1 {
+        color: var(--text-primary);
+        margin: 0;
+    }
+    
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 500;
+        margin-bottom: 1rem;
+    }
+    
+    .back-link:hover {
+        text-decoration: underline;
+    }
+    
+    .section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .upload-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 1rem;
+        align-items: end;
+    }
+    
+    @media (max-width: 768px) {
+        .upload-form {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .form-group label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 1rem;
+    }
+    
+    .btn-upload {
+        padding: 0.75rem 1.5rem;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-upload:hover {
+        background: var(--primary-dark);
+    }
+    
+    .timetable-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .timetable-table th,
+    .timetable-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .timetable-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .timetable-table tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .date-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        background: #e0f2fe;
+        color: #0369a1;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .time-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        background: #fef3c7;
+        color: #92400e;
+        border-radius: 20px;
+        font-size: 0.875rem;
+    }
+    
+    .venue-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        background: #f3e8ff;
+        color: #7c3aed;
+        border-radius: 20px;
+        font-size: 0.875rem;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    .info-box {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+        margin-bottom: 1rem;
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 12px;
+        color: #0369a1;
+        font-size: 0.9rem;
+    }
+    
+    .info-box i {
+        margin-top: 2px;
+    }
+    
+    .stats-row {
+        display: flex;
+        gap: 2rem;
+        margin-bottom: 1rem;
+    }
+    
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--text-secondary);
+    }
+    
+    .stat-item strong {
+        color: var(--text-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="timetable-container">
+    <a href="{{ url_for('dashboard') }}" class="back-link">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+    
+    <div class="page-header">
+        <h1><i class="fas fa-calendar-alt"></i> Exam Timetable Management</h1>
+    </div>
+    
+    <!-- Upload Section -->
+    <div class="section">
+        <h2 class="section-title"><i class="fas fa-upload"></i> Upload Exam Timetable</h2>
+        
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <strong>Supported Formats:</strong><br>
+                • <strong>PDF:</strong> Upload the official NITC exam timetable PDF directly<br>
+                • <strong>Excel:</strong> Should have columns: <code>Course Code</code>, <code>Course Title</code>, <code>Exam Date</code>, <code>Exam Time</code>, <code>Venue</code>
+            </div>
+        </div>
+        
+        <form method="POST" enctype="multipart/form-data" class="upload-form">
+            <div class="form-group">
+                <label for="semester_id">Select Semester</label>
+                <select name="semester_id" id="semester_id" class="form-control" required>
+                    <option value="">-- Select Semester --</option>
+                    {% for sem in semesters %}
+                    <option value="{{ sem[0] }}" {% if selected_semester == sem[0]|string %}selected{% endif %}>
+                        {{ sem[1] }} - {{ sem[2] }} ({{ sem[3] }} {{ sem[4] }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="file">Timetable File (PDF or Excel)</label>
+                <input type="file" name="file" id="file" class="form-control" accept=".xlsx,.xls,.pdf" required>
+            </div>
+            
+            <button type="submit" class="btn-upload">
+                <i class="fas fa-upload"></i> Upload Timetable
+            </button>
+        </form>
+    </div>
+    
+    <!-- Timetable View Section -->
+    <div class="section">
+        <h2 class="section-title"><i class="fas fa-table"></i> Current Timetable</h2>
+        
+        <form method="GET" style="margin-bottom: 1rem;">
+            <div style="display: flex; gap: 1rem; align-items: end;">
+                <div class="form-group" style="flex: 1;">
+                    <label for="view_semester">View Timetable for Semester</label>
+                    <select name="semester_id" id="view_semester" class="form-control" onchange="this.form.submit()">
+                        <option value="">-- Select Semester --</option>
+                        {% for sem in semesters %}
+                        <option value="{{ sem[0] }}" {% if selected_semester == sem[0]|string %}selected{% endif %}>
+                            {{ sem[1] }} - {{ sem[2] }} ({{ sem[3] }} {{ sem[4] }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </form>
+        
+        {% if timetable %}
+        <div class="stats-row">
+            <div class="stat-item">
+                <i class="fas fa-book"></i>
+                <span><strong>{{ timetable|length }}</strong> courses scheduled</span>
+            </div>
+        </div>
+        
+        <div style="overflow-x: auto;">
+            <table class="timetable-table">
+                <thead>
+                    <tr>
+                        <th>Course Code</th>
+                        <th>Course Title</th>
+                        <th>Exam Date</th>
+                        <th>Time</th>
+                        <th>Venue</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in timetable %}
+                    <tr>
+                        <td><strong>{{ entry.course_code }}</strong></td>
+                        <td>{{ entry.course_title or '-' }}</td>
+                        <td>
+                            <span class="date-badge">
+                                <i class="fas fa-calendar"></i>
+                                {{ entry.exam_date }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if entry.exam_time %}
+                            <span class="time-badge">
+                                <i class="fas fa-clock"></i>
+                                {{ entry.exam_time }}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if entry.venue %}
+                            <span class="venue-badge">
+                                <i class="fas fa-map-marker-alt"></i>
+                                {{ entry.venue }}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% elif selected_semester %}
+        <div class="empty-state">
+            <i class="fas fa-calendar-times"></i>
+            <p>No timetable uploaded for this semester yet.</p>
+            <p>Upload an Excel file above to add the exam schedule.</p>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-calendar"></i>
+            <p>Select a semester to view its timetable.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

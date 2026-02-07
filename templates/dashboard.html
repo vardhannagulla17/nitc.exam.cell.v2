@@ -71,6 +71,28 @@
                     <i class="fas fa-clipboard-check"></i> Consolidate
                 </a>
             </div>
+            
+            <div class="tile" onclick="location.href='{{ url_for('admin_users') }}'">
+                <div class="tile-icon tile-icon-teal">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <h3>Manage Users</h3>
+                <p>Manage staff accounts and user roles</p>
+                <a href="{{ url_for('admin_users') }}" class="btn btn-primary btn-teal">
+                    <i class="fas fa-users"></i> Manage
+                </a>
+            </div>
+            
+            <div class="tile" onclick="location.href='{{ url_for('manage_timetable') }}'">
+                <div class="tile-icon tile-icon-orange">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <h3>Exam Timetable</h3>
+                <p>Upload exam schedule, auto-fill dates for attendance</p>
+                <a href="{{ url_for('manage_timetable') }}" class="btn btn-primary btn-orange">
+                    <i class="fas fa-calendar-check"></i> Manage
+                </a>
+            </div>
             {% endif %}
             
             <div class="tile" onclick="location.href='{{ url_for('download_attendance') }}'">

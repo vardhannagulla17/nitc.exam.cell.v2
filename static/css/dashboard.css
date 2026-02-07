@@ -138,6 +138,10 @@
     background: linear-gradient(135deg, #8b5cf6, #7c3aed);
 }
 
+.tile-icon-teal {
+    background: linear-gradient(135deg, #14b8a6, #0d9488);
+}
+
 .btn-purple {
     background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
     border: none;
@@ -145,6 +149,42 @@
 
 .btn-purple:hover {
     background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+}
+
+.btn-teal {
+    background: linear-gradient(135deg, #14b8a6, #0d9488) !important;
+    border: none;
+}
+
+.btn-teal:hover {
+    background: linear-gradient(135deg, #0d9488, #0f766e) !important;
+}
+
+.tile-icon-orange {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+}
+
+.btn-orange {
+    background: linear-gradient(135deg, #f97316, #ea580c) !important;
+    border: none;
+}
+
+.btn-orange:hover {
+    background: linear-gradient(135deg, #ea580c, #c2410c) !important;
+}
+
+.badge-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ef4444;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.125rem 0.4rem;
+    border-radius: 10px;
+    margin-left: 0.375rem;
+    min-width: 18px;
 }
 
 .tile h3 {

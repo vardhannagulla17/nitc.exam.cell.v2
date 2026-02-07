@@ -1,11 +1,247 @@
 import sqlite3
 import os
+import random
+import string
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 from helpers.utils import sort_by_roll_number
 from supabase_client import supabase
 
 from .database import get_db_connection, USE_SUPABASE_DB
+
+# Valid email domain for registration
+VALID_EMAIL_DOMAIN = 'nitc.ac.in'
+
+# OTP Configuration
+OTP_EXPIRY_MINUTES = 10
+OTP_LENGTH = 6
+
+# In-memory OTP storage (for simplicity - in production use Redis or database)
+# Format: {email: {'otp': '123456', 'expires_at': datetime, 'full_name': 'Name', 'password_hash': 'hash'}}
+pending_registrations = {}
+
+# Email configuration (from environment variables)
+SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
+SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+SMTP_FROM = os.environ.get('SMTP_FROM', '')
+SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'NITC Exam Cell')
+
+def generate_otp():
+    """Generate a random 6-digit OTP"""
+    return ''.join(random.choices(string.digits, k=OTP_LENGTH))
+
+def send_otp_email(email, otp, full_name):
+    """Send OTP to user's email"""
+    if not SMTP_USER or not SMTP_PASSWORD:
+        print(f"⚠️ SMTP not configured. OTP for {email}: {otp}")
+        return True, "OTP generated (email not configured - check console)"
+    
+    try:
+        # Create email message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f'NITC Exam Cell - Verify Your Email (OTP: {otp})'
+        msg['From'] = f'{SMTP_FROM_NAME} <{SMTP_FROM or SMTP_USER}>'
+        msg['To'] = email
+        
+        # Plain text version
+        text = f"""
+Hello {full_name},
+
+Your OTP for NITC Exam Cell registration is: {otp}
+
+This OTP is valid for {OTP_EXPIRY_MINUTES} minutes.
+
+If you did not request this, please ignore this email.
+
+Regards,
+NITC Exam Cell Team
+"""
+        
+        # HTML version
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 500px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 10px 10px 0 0; text-align: center; }}
+        .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+        .otp-box {{ background: white; border: 2px dashed #667eea; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }}
+        .otp {{ font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 8px; }}
+        .footer {{ text-align: center; margin-top: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>🎓 NITC Exam Cell</h2>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{full_name}</strong>,</p>
+            <p>Your One-Time Password (OTP) for registration is:</p>
+            <div class="otp-box">
+                <span class="otp">{otp}</span>
+            </div>
+            <p>This OTP is valid for <strong>{OTP_EXPIRY_MINUTES} minutes</strong>.</p>
+            <p>If you did not request this, please ignore this email.</p>
+        </div>
+        <div class="footer">
+            <p>National Institute of Technology Calicut</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        msg.attach(MIMEText(text, 'plain'))
+        msg.attach(MIMEText(html, 'html'))
+        
+        # Send email - try SSL first (port 465), then TLS (port 587)
+        try:
+            if SMTP_PORT == 465:
+                # Use SSL
+                import ssl
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context, timeout=10) as server:
+                    server.login(SMTP_USER, SMTP_PASSWORD)
+                    server.send_message(msg)
+            else:
+                # Use TLS (port 587)
+                with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) as server:
+                    server.starttls()
+                    server.login(SMTP_USER, SMTP_PASSWORD)
+                    server.send_message(msg)
+        except Exception as smtp_error:
+            # If port 587 fails, try port 465 with SSL
+            print(f"⚠️ Port {SMTP_PORT} failed, trying port 465 with SSL...")
+            import ssl
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(SMTP_SERVER, 465, context=context, timeout=10) as server:
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+        
+        print(f"✅ OTP email sent to {email}")
+        return True, "OTP sent successfully to your email"
+    except Exception as e:
+        print(f"❌ Error sending email: {e}")
+        # In debug mode, still allow registration with OTP shown in message
+        DEBUG_MODE = os.environ.get('DEBUG_OTP', 'true').lower() == 'true'
+        if DEBUG_MODE:
+            return True, f"Email failed but DEBUG mode active. Your OTP is: {otp}"
+        return False, f"Failed to send OTP email: {str(e)}"
+
+def create_pending_registration(email, full_name, password):
+    """Create a pending registration with OTP"""
+    otp = generate_otp()
+    expires_at = datetime.now() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+    
+    pending_registrations[email.lower()] = {
+        'otp': otp,
+        'expires_at': expires_at,
+        'full_name': full_name,
+        'password_hash': generate_password_hash(password)
+    }
+    
+    # Send OTP email
+    success, message = send_otp_email(email, otp, full_name)
+    return success, message, otp
+
+def verify_otp_and_register(email, otp):
+    """Verify OTP and complete registration"""
+    email_lower = email.lower()
+    
+    if email_lower not in pending_registrations:
+        return False, "No pending registration found for this email. Please register again."
+    
+    registration = pending_registrations[email_lower]
+    
+    # Check if OTP expired
+    if datetime.now() > registration['expires_at']:
+        del pending_registrations[email_lower]
+        return False, "OTP has expired. Please register again."
+    
+    # Check if OTP matches
+    if registration['otp'] != otp:
+        return False, "Invalid OTP. Please check and try again."
+    
+    # OTP verified - create user account (auto-approved)
+    try:
+        if USE_SUPABASE_DB and supabase:
+            # Check if email already exists
+            existing = supabase.table('users').select('id').eq('email', email_lower).execute()
+            if existing.data:
+                del pending_registrations[email_lower]
+                return False, "An account with this email already exists."
+            
+            # Create user (auto-approved since email is verified)
+            user_data = {
+                'email': email_lower,
+                'full_name': registration['full_name'],
+                'password_hash': registration['password_hash'],
+                'role': 'staff',
+                'is_approved': True,  # Auto-approved after OTP verification
+                'is_active': True,
+                'approved_at': datetime.now().isoformat()
+            }
+            supabase.table('users').insert(user_data).execute()
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Check if email already exists
+            cursor.execute('SELECT id FROM users WHERE email = ?', (email_lower,))
+            if cursor.fetchone():
+                conn.close()
+                del pending_registrations[email_lower]
+                return False, "An account with this email already exists."
+            
+            # Create user (auto-approved since email is verified)
+            cursor.execute('''
+                INSERT INTO users (email, full_name, password_hash, role, is_approved, is_active, approved_at)
+                VALUES (?, ?, ?, 'staff', 1, 1, ?)
+            ''', (email_lower, registration['full_name'], registration['password_hash'], datetime.now()))
+            
+            conn.commit()
+            conn.close()
+        
+        # Clear pending registration
+        del pending_registrations[email_lower]
+        return True, "Registration successful! You can now login."
+    
+    except Exception as e:
+        print(f"Error creating user: {e}")
+        return False, f"Registration failed: {str(e)}"
+
+def resend_otp(email):
+    """Resend OTP for pending registration"""
+    email_lower = email.lower()
+    
+    if email_lower not in pending_registrations:
+        return False, "No pending registration found. Please register again."
+    
+    registration = pending_registrations[email_lower]
+    
+    # Generate new OTP
+    otp = generate_otp()
+    pending_registrations[email_lower]['otp'] = otp
+    pending_registrations[email_lower]['expires_at'] = datetime.now() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+    
+    # Send new OTP
+    success, message = send_otp_email(email, otp, registration['full_name'])
+    return success, message
+
+def validate_email_domain(email):
+    """Validate that email ends with @nitc.ac.in"""
+    if not email:
+        return False
+    return email.lower().endswith(f'@{VALID_EMAIL_DOMAIN}')
 
 def detect_excel_column(df, possible_names):
     """Smart column detection - tries to find the best matching column name"""
@@ -30,76 +266,42 @@ def init_db():
     """Initialize the database with users, semesters, and students tables"""
     if USE_SUPABASE_DB:
         # For Supabase, tables are created via SQL Editor or migrations
-        # Just ensure default users exist
+        # Just ensure default admin users exist
         try:
             # Check if users table exists and has data
             result = supabase.table('users').select('id').limit(1).execute()
             
-            # If no users, create default ones
+            # If no users, create default admin users
             if not result.data:
                 admin_users = [
-                    {'username': 'vardhan', 'password_hash': generate_password_hash('vardhan123'), 'role': 'admin'},
-                    {'username': 'pavan', 'password_hash': generate_password_hash('pavan123'), 'role': 'admin'},
-                    {'username': 'abhinav', 'password_hash': generate_password_hash('abhinav123'), 'role': 'admin'},
-                    {'username': 'saketh', 'password_hash': generate_password_hash('saketh123'), 'role': 'admin'},
-                    {'username': 'staff', 'password_hash': generate_password_hash('staff123'), 'role': 'staff'}
+                    {'email': 'vardhan@nitc.ac.in', 'full_name': 'Vardhan', 'password_hash': generate_password_hash('vardhan123'), 'role': 'admin', 'is_approved': True, 'is_active': True},
+                    {'email': 'pavan@nitc.ac.in', 'full_name': 'Pavan', 'password_hash': generate_password_hash('pavan123'), 'role': 'admin', 'is_approved': True, 'is_active': True},
+                    {'email': 'abhinav@nitc.ac.in', 'full_name': 'Abhinav', 'password_hash': generate_password_hash('abhinav123'), 'role': 'admin', 'is_approved': True, 'is_active': True},
+                    {'email': 'saketh@nitc.ac.in', 'full_name': 'Saketh', 'password_hash': generate_password_hash('saketh123'), 'role': 'admin', 'is_approved': True, 'is_active': True}
                 ]
                 supabase.table('users').insert(admin_users).execute()
-                print("✅ Created default users in Supabase")
+                print("✅ Created default admin users in Supabase")
         except Exception as e:
             print(f"⚠️ Supabase init_db error: {e}")
-            print("Please create tables manually in Supabase SQL Editor:")
-            print("""
-            CREATE TABLE IF NOT EXISTS users (
-                id BIGSERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'staff',
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-            
-            CREATE TABLE IF NOT EXISTS semesters (
-                id BIGSERIAL PRIMARY KEY,
-                academic_year TEXT NOT NULL,
-                semester_type TEXT NOT NULL,
-                degree_level TEXT NOT NULL,
-                exam_type TEXT NOT NULL,
-                db_name TEXT UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-            
-            CREATE TABLE IF NOT EXISTS students (
-                id BIGSERIAL PRIMARY KEY,
-                roll_no TEXT NOT NULL,
-                name TEXT NOT NULL,
-                email_id TEXT,
-                student_sess TEXT,
-                course_code TEXT,
-                credits INTEGER,
-                course_title TEXT,
-                program_name TEXT,
-                timetable_batch TEXT,
-                slot_code TEXT,
-                main_instructor TEXT,
-                primary_mail TEXT,
-                course_category_code TEXT,
-                semester_id BIGINT REFERENCES semesters(id),
-                uploaded_at TIMESTAMP DEFAULT NOW()
-            );
-            """)
+            print("Please create tables manually in Supabase SQL Editor using supabase_schema.sql")
     else:
         # SQLite for local development
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Create users table if it doesn't exist
+        # Create users table with email-based authentication
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                full_name TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL DEFAULT 'staff',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                is_approved BOOLEAN DEFAULT 0,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                approved_at TIMESTAMP,
+                approved_by TEXT
             )
         ''')
         
@@ -139,23 +341,17 @@ def init_db():
             )
         ''')
         
-        # Create default admin users
+        # Create default admin users (pre-approved)
         admin_users = [
-            ('vardhan', generate_password_hash('vardhan123'), 'admin'),
-            ('pavan', generate_password_hash('pavan123'), 'admin'),
-            ('abhinav', generate_password_hash('abhinav123'), 'admin'),
-            ('saketh', generate_password_hash('saketh123'), 'admin')
+            ('vardhan@nitc.ac.in', 'Vardhan', generate_password_hash('vardhan123'), 'admin', 1, 1),
+            ('pavan@nitc.ac.in', 'Pavan', generate_password_hash('pavan123'), 'admin', 1, 1),
+            ('abhinav@nitc.ac.in', 'Abhinav', generate_password_hash('abhinav123'), 'admin', 1, 1),
+            ('saketh@nitc.ac.in', 'Saketh', generate_password_hash('saketh123'), 'admin', 1, 1)
         ]
         cursor.executemany('''
-            INSERT OR IGNORE INTO users (username, password_hash, role) 
-            VALUES (?, ?, ?)
+            INSERT OR IGNORE INTO users (email, full_name, password_hash, role, is_approved, is_active) 
+            VALUES (?, ?, ?, ?, ?, ?)
         ''', admin_users)
-        
-        # Create staff user
-        cursor.execute('''
-            INSERT OR IGNORE INTO users (username, password_hash, role) 
-            VALUES (?, ?, ?)
-        ''', ('staff', generate_password_hash('staff123'), 'staff'))
         
         conn.commit()
         conn.close()
@@ -421,18 +617,23 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
     except Exception as e:
         return False, f"Error loading data: {str(e)}"
 
-def get_user_by_credentials(username, password):
-    """Get user by username and password"""
+def get_user_by_credentials(email, password):
+    """Get user by email and password (email-based login)"""
     if USE_SUPABASE_DB:
         try:
             if not supabase:
                 print("Supabase client not initialized")
                 return None
-            result = supabase.table('users').select('id, username, password_hash, role').eq('username', username).execute()
+            result = supabase.table('users').select('id, email, full_name, password_hash, role, is_approved, is_active').eq('email', email.lower()).execute()
             if result.data and len(result.data) > 0:
                 user = result.data[0]
                 if check_password_hash(user['password_hash'], password):
-                    return {'id': user['id'], 'username': user['username'], 'role': user['role']}
+                    # Check if user is approved and active
+                    if not user.get('is_approved', False):
+                        return {'error': 'pending_approval'}
+                    if not user.get('is_active', True):
+                        return {'error': 'account_disabled'}
+                    return {'id': user['id'], 'email': user['email'], 'full_name': user['full_name'], 'role': user['role']}
             return None
         except Exception as e:
             print(f"Supabase auth error: {e}")
@@ -442,13 +643,245 @@ def get_user_by_credentials(username, password):
     else:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT id, password_hash, role FROM users WHERE username = ?', (username,))
+        cursor.execute('SELECT id, full_name, password_hash, role, is_approved, is_active FROM users WHERE email = ?', (email.lower(),))
         user = cursor.fetchone()
         conn.close()
         
-        if user and check_password_hash(user[1], password):
-            return {'id': user[0], 'username': username, 'role': user[2]}
+        if user and check_password_hash(user[2], password):
+            # Check if user is approved and active
+            if not user[4]:  # is_approved
+                return {'error': 'pending_approval'}
+            if not user[5]:  # is_active
+                return {'error': 'account_disabled'}
+            return {'id': user[0], 'email': email.lower(), 'full_name': user[1], 'role': user[3]}
         return None
+
+def register_user(email, full_name, password):
+    """Register a new user (staff) with email validation"""
+    email = email.lower().strip()
+    full_name = full_name.strip()
+    
+    # Validate email domain
+    if not validate_email_domain(email):
+        return False, f"Only @{VALID_EMAIL_DOMAIN} email addresses are allowed"
+    
+    # Check if email already exists
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return False, "Database not available"
+            
+            result = supabase.table('users').select('id').eq('email', email).execute()
+            if result.data:
+                return False, "An account with this email already exists"
+            
+            # Create new user (not approved by default)
+            new_user = {
+                'email': email,
+                'full_name': full_name,
+                'password_hash': generate_password_hash(password),
+                'role': 'staff',
+                'is_approved': False,
+                'is_active': True
+            }
+            supabase.table('users').insert(new_user).execute()
+            return True, "Registration successful! Please wait for admin approval."
+        except Exception as e:
+            print(f"Registration error: {e}")
+            return False, f"Registration failed: {str(e)}"
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if email exists
+        cursor.execute('SELECT id FROM users WHERE email = ?', (email,))
+        if cursor.fetchone():
+            conn.close()
+            return False, "An account with this email already exists"
+        
+        try:
+            cursor.execute('''
+                INSERT INTO users (email, full_name, password_hash, role, is_approved, is_active)
+                VALUES (?, ?, ?, 'staff', 0, 1)
+            ''', (email, full_name, generate_password_hash(password)))
+            conn.commit()
+            conn.close()
+            return True, "Registration successful! Please wait for admin approval."
+        except Exception as e:
+            conn.close()
+            return False, f"Registration failed: {str(e)}"
+
+def get_all_users():
+    """Get all users for admin management"""
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return []
+            result = supabase.table('users').select('id, email, full_name, role, is_approved, is_active, created_at, approved_at, approved_by').order('created_at', desc=True).execute()
+            return result.data
+        except Exception as e:
+            print(f"Error getting users: {e}")
+            return []
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, email, full_name, role, is_approved, is_active, created_at, approved_at, approved_by FROM users ORDER BY created_at DESC')
+        users = cursor.fetchall()
+        conn.close()
+        return [{'id': u[0], 'email': u[1], 'full_name': u[2], 'role': u[3], 'is_approved': bool(u[4]), 'is_active': bool(u[5]), 'created_at': u[6], 'approved_at': u[7], 'approved_by': u[8]} for u in users]
+
+def get_pending_users():
+    """Get users pending approval"""
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return []
+            result = supabase.table('users').select('id, email, full_name, role, created_at').eq('is_approved', False).order('created_at', desc=True).execute()
+            return result.data
+        except Exception as e:
+            print(f"Error getting pending users: {e}")
+            return []
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, email, full_name, role, created_at FROM users WHERE is_approved = 0 ORDER BY created_at DESC')
+        users = cursor.fetchall()
+        conn.close()
+        return [{'id': u[0], 'email': u[1], 'full_name': u[2], 'role': u[3], 'created_at': u[4]} for u in users]
+
+def approve_user(user_id, approved_by):
+    """Approve a user registration"""
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return False, "Database not available"
+            supabase.table('users').update({
+                'is_approved': True,
+                'approved_at': datetime.now().isoformat(),
+                'approved_by': approved_by
+            }).eq('id', user_id).execute()
+            return True, "User approved successfully"
+        except Exception as e:
+            return False, f"Failed to approve user: {str(e)}"
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                UPDATE users SET is_approved = 1, approved_at = ?, approved_by = ? WHERE id = ?
+            ''', (datetime.now().isoformat(), approved_by, user_id))
+            conn.commit()
+            conn.close()
+            return True, "User approved successfully"
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to approve user: {str(e)}"
+
+def reject_user(user_id):
+    """Reject/delete a user registration"""
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return False, "Database not available"
+            supabase.table('users').delete().eq('id', user_id).execute()
+            return True, "User registration rejected"
+        except Exception as e:
+            return False, f"Failed to reject user: {str(e)}"
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            conn.commit()
+            conn.close()
+            return True, "User registration rejected"
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to reject user: {str(e)}"
+
+def toggle_user_active(user_id):
+    """Toggle user active status"""
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return False, "Database not available"
+            # Get current status
+            result = supabase.table('users').select('is_active').eq('id', user_id).execute()
+            if not result.data:
+                return False, "User not found"
+            current_status = result.data[0]['is_active']
+            new_status = not current_status
+            supabase.table('users').update({'is_active': new_status}).eq('id', user_id).execute()
+            return True, f"User {'activated' if new_status else 'deactivated'} successfully"
+        except Exception as e:
+            return False, f"Failed to update user: {str(e)}"
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
+            result = cursor.fetchone()
+            if not result:
+                conn.close()
+                return False, "User not found"
+            new_status = 0 if result[0] else 1
+            cursor.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
+            conn.commit()
+            conn.close()
+            return True, f"User {'activated' if new_status else 'deactivated'} successfully"
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to update user: {str(e)}"
+
+def update_user_role(user_id, new_role):
+    """Update user role (admin/staff)"""
+    if new_role not in ['admin', 'staff']:
+        return False, "Invalid role"
+    
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return False, "Database not available"
+            supabase.table('users').update({'role': new_role}).eq('id', user_id).execute()
+            return True, f"User role updated to {new_role}"
+        except Exception as e:
+            return False, f"Failed to update role: {str(e)}"
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('UPDATE users SET role = ? WHERE id = ?', (new_role, user_id))
+            conn.commit()
+            conn.close()
+            return True, f"User role updated to {new_role}"
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to update role: {str(e)}"
+
+def delete_user(user_id, current_user_id):
+    """Delete a user (cannot delete self)"""
+    if str(user_id) == str(current_user_id):
+        return False, "You cannot delete your own account"
+    
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return False, "Database not available"
+            supabase.table('users').delete().eq('id', user_id).execute()
+            return True, "User deleted successfully"
+        except Exception as e:
+            return False, f"Failed to delete user: {str(e)}"
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            conn.commit()
+            conn.close()
+            return True, "User deleted successfully"
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to delete user: {str(e)}"
 
 def get_semester_stats():
     """Get statistics from all semesters"""
@@ -627,3 +1060,332 @@ def get_courses_for_semester(semester_id, program_level=None):
     except Exception as e:
         print(f"DEBUG: Error in get_courses_for_semester: {e}")
         return []
+
+# ============================================
+# EXAM TIMETABLE FUNCTIONS
+# ============================================
+
+def parse_pdf_timetable(file_source):
+    """Parse exam timetable from PDF file in NITC format"""
+    import re
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        return None, "PyMuPDF not installed. Please run: pip install pymupdf"
+    
+    try:
+        # Open PDF
+        if isinstance(file_source, str):
+            doc = fitz.open(file_source)
+        else:
+            # Read from file-like object
+            pdf_bytes = file_source.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        
+        # Extract text from all pages
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        doc.close()
+        
+        # Parse course entries
+        # Date pattern: DD-MM-YYYY or YYYY-MM-DD
+        date_pattern = r'(\d{2}-\d{2}-\d{4}|\d{4}-\d{2}-\d{2})'
+        # Time pattern: HH:MM – HH:MM or HH:MM-HH:MM or HH:MM − HH:MM
+        time_pattern = r'(\d{1,2}:\d{2}\s*[–\-−]\s*\d{1,2}:\d{2})'
+        # Course code pattern: 2-3 letters followed by 4 digits and optional letter (e.g., ME1211E, MA2013E)
+        course_code_pattern = r'\b([A-Z]{2,3}\d{4}[A-Z]?)\b'
+        
+        # Find all course codes with their context
+        entries = []
+        lines = text.split('\n')
+        
+        for i, line in enumerate(lines):
+            # Look for course code
+            code_match = re.search(course_code_pattern, line)
+            if code_match:
+                course_code = code_match.group(1)
+                
+                # Look for date and time in nearby lines (current and next few lines)
+                context = ' '.join(lines[i:min(i+5, len(lines))])
+                
+                date_match = re.search(date_pattern, context)
+                time_match = re.search(time_pattern, context)
+                
+                if date_match:
+                    exam_date = date_match.group(1)
+                    # Convert DD-MM-YYYY to YYYY-MM-DD if needed
+                    if re.match(r'\d{2}-\d{2}-\d{4}', exam_date):
+                        parts = exam_date.split('-')
+                        exam_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
+                    
+                    exam_time = time_match.group(1) if time_match else ''
+                    # Clean up time format
+                    exam_time = exam_time.replace('−', '-').replace('–', '-')
+                    
+                    # Try to extract course title (text after course code until date)
+                    title_search = line[code_match.end():].strip()
+                    # Get text before the date
+                    if date_match:
+                        title_candidate = context[code_match.end():context.find(date_match.group(1))].strip()
+                        if len(title_candidate) > 3 and len(title_candidate) < 100:
+                            title_search = title_candidate
+                    
+                    # Clean up title
+                    title_search = re.sub(r'\s+', ' ', title_search)
+                    title_search = re.sub(date_pattern, '', title_search)
+                    title_search = re.sub(time_pattern, '', title_search).strip()
+                    
+                    # Look for venue (common NITC venues)
+                    venue = ''
+                    venue_pattern = r'(ECLC\s*[A-Z]|NLHC\s*\d+|MB\s*\d+|DB\s*\d+|AB\s*\d+)'
+                    venue_match = re.search(venue_pattern, context, re.IGNORECASE)
+                    if venue_match:
+                        venue = venue_match.group(1)
+                    
+                    entries.append({
+                        'course_code': course_code,
+                        'course_title': title_search[:255] if title_search else '',
+                        'exam_date': exam_date,
+                        'exam_time': exam_time,
+                        'venue': venue
+                    })
+        
+        # Remove duplicates (keep first occurrence)
+        seen = set()
+        unique_entries = []
+        for entry in entries:
+            if entry['course_code'] not in seen:
+                seen.add(entry['course_code'])
+                unique_entries.append(entry)
+        
+        return unique_entries, None
+    except Exception as e:
+        return None, f"Error parsing PDF: {str(e)}"
+
+def upload_exam_timetable(file_source, semester_id, created_by, file_type='excel'):
+    """Upload exam timetable from Excel or PDF file"""
+    try:
+        records_to_insert = []
+        
+        # Handle PDF files
+        if file_type == 'pdf':
+            entries, error = parse_pdf_timetable(file_source)
+            if error:
+                return False, error
+            if not entries:
+                return False, "No exam entries found in the PDF file. Please check the format."
+            
+            for entry in entries:
+                records_to_insert.append({
+                    'course_code': entry['course_code'],
+                    'course_title': entry.get('course_title', ''),
+                    'exam_date': entry['exam_date'],
+                    'exam_time': entry.get('exam_time', ''),
+                    'venue': entry.get('venue', '')
+                })
+        else:
+            # Handle Excel files
+            if isinstance(file_source, str):
+                df = pd.read_excel(file_source)
+            else:
+                df = pd.read_excel(file_source)
+            
+            # Expected columns: Course Code, Course Title, Exam Date, Exam Time, Venue
+            course_code_col = detect_excel_column(df, ['course_code', 'coursecode', 'code', 'subject_code', 'subjectcode'])
+            course_title_col = detect_excel_column(df, ['course_title', 'coursetitle', 'title', 'course_name', 'coursename', 'subject', 'subject_name'])
+            exam_date_col = detect_excel_column(df, ['exam_date', 'examdate', 'date', 'exam date'])
+            exam_time_col = detect_excel_column(df, ['exam_time', 'examtime', 'time', 'exam time', 'timing'])
+            venue_col = detect_excel_column(df, ['venue', 'room', 'hall', 'location', 'exam_venue'])
+            
+            if not course_code_col:
+                return False, "Could not find 'Course Code' column in the Excel file"
+            if not exam_date_col:
+                return False, "Could not find 'Exam Date' column in the Excel file"
+            
+            for _, row in df.iterrows():
+                course_code = str(row.get(course_code_col, '')).strip()
+                if not course_code:
+                    continue
+                
+                exam_date = row.get(exam_date_col)
+                if pd.isna(exam_date):
+                    continue
+                
+                if isinstance(exam_date, pd.Timestamp):
+                    exam_date_str = exam_date.strftime('%Y-%m-%d')
+                else:
+                    exam_date_str = str(exam_date)[:10]
+                
+                records_to_insert.append({
+                    'course_code': course_code,
+                    'course_title': str(row.get(course_title_col, '')) if course_title_col else '',
+                    'exam_date': exam_date_str,
+                    'exam_time': str(row.get(exam_time_col, '')) if exam_time_col else '',
+                    'venue': str(row.get(venue_col, '')) if venue_col else ''
+                })
+        
+        if not records_to_insert:
+            return False, "No valid records found in the file"
+        
+        records_added = 0
+        
+        if USE_SUPABASE_DB and supabase:
+            # Clear existing timetable for this semester
+            supabase.table('exam_timetable').delete().eq('semester_id', semester_id).execute()
+            
+            # Insert new records
+            for record in records_to_insert:
+                timetable_entry = {
+                    'semester_id': int(semester_id),
+                    'course_code': record['course_code'],
+                    'course_title': record.get('course_title', ''),
+                    'exam_date': record['exam_date'],
+                    'exam_time': record.get('exam_time', ''),
+                    'venue': record.get('venue', ''),
+                    'created_by': created_by
+                }
+                
+                supabase.table('exam_timetable').insert(timetable_entry).execute()
+                records_added += 1
+        else:
+            # SQLite implementation
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Create table if not exists
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS exam_timetable (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    semester_id INTEGER,
+                    course_code TEXT NOT NULL,
+                    course_title TEXT,
+                    exam_date DATE NOT NULL,
+                    exam_time TEXT,
+                    venue TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_by TEXT,
+                    FOREIGN KEY (semester_id) REFERENCES semesters (id)
+                )
+            ''')
+            
+            # Clear existing timetable for this semester
+            cursor.execute('DELETE FROM exam_timetable WHERE semester_id = ?', (semester_id,))
+            
+            # Insert new records
+            for record in records_to_insert:
+                cursor.execute('''
+                    INSERT INTO exam_timetable (semester_id, course_code, course_title, exam_date, exam_time, venue, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    semester_id,
+                    record['course_code'],
+                    record.get('course_title', ''),
+                    record['exam_date'],
+                    record.get('exam_time', ''),
+                    record.get('venue', ''),
+                    created_by
+                ))
+                records_added += 1
+            
+            conn.commit()
+            conn.close()
+        
+        return True, f"Exam timetable uploaded successfully! {records_added} courses scheduled."
+    except Exception as e:
+        print(f"Error uploading timetable: {e}")
+        return False, f"Error uploading timetable: {str(e)}"
+
+def get_exam_date_for_course(course_code, semester_id):
+    """Get exam date for a specific course from the timetable"""
+    if USE_SUPABASE_DB and supabase:
+        try:
+            result = supabase.table('exam_timetable').select('exam_date, exam_time, venue').eq('semester_id', semester_id).eq('course_code', course_code).execute()
+            if result.data:
+                return result.data[0]
+            return None
+        except Exception as e:
+            print(f"Error getting exam date: {e}")
+            return None
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT exam_date, exam_time, venue FROM exam_timetable 
+                WHERE semester_id = ? AND course_code = ?
+            ''', (semester_id, course_code))
+            result = cursor.fetchone()
+            conn.close()
+            if result:
+                return {'exam_date': result[0], 'exam_time': result[1], 'venue': result[2]}
+            return None
+        except:
+            conn.close()
+            return None
+
+def get_timetable_for_semester(semester_id):
+    """Get all timetable entries for a semester"""
+    if USE_SUPABASE_DB and supabase:
+        try:
+            result = supabase.table('exam_timetable').select('*').eq('semester_id', semester_id).order('exam_date').execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"Error getting timetable: {e}")
+            return []
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT id, course_code, course_title, exam_date, exam_time, venue 
+                FROM exam_timetable WHERE semester_id = ? ORDER BY exam_date
+            ''', (semester_id,))
+            results = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'course_code': r[1], 'course_title': r[2], 'exam_date': r[3], 'exam_time': r[4], 'venue': r[5]} for r in results]
+        except:
+            conn.close()
+            return []
+
+def get_courses_with_exam_dates(semester_id, program_level=None):
+    """Get courses with their exam dates for a semester"""
+    courses = get_courses_for_semester(semester_id, program_level)
+    
+    # Fetch exam dates for each course
+    courses_with_dates = []
+    for course in courses:
+        course_code = course[0] if isinstance(course, tuple) else course.get('course_code')
+        course_title = course[1] if isinstance(course, tuple) else course.get('course_title')
+        
+        exam_info = get_exam_date_for_course(course_code, semester_id)
+        
+        courses_with_dates.append({
+            'course_code': course_code,
+            'course_title': course_title,
+            'exam_date': exam_info.get('exam_date') if exam_info else None,
+            'exam_time': exam_info.get('exam_time') if exam_info else None,
+            'venue': exam_info.get('venue') if exam_info else None
+        })
+    
+    return courses_with_dates
+
+def has_timetable_for_semester(semester_id):
+    """Check if a timetable exists for the semester"""
+    if USE_SUPABASE_DB and supabase:
+        try:
+            result = supabase.table('exam_timetable').select('id').eq('semester_id', semester_id).limit(1).execute()
+            return len(result.data) > 0 if result.data else False
+        except:
+            return False
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT id FROM exam_timetable WHERE semester_id = ? LIMIT 1', (semester_id,))
+            result = cursor.fetchone()
+            conn.close()
+            return result is not None
+        except:
+            conn.close()
+            return False

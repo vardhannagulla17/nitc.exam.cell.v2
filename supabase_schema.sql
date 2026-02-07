@@ -1,14 +1,31 @@
 -- Supabase PostgreSQL Schema for NITC Exam Cell
 -- This version is idempotent - can be run multiple times safely
 
--- Create users table
+-- Create users table with email-based authentication
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    full_name TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'staff',
-    created_at TIMESTAMP DEFAULT NOW()
+    is_approved BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    approved_at TIMESTAMP,
+    approved_by TEXT
 );
+
+-- Migration: Add new columns if they don't exist (for existing databases)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by TEXT;
+
+-- Create index on email for faster lookups
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_is_approved ON users(is_approved);
 
 -- Create semesters table
 CREATE TABLE IF NOT EXISTS semesters (
@@ -136,6 +153,41 @@ ALTER TABLE absentees ADD COLUMN IF NOT EXISTS rejected_by TEXT;
 
 -- Create index on storage_filename for better performance
 CREATE INDEX IF NOT EXISTS idx_absentees_storage_filename ON absentees(storage_filename);
+
+
+-- ============================================
+-- EXAM TIMETABLE SYSTEM
+-- ============================================
+
+-- Create exam_timetable table to store exam schedules
+CREATE TABLE IF NOT EXISTS exam_timetable (
+    id BIGSERIAL PRIMARY KEY,
+    semester_id BIGINT REFERENCES semesters(id) ON DELETE CASCADE,
+    course_code TEXT NOT NULL,
+    course_title TEXT,
+    exam_date DATE NOT NULL,
+    exam_time TEXT,
+    venue TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    created_by TEXT
+);
+
+-- Create indexes for exam_timetable
+CREATE INDEX IF NOT EXISTS idx_exam_timetable_semester_id ON exam_timetable(semester_id);
+CREATE INDEX IF NOT EXISTS idx_exam_timetable_course_code ON exam_timetable(course_code);
+CREATE INDEX IF NOT EXISTS idx_exam_timetable_exam_date ON exam_timetable(exam_date);
+
+-- Enable RLS for exam_timetable
+ALTER TABLE exam_timetable ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policy if exists
+DROP POLICY IF EXISTS "Enable all for service role" ON exam_timetable;
+
+-- Create policy for exam_timetable
+CREATE POLICY "Enable all for service role" ON exam_timetable
+    FOR ALL 
+    USING (true)
+    WITH CHECK (true);
 
 
 -- ============================================

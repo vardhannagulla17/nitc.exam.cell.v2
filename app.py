@@ -154,9 +154,13 @@ def get_uploaded_files():
 
 # Import other modules
 from app.models import (
-    init_db, load_excel_to_db, get_user_by_credentials,
+    init_db, load_excel_to_db, get_user_by_credentials, register_user,
     get_all_semesters, get_courses_for_semester,
-    get_semesters_for_program_level
+    get_semesters_for_program_level,
+    get_all_users, get_pending_users, approve_user, reject_user,
+    toggle_user_active, update_user_role, delete_user,
+    upload_exam_timetable, get_exam_date_for_course, get_timetable_for_semester,
+    get_courses_with_exam_dates, has_timetable_for_semester
 )
 
 def get_semester_stats():
@@ -371,29 +375,38 @@ def health_check():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '').strip()
         
-        if not username or not password:
-            flash('Please enter both username and password!', 'error')
+        if not email or not password:
+            flash('Please enter both email and password!', 'error')
             return render_template('login.html')
         
         try:
-            print(f"DEBUG: Attempting login for user: {username}")
+            print(f"DEBUG: Attempting login for user: {email}")
             print(f"DEBUG: Supabase client available: {supabase is not None}")
             print(f"DEBUG: USE_SUPABASE_DB: {USE_SUPABASE_DB}")
             
-            user = get_user_by_credentials(username, password)
+            user = get_user_by_credentials(email, password)
             print(f"DEBUG: get_user_by_credentials returned: {user}")
             
             if user:
+                # Check for error responses (pending approval, disabled)
+                if isinstance(user, dict) and 'error' in user:
+                    if user['error'] == 'pending_approval':
+                        flash('Your account is pending admin approval. Please wait.', 'warning')
+                    elif user['error'] == 'account_disabled':
+                        flash('Your account has been disabled. Contact admin.', 'error')
+                    return render_template('login.html')
+                
                 session['user_id'] = user['id']
-                session['username'] = user['username']
+                session['email'] = user['email']
+                session['full_name'] = user['full_name']
                 session['role'] = user['role']
-                flash('Login successful!', 'success')
+                flash(f'Welcome back, {user["full_name"]}!', 'success')
                 return redirect(url_for('dashboard'))
             else:
-                flash('Invalid username or password!', 'error')
+                flash('Invalid email or password!', 'error')
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
@@ -403,11 +416,170 @@ def login():
     
     return render_template('login.html')
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        full_name = request.form.get('full_name', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Validation
+        if not all([email, full_name, password, confirm_password]):
+            flash('All fields are required!', 'error')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('Passwords do not match!', 'error')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long!', 'error')
+            return render_template('register.html')
+        
+        # Validate NITC email domain
+        if not email.endswith('@nitc.ac.in'):
+            flash('Only @nitc.ac.in email addresses are allowed!', 'error')
+            return render_template('register.html')
+        
+        # Import OTP functions
+        from app.models import create_pending_registration
+        
+        # Create pending registration and send OTP
+        success, message, _ = create_pending_registration(email, full_name, password)
+        if success:
+            flash(message, 'success')
+            # Store email in session for OTP verification page
+            session['pending_email'] = email
+            return redirect(url_for('verify_otp'))
+        else:
+            flash(message, 'error')
+    
+    return render_template('register.html')
+
+
+@app.route('/verify-otp', methods=['GET', 'POST'])
+def verify_otp():
+    """Handle OTP verification for email-based registration"""
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    
+    # Check if there's a pending email
+    pending_email = session.get('pending_email')
+    if not pending_email:
+        flash('No pending registration found. Please register first.', 'error')
+        return redirect(url_for('register'))
+    
+    if request.method == 'POST':
+        otp = request.form.get('otp', '').strip()
+        
+        if not otp:
+            flash('Please enter the OTP!', 'error')
+            return render_template('verify_otp.html', email=pending_email)
+        
+        # Import verification function
+        from app.models import verify_otp_and_register
+        
+        # Verify OTP and complete registration
+        success, message = verify_otp_and_register(pending_email, otp)
+        if success:
+            # Clear pending email from session
+            session.pop('pending_email', None)
+            flash(message, 'success')
+            return redirect(url_for('login'))
+        else:
+            flash(message, 'error')
+    
+    return render_template('verify_otp.html', email=pending_email)
+
+
+@app.route('/resend-otp', methods=['POST'])
+def resend_otp_route():
+    """Resend OTP to pending registration email"""
+    pending_email = session.get('pending_email')
+    if not pending_email:
+        flash('No pending registration found. Please register first.', 'error')
+        return redirect(url_for('register'))
+    
+    from app.models import resend_otp
+    
+    success, message = resend_otp(pending_email)
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('verify_otp'))
+
 @app.route('/logout')
 def logout():
     session.clear()
     flash('You have been logged out!', 'info')
     return redirect(url_for('login'))
+
+# Admin User Management Routes
+@app.route('/admin/users')
+def admin_users():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    all_users = get_all_users()
+    pending_users = get_pending_users()
+    
+    return render_template('admin_users.html', 
+                         users=all_users, 
+                         pending_users=pending_users)
+
+@app.route('/admin/users/approve/<int:user_id>', methods=['POST'])
+def approve_user_route(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    success, message = approve_user(user_id, session.get('email'))
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/reject/<int:user_id>', methods=['POST'])
+def reject_user_route(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    success, message = reject_user(user_id)
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/toggle/<int:user_id>', methods=['POST'])
+def toggle_user_route(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    success, message = toggle_user_active(user_id)
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/role/<int:user_id>', methods=['POST'])
+def change_role_route(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    new_role = request.form.get('role', 'staff')
+    success, message = update_user_role(user_id, new_role)
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+def delete_user_route(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    success, message = delete_user(user_id, session.get('user_id'))
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('admin_users'))
 
 @app.route('/delete_file/<filename>')
 def delete_file(filename):
@@ -489,21 +661,28 @@ def dashboard():
     
     # Get detailed database usage stats for admin users
     db_usage = None
+    pending_users_count = 0
     if session.get('role') == 'admin':
         try:
             db_usage = get_database_usage_stats()
         except Exception as e:
             print(f"Error getting database usage stats: {e}")
             db_usage = None
+        try:
+            pending_users_count = len(get_pending_users())
+        except Exception as e:
+            print(f"Error getting pending users: {e}")
+            pending_users_count = 0
     
     response = make_response(render_template('dashboard.html',
-                         username=session['username'],
+                         username=session.get('full_name', session.get('email', 'User')),
                          role=session['role'],
                          total_students=stats['total_students'],
                          total_courses=stats['total_courses'],
                          total_semesters=stats['total_semesters'],
                          uploaded_files=uploaded_files,
-                         db_usage=db_usage))
+                         db_usage=db_usage,
+                         pending_users_count=pending_users_count))
     # Prevent caching to ensure real-time stats
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
@@ -600,6 +779,111 @@ def upload_file():
             flash('Invalid file type! Please upload Excel files only.', 'error')
     
     return render_template('upload.html')
+
+# ============================================
+# EXAM TIMETABLE MANAGEMENT
+# ============================================
+
+@app.route('/timetable', methods=['GET', 'POST'])
+def manage_timetable():
+    """Manage exam timetable - upload and view"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Only admin can upload timetable
+    if session.get('role') != 'admin':
+        flash('Access denied. Only administrators can manage timetables.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    semesters = get_all_semesters()
+    selected_semester = request.args.get('semester_id')
+    timetable = []
+    
+    if request.method == 'POST':
+        semester_id = request.form.get('semester_id')
+        
+        if 'file' not in request.files:
+            flash('No file selected!', 'error')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected!', 'error')
+            return redirect(request.url)
+        
+        if file and (allowed_file(file.filename) or file.filename.lower().endswith('.pdf')):
+            try:
+                # Detect file type
+                filename_lower = file.filename.lower()
+                if filename_lower.endswith('.pdf'):
+                    file_type = 'pdf'
+                else:
+                    file_type = 'excel'
+                
+                # Read file content
+                content = BytesIO(file.read())
+                
+                success, message = upload_exam_timetable(
+                    content, 
+                    semester_id, 
+                    session.get('email', 'admin'),
+                    file_type=file_type
+                )
+                
+                if success:
+                    flash(message, 'success')
+                else:
+                    flash(message, 'error')
+                
+                return redirect(url_for('manage_timetable', semester_id=semester_id))
+            except Exception as e:
+                flash(f'Error uploading timetable: {str(e)}', 'error')
+        else:
+            flash('Invalid file type! Please upload Excel or PDF files.', 'error')
+    
+    # Get timetable for selected semester
+    if selected_semester:
+        timetable = get_timetable_for_semester(selected_semester)
+    
+    return render_template('timetable.html', 
+                         semesters=semesters, 
+                         timetable=timetable,
+                         selected_semester=selected_semester)
+
+@app.route('/api/exam-date/<semester_id>/<course_code>', methods=['GET'])
+def api_get_exam_date(semester_id, course_code):
+    """Get exam date for a course via AJAX"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        exam_info = get_exam_date_for_course(course_code, semester_id)
+        if exam_info:
+            return jsonify({
+                'success': True,
+                'exam_date': exam_info.get('exam_date'),
+                'exam_time': exam_info.get('exam_time'),
+                'venue': exam_info.get('venue')
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'No exam scheduled for this course'
+            }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/courses-with-dates/<semester_id>/<program_level>', methods=['GET'])
+def api_get_courses_with_dates(semester_id, program_level):
+    """Get courses with exam dates for a semester and program level"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        courses = get_courses_with_exam_dates(semester_id, program_level)
+        return jsonify({'success': True, 'courses': courses}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # API endpoints for AJAX requests (no page reload)
 @app.route('/api/semesters/<program_level>', methods=['GET'])

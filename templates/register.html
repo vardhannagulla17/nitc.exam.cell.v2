@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Register - Exam Cell Application{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="login-container">
+        <div class="login-header">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='images/Correct_Logo_of_NIT_Calicut.svg') }}" alt="NITC Logo" class="nitc-logo">
+            </div>
+            <h1>Staff Registration</h1>
+            <p>National Institute of Technology Calicut</p>
+        </div>
+        
+        <div class="login-body">
+            <form method="POST" class="login-form" id="registerForm">
+                <div class="form-group">
+                    <label for="full_name">
+                        Full Name
+                    </label>
+                    <div class="input-group">
+                        <input type="text" id="full_name" name="full_name" class="form-control" required 
+                               placeholder="Enter your full name" autocomplete="name">
+                        <div class="input-icon">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">
+                        Email Address
+                    </label>
+                    <div class="input-group">
+                        <input type="email" id="email" name="email" class="form-control" required 
+                               placeholder="yourname@nitc.ac.in" autocomplete="email" 
+                               pattern="[a-zA-Z0-9._%+-]+@nitc\.ac\.in$">
+                        <div class="input-icon">
+                            <i class="fas fa-envelope"></i>
+                        </div>
+                    </div>
+                    <small class="form-text text-muted">Only @nitc.ac.in emails are allowed</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">
+                        Password
+                    </label>
+                    <div class="input-group">
+                        <input type="password" id="password" name="password" class="form-control" required 
+                               placeholder="Create a password (min 6 chars)" autocomplete="new-password" minlength="6">
+                        <div class="input-icon">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm_password">
+                        Confirm Password
+                    </label>
+                    <div class="input-group">
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-control" required 
+                               placeholder="Confirm your password" autocomplete="new-password" minlength="6">
+                        <div class="input-icon">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login" id="registerButton">
+                    <i class="fas fa-envelope"></i>
+                    <span>Send Verification Code</span>
+                </button>
+                
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}" role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </form>
+            
+            <div class="login-footer">
+                <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+            </div>
+            
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                <p>A 6-digit verification code will be sent to your @nitc.ac.in email. Verify the code to complete registration instantly.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('registerForm');
+    const button = document.getElementById('registerButton');
+    const password = document.getElementById('password');
+    const confirmPassword = document.getElementById('confirm_password');
+    const email = document.getElementById('email');
+    
+    // Validate email domain on input
+    email.addEventListener('input', function() {
+        const value = this.value.toLowerCase();
+        if (value && !value.endsWith('@nitc.ac.in')) {
+            this.setCustomValidity('Please use your @nitc.ac.in email address');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+    
+    // Validate passwords match
+    confirmPassword.addEventListener('input', function() {
+        if (this.value !== password.value) {
+            this.setCustomValidity('Passwords do not match');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+    
+    password.addEventListener('input', function() {
+        if (confirmPassword.value && confirmPassword.value !== this.value) {
+            confirmPassword.setCustomValidity('Passwords do not match');
+        } else {
+            confirmPassword.setCustomValidity('');
+        }
+    });
+    
+    // Handle form submission
+    form.addEventListener('submit', function(e) {
+        if (password.value !== confirmPassword.value) {
+            e.preventDefault();
+            alert('Passwords do not match!');
+            return;
+        }
+        
+        if (!email.value.toLowerCase().endsWith('@nitc.ac.in')) {
+            e.preventDefault();
+            alert('Please use your @nitc.ac.in email address');
+            return;
+        }
+        
+        // Show loading state
+        button.classList.add('loading');
+        button.disabled = true;
+    });
+
+    // Auto-hide alerts after 5 seconds
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 300);
+        }, 5000);
+    });
+
+    // Password visibility toggle
+    [password, confirmPassword].forEach(input => {
+        const togglePassword = document.createElement('i');
+        togglePassword.className = 'fas fa-eye password-toggle';
+        
+        const passwordGroup = input.closest('.input-group');
+        passwordGroup.appendChild(togglePassword);
+        
+        togglePassword.addEventListener('click', function() {
+            if (input.type === 'password') {
+                input.type = 'text';
+                togglePassword.className = 'fas fa-eye-slash password-toggle';
+            } else {
+                input.type = 'password';
+                togglePassword.className = 'fas fa-eye password-toggle';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
