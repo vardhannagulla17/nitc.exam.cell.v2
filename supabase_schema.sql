@@ -27,6 +27,19 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by TEXT;
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_is_approved ON users(is_approved);
 
+-- Create pending_registrations table for OTP verification
+CREATE TABLE IF NOT EXISTS pending_registrations (
+    email TEXT PRIMARY KEY,
+    otp TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create index for faster lookups and cleanup of expired entries
+CREATE INDEX IF NOT EXISTS idx_pending_registrations_expires_at ON pending_registrations(expires_at);
+
 -- Create semesters table
 CREATE TABLE IF NOT EXISTS semesters (
     id BIGSERIAL PRIMARY KEY,
@@ -67,16 +80,23 @@ CREATE INDEX IF NOT EXISTS idx_semesters_db_name ON semesters(db_name);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pending_registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE semesters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist (to avoid errors on re-run)
 DROP POLICY IF EXISTS "Enable all for service role" ON users;
+DROP POLICY IF EXISTS "Enable all for service role" ON pending_registrations;
 DROP POLICY IF EXISTS "Enable all for service role" ON semesters;
 DROP POLICY IF EXISTS "Enable all for service role" ON students;
 
 -- Create policies to allow service role to access everything
 CREATE POLICY "Enable all for service role" ON users
+    FOR ALL 
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Enable all for service role" ON pending_registrations
     FOR ALL 
     USING (true)
     WITH CHECK (true);

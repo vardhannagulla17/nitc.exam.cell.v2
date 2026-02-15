@@ -20,10 +20,6 @@ VALID_EMAIL_DOMAIN = 'nitc.ac.in'
 OTP_EXPIRY_MINUTES = 10
 OTP_LENGTH = 6
 
-# In-memory OTP storage (for simplicity - in production use Redis or database)
-# Format: {email: {'otp': '123456', 'expires_at': datetime, 'full_name': 'Name', 'password_hash': 'hash'}}
-pending_registrations = {}
-
 # Email configuration (from environment variables)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
@@ -152,46 +148,102 @@ NITC Exam Cell Team
         return False, f"Failed to send OTP email: {str(e)}"
 
 def create_pending_registration(email, full_name, password):
-    """Create a pending registration with OTP"""
+    """Create a pending registration with OTP - stored in database"""
     otp = generate_otp()
     expires_at = datetime.now() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+    email_lower = email.lower()
+    password_hash = generate_password_hash(password)
     
-    pending_registrations[email.lower()] = {
-        'otp': otp,
-        'expires_at': expires_at,
-        'full_name': full_name,
-        'password_hash': generate_password_hash(password)
-    }
-    
-    # Send OTP email
-    success, message = send_otp_email(email, otp, full_name)
-    return success, message, otp
+    try:
+        if USE_SUPABASE_DB and supabase:
+            # Delete any existing pending registration for this email
+            supabase.table('pending_registrations').delete().eq('email', email_lower).execute()
+            
+            # Insert new pending registration
+            supabase.table('pending_registrations').insert({
+                'email': email_lower,
+                'otp': otp,
+                'full_name': full_name,
+                'password_hash': password_hash,
+                'expires_at': expires_at.isoformat()
+            }).execute()
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Delete any existing pending registration for this email
+            cursor.execute('DELETE FROM pending_registrations WHERE email = ?', (email_lower,))
+            
+            # Insert new pending registration
+            cursor.execute('''
+                INSERT INTO pending_registrations (email, otp, full_name, password_hash, expires_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (email_lower, otp, full_name, password_hash, expires_at))
+            
+            conn.commit()
+            conn.close()
+        
+        # Send OTP email
+        success, message = send_otp_email(email, otp, full_name)
+        return success, message, otp
+    except Exception as e:
+        print(f"Error creating pending registration: {e}")
+        return False, f"Registration failed: {str(e)}", None
 
 def verify_otp_and_register(email, otp):
-    """Verify OTP and complete registration"""
+    """Verify OTP and complete registration - reads from database"""
     email_lower = email.lower()
     
-    if email_lower not in pending_registrations:
-        return False, "No pending registration found for this email. Please register again."
-    
-    registration = pending_registrations[email_lower]
-    
-    # Check if OTP expired
-    if datetime.now() > registration['expires_at']:
-        del pending_registrations[email_lower]
-        return False, "OTP has expired. Please register again."
-    
-    # Check if OTP matches
-    if registration['otp'] != otp:
-        return False, "Invalid OTP. Please check and try again."
-    
-    # OTP verified - create user account (auto-approved)
     try:
+        # Get pending registration from database
+        if USE_SUPABASE_DB and supabase:
+            result = supabase.table('pending_registrations').select('*').eq('email', email_lower).execute()
+            if not result.data:
+                return False, "No pending registration found for this email. Please register again."
+            registration = result.data[0]
+            expires_at = datetime.fromisoformat(registration['expires_at'].replace('Z', '+00:00'))
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM pending_registrations WHERE email = ?', (email_lower,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if not row:
+                return False, "No pending registration found for this email. Please register again."
+            
+            registration = {
+                'email': row[0],
+                'otp': row[1],
+                'full_name': row[2],
+                'password_hash': row[3],
+                'expires_at': row[4]
+            }
+            expires_at = datetime.fromisoformat(registration['expires_at'])
+        
+        # Check if OTP expired
+        if datetime.now() > expires_at:
+            # Delete expired registration
+            if USE_SUPABASE_DB and supabase:
+                supabase.table('pending_registrations').delete().eq('email', email_lower).execute()
+            else:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM pending_registrations WHERE email = ?', (email_lower,))
+                conn.commit()
+                conn.close()
+            return False, "OTP has expired. Please register again."
+        
+        # Check if OTP matches
+        if registration['otp'] != otp:
+            return False, "Invalid OTP. Please check and try again."
+        
+        # OTP verified - create user account (auto-approved)
         if USE_SUPABASE_DB and supabase:
             # Check if email already exists
             existing = supabase.table('users').select('id').eq('email', email_lower).execute()
             if existing.data:
-                del pending_registrations[email_lower]
+                supabase.table('pending_registrations').delete().eq('email', email_lower).execute()
                 return False, "An account with this email already exists."
             
             # Create user (auto-approved since email is verified)
@@ -200,11 +252,14 @@ def verify_otp_and_register(email, otp):
                 'full_name': registration['full_name'],
                 'password_hash': registration['password_hash'],
                 'role': 'staff',
-                'is_approved': True,  # Auto-approved after OTP verification
+                'is_approved': True,
                 'is_active': True,
                 'approved_at': datetime.now().isoformat()
             }
             supabase.table('users').insert(user_data).execute()
+            
+            # Delete pending registration
+            supabase.table('pending_registrations').delete().eq('email', email_lower).execute()
         else:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -212,8 +267,9 @@ def verify_otp_and_register(email, otp):
             # Check if email already exists
             cursor.execute('SELECT id FROM users WHERE email = ?', (email_lower,))
             if cursor.fetchone():
+                cursor.execute('DELETE FROM pending_registrations WHERE email = ?', (email_lower,))
+                conn.commit()
                 conn.close()
-                del pending_registrations[email_lower]
                 return False, "An account with this email already exists."
             
             # Create user (auto-approved since email is verified)
@@ -222,34 +278,65 @@ def verify_otp_and_register(email, otp):
                 VALUES (?, ?, ?, 'staff', 1, 1, ?)
             ''', (email_lower, registration['full_name'], registration['password_hash'], datetime.now()))
             
+            # Delete pending registration
+            cursor.execute('DELETE FROM pending_registrations WHERE email = ?', (email_lower,))
+            
             conn.commit()
             conn.close()
         
-        # Clear pending registration
-        del pending_registrations[email_lower]
         return True, "Registration successful! You can now login."
     
     except Exception as e:
-        print(f"Error creating user: {e}")
+        print(f"Error verifying OTP and registering: {e}")
         return False, f"Registration failed: {str(e)}"
 
 def resend_otp(email):
-    """Resend OTP for pending registration"""
+    """Resend OTP for pending registration - updates database"""
     email_lower = email.lower()
     
-    if email_lower not in pending_registrations:
-        return False, "No pending registration found. Please register again."
+    try:
+        # Check if pending registration exists
+        if USE_SUPABASE_DB and supabase:
+            result = supabase.table('pending_registrations').select('full_name').eq('email', email_lower).execute()
+            if not result.data:
+                return False, "No pending registration found. Please register again."
+            full_name = result.data[0]['full_name']
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT full_name FROM pending_registrations WHERE email = ?', (email_lower,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if not row:
+                return False, "No pending registration found. Please register again."
+            full_name = row[0]
+        
+        # Generate new OTP
+        otp = generate_otp()
+        expires_at = datetime.now() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+        
+        # Update OTP in database
+        if USE_SUPABASE_DB and supabase:
+            supabase.table('pending_registrations').update({
+                'otp': otp,
+                'expires_at': expires_at.isoformat()
+            }).eq('email', email_lower).execute()
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('UPDATE pending_registrations SET otp = ?, expires_at = ? WHERE email = ?',
+                         (otp, expires_at, email_lower))
+            conn.commit()
+            conn.close()
+        
+        # Send new OTP
+        success, message = send_otp_email(email, otp, full_name)
+        return success, message
     
-    registration = pending_registrations[email_lower]
-    
-    # Generate new OTP
-    otp = generate_otp()
-    pending_registrations[email_lower]['otp'] = otp
-    pending_registrations[email_lower]['expires_at'] = datetime.now() + timedelta(minutes=OTP_EXPIRY_MINUTES)
-    
-    # Send new OTP
-    success, message = send_otp_email(email, otp, registration['full_name'])
-    return success, message
+    except Exception as e:
+        print(f"Error resending OTP: {e}")
+        return False, f"Failed to resend OTP: {str(e)}"
 
 def validate_email_domain(email):
     """Validate that email ends with @nitc.ac.in"""
@@ -352,6 +439,18 @@ def init_db():
                 semester_id INTEGER,
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (semester_id) REFERENCES semesters (id)
+            )
+        ''')
+        
+        # Create pending_registrations table for OTP verification
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pending_registrations (
+                email TEXT PRIMARY KEY,
+                otp TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
