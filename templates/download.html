@@ -44,7 +44,7 @@
                             <option value="">Select Semester</option>
                             {% for semester in semesters %}
                             <option value="{{ semester[0] }}" {{ 'selected' if selected_semester == semester[0]|string else '' }}>
-                                {{ semester[1] }}
+                                {{ semester[1] }} {{ semester[2]|capitalize }} ({{ semester[3]|upper }}, {{ semester[4]|capitalize }})
                             </option>
                             {% endfor %}
                         </select>

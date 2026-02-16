@@ -908,7 +908,8 @@ def api_get_semesters(program_level):
     try:
         semesters = get_semesters_for_program_level(program_level)
         # Convert to JSON-friendly format
-        result = [{'id': sem[0], 'name': sem[1]} for sem in semesters]
+        # Format: "2025-26 Monsoon (COMBINED, Midsem)"
+        result = [{'id': sem[0], 'name': f"{sem[1]} {sem[2].capitalize()} ({sem[3].upper()}, {sem[4].capitalize()})"} for sem in semesters]
         return jsonify({'semesters': result}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
