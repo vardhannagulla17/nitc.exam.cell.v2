@@ -1123,12 +1123,14 @@ def _fetch_semesters_with_students():
             if not result.data:
                 return []
             
-            # Get student counts for all semesters in a single query using RPC or aggregation
-            # For now, we'll use a more efficient approach: get distinct semester_ids from students table
+            # OPTIMIZED: Get distinct semester_ids efficiently
+            # Note: Supabase PostgREST doesn't support SELECT DISTINCT directly
+            # But fetching only semester_id column is efficient (minimal data transfer)
+            # This is cached for 10 minutes, so it only runs occasionally
             semester_ids_result = supabase.table('students').select('semester_id').execute()
             
             if semester_ids_result.data:
-                # Get unique semester IDs that have students
+                # Get unique semester IDs that have students (fast set operation in Python)
                 semester_ids_with_students = set(row['semester_id'] for row in semester_ids_result.data if row.get('semester_id'))
                 
                 # Filter semesters to only those with students
