@@ -1076,12 +1076,23 @@ def get_semesters_for_program_level(program_level=None):
         return semesters
 
 def get_all_semesters():
-    """Get all available semesters"""
+    """Get all available semesters that have students"""
     if USE_SUPABASE_DB and supabase:
         try:
+            # Get all semesters
             result = supabase.table('semesters').select('id, academic_year, semester_type, degree_level, exam_type').order('academic_year', desc=True).order('semester_type').execute()
-            return [(s['id'], s['academic_year'], s['semester_type'], s['degree_level'], s['exam_type']) for s in result.data]
-        except:
+            
+            # Filter to only include semesters that have students
+            semesters_with_students = []
+            for s in result.data:
+                # Check if this semester has any students
+                student_check = supabase.table('students').select('id', count='exact').eq('semester_id', s['id']).limit(1).execute()
+                if student_check.count and student_check.count > 0:
+                    semesters_with_students.append((s['id'], s['academic_year'], s['semester_type'], s['degree_level'], s['exam_type']))
+            
+            return semesters_with_students
+        except Exception as e:
+            print(f"Error getting semesters: {e}")
             return []
     else:
         conn = sqlite3.connect('exam_cell.db')
