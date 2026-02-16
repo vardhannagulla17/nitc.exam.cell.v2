@@ -529,14 +529,14 @@ def load_excel_to_db(file_source, academic_year, semester_type, sheet_type, exam
         
         # Detect column names using smart matching
         col_roll = detect_excel_column(df, ['RollNo', 'Roll No', 'Roll_No', 'ROLL NO', 'Roll Number', 'Rollno'])
-        col_name = detect_excel_column(df, ['StudentName', 'Student Name', 'Name', 'STUDENT NAME', 'Student_Name', 'STUDENTNAME'])
-        col_email = detect_excel_column(df, ['Email_Id', 'Email', 'EmailId', 'Email ID', 'E-mail', 'Mail'])
-        col_sess = detect_excel_column(df, ['Student_Sess', 'Session', 'Student Session', 'Sess'])
+        col_name = detect_excel_column(df, ['NameasPerXstd', 'StudentName', 'Student Name', 'Name', 'STUDENT NAME', 'Student_Name', 'STUDENTNAME', 'NameAsPerXStd'])
+        col_email = detect_excel_column(df, ['EmailId', 'Email_Id', 'Email', 'Email ID', 'E-mail', 'Mail'])
+        col_sess = detect_excel_column(df, ['studentSess', 'Student_Sess', 'Session', 'Student Session', 'Sess', 'StudentSess'])
         col_course_code = detect_excel_column(df, ['CourseCode', 'Course Code', 'Course_Code', 'COURSE CODE'])
         col_credits = detect_excel_column(df, ['Credits', 'Credit', 'CREDITS'])
         col_course_title = detect_excel_column(df, ['CourseTitle', 'Course Title', 'Course_Title', 'COURSE TITLE', 'Title'])
         col_program = detect_excel_column(df, ['ProgramName', 'Program Name', 'Program', 'PROGRAM NAME', 'Programme'])
-        col_batch = detect_excel_column(df, ['Timetable_Batch', 'Batch', 'Time Table Batch', 'TimetableBatch'])
+        col_batch = detect_excel_column(df, ['SectionBatchName', 'Section Batch Name', 'Timetable_Batch', 'Batch', 'Time Table Batch', 'TimetableBatch'])
         col_slot = detect_excel_column(df, ['Slot_Code', 'Slot', 'Slot Code', 'SlotCode'])
         col_instructor = detect_excel_column(df, ['Main_Instructor', 'Instructor', 'Main Instructor', 'Faculty'])
         col_primary_mail = detect_excel_column(df, ['Primary_Mail', 'Primary Mail', 'PrimaryMail'])
