@@ -285,15 +285,30 @@ def get_sorted_students(db_name_or_semester_id, course_code, program_level=None)
         if USE_SUPABASE_DB and supabase:
             # db_name_or_semester_id is semester_id when using Supabase
             semester_id = db_name_or_semester_id
-            result = supabase.table('students').select('roll_no, name, course_title, main_instructor, program_name').eq('semester_id', semester_id).eq('course_code', course_code).execute()
-            students = [(row['roll_no'], row['name'], row['course_title'], row['main_instructor'], row['program_name']) for row in result.data]
             
-            # Filter by program level if specified
-            if program_level:
-                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
-                prefix = prefix_map.get(program_level)
-                if prefix:
-                    students = [s for s in students if s[0] and str(s[0]).startswith(prefix)]
+            # Handle pagination - Supabase has 1000 record default limit
+            all_students = []
+            page_size = 1000
+            offset = 0
+            
+            while True:
+                query = supabase.table('students').select('roll_no, name, course_title, main_instructor, program_name').eq('semester_id', semester_id).eq('course_code', course_code)
+                
+                if program_level:
+                    prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
+                    prefix = prefix_map.get(program_level)
+                    if prefix:
+                        query = query.like('roll_no', f'{prefix}%')
+                
+                result = query.range(offset, offset + page_size - 1).execute()
+                if not result.data:
+                    break
+                all_students.extend(result.data)
+                if len(result.data) < page_size:
+                    break
+                offset += page_size
+            
+            students = [(row['roll_no'], row['name'], row['course_title'], row['main_instructor'], row['program_name']) for row in all_students]
             
             return sort_by_roll_number(students)
         else:
@@ -330,21 +345,33 @@ def get_courses(db_name_or_semester_id, program_level=None):
     try:
         if USE_SUPABASE_DB and supabase:
             semester_id = db_name_or_semester_id
-            result = supabase.table('students').select('course_code, course_title, roll_no').eq('semester_id', semester_id).execute()
             
-            # Get unique courses, filter by program if specified
-            courses_dict = {}
-            for row in result.data:
-                code = row['course_code']
-                roll_no = row.get('roll_no', '')
+            # Handle pagination - Supabase has 1000 record default limit
+            all_students = []
+            page_size = 1000
+            offset = 0
+            
+            while True:
+                query = supabase.table('students').select('course_code, course_title, roll_no').eq('semester_id', semester_id)
                 
-                # Filter by program level if specified
                 if program_level:
                     prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
                     prefix = prefix_map.get(program_level)
-                    if prefix and roll_no and not str(roll_no).startswith(prefix):
-                        continue
+                    if prefix:
+                        query = query.like('roll_no', f'{prefix}%')
                 
+                result = query.range(offset, offset + page_size - 1).execute()
+                if not result.data:
+                    break
+                all_students.extend(result.data)
+                if len(result.data) < page_size:
+                    break
+                offset += page_size
+            
+            # Get unique courses
+            courses_dict = {}
+            for row in all_students:
+                code = row['course_code']
                 if code not in courses_dict:
                     courses_dict[code] = row['course_title']
             

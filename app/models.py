@@ -1099,26 +1099,38 @@ def get_courses_for_semester(semester_id, program_level=None):
     try:
         if USE_SUPABASE_DB and supabase:
             # Query students directly with semester_id filter
-            query = supabase.table('students').select('course_code, course_title').eq('semester_id', semester_id)
+            # Handle pagination - Supabase has 1000 record default limit
+            all_students = []
+            page_size = 1000
+            offset = 0
             
-            if program_level:
-                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
-                prefix = prefix_map.get(program_level)
-                if prefix:
-                    # Filter by roll number prefix using LIKE
-                    query = query.like('roll_no', f'{prefix}%')
-            
-            result = query.execute()
+            while True:
+                query = supabase.table('students').select('course_code, course_title, roll_no').eq('semester_id', semester_id)
+                
+                if program_level:
+                    prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
+                    prefix = prefix_map.get(program_level)
+                    if prefix:
+                        # Filter by roll number prefix using LIKE
+                        query = query.like('roll_no', f'{prefix}%')
+                
+                result = query.range(offset, offset + page_size - 1).execute()
+                if not result.data:
+                    break
+                all_students.extend(result.data)
+                if len(result.data) < page_size:
+                    break
+                offset += page_size
             
             # Get unique courses
             courses_dict = {}
-            for row in result.data:
+            for row in all_students:
                 code = row['course_code']
                 if code not in courses_dict:
                     courses_dict[code] = row['course_title']
             
             courses = sorted([(code, title) for code, title in courses_dict.items()])
-            print(f"DEBUG: Found {len(courses)} courses from Supabase")
+            print(f"DEBUG: Found {len(courses)} courses from Supabase (from {len(all_students)} student records)")
             return courses
         else:
             # SQLite implementation
