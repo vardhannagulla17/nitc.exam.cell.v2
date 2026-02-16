@@ -70,10 +70,10 @@
                         {% if selected_section %}<span style="font-size: 0.9rem; font-weight: normal;">(Section: {{ selected_section }})</span>{% endif %}
                     </h3>
                     <p style="font-size: 0.9rem; color: #475569; margin-bottom: 1rem;">
-                        Select students to mark absent ({{ course_students|length }} students found)
+                        Select students to mark absent (<span id="total_students_count">{{ course_students|length }}</span> students found, showing <span id="showing_count">20</span>)
                     </p>
                     
-                    <form method="POST" action="/absentee">
+                    <form method="POST" action="/absentee" id="students_form">
                         <input type="hidden" name="action" value="add_multiple_absentees">
                         <input type="hidden" name="course_code" value="{{ selected_course_code }}">
                         <input type="hidden" name="section" value="{{ selected_section if selected_section else '' }}">
@@ -90,9 +90,9 @@
                                         <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #cbd5e1;">Name</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="students_tbody">
                                     {% for student in course_students %}
-                                    <tr style="border-bottom: 1px solid #f3f4f6;">
+                                    <tr class="student-row" data-student-index="{{ loop.index0 }}" style="border-bottom: 1px solid #f3f4f6;">
                                         <td style="padding: 0.75rem; text-align: center;">
                                             <input type="checkbox" name="selected_students" value="{{ student.roll_no }}|{{ student.name }}" 
                                                    class="student-checkbox"
@@ -104,6 +104,19 @@
                                     {% endfor %}
                                 </tbody>
                             </table>
+                        </div>
+                        
+                        <!-- Pagination Controls -->
+                        <div id="pagination_controls" style="display: flex; justify-content: center; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <button type="button" id="prev_page" onclick="changePage(-1)" 
+                                    style="padding: 0.5rem 1rem; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </button>
+                            <div id="page_numbers" style="display: flex; gap: 0.25rem;"></div>
+                            <button type="button" id="next_page" onclick="changePage(1)" 
+                                    style="padding: 0.5rem 1rem; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
                         </div>
                         
                         <button type="submit" class="btn btn-success" style="width: 100%;">
@@ -304,6 +317,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Initialize pagination if students are loaded
+    const studentRows = document.querySelectorAll('.student-row');
+    if (studentRows.length > 0) {
+        totalStudents = studentRows.length;
+        updatePagination();
+        showPage(1);
+    }
+    
     // Initialize searchable course dropdown
     initCourseSearch();
 });
@@ -398,12 +419,136 @@ function selectCourse(code, title) {
     setCookie('last_course_code', code, 30);
 }
 
-// Toggle all students checkbox
+// Toggle all students checkbox (works on current page only)
 function toggleAllStudents(checkbox) {
-    const studentCheckboxes = document.querySelectorAll('.student-checkbox');
-    studentCheckboxes.forEach(cb => {
+    const visibleCheckboxes = document.querySelectorAll('.student-row:not([style*="display: none"]) .student-checkbox');
+    visibleCheckboxes.forEach(cb => {
         cb.checked = checkbox.checked;
     });
+}
+
+// Pagination variables
+let currentPage = 1;
+const studentsPerPage = 20;
+let totalStudents = 0;
+
+function showPage(page) {
+    const studentRows = document.querySelectorAll('.student-row');
+    const totalPages = Math.ceil(totalStudents / studentsPerPage);
+    
+    // Validate page number
+    if (page < 1) page = 1;
+    if (page > totalPages) page = totalPages;
+    
+    currentPage = page;
+    
+    const startIndex = (page - 1) * studentsPerPage;
+    const endIndex = startIndex + studentsPerPage;
+    
+    // Hide all rows, then show only current page
+    studentRows.forEach((row, index) => {
+        if (index >= startIndex && index < endIndex) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Update showing count
+    const showingCount = Math.min(endIndex, totalStudents) - startIndex;
+    const showingCountElement = document.getElementById('showing_count');
+    if (showingCountElement) {
+        showingCountElement.textContent = showingCount;
+    }
+    
+    // Reset select all checkbox
+    const selectAllCheckbox = document.getElementById('select_all');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    
+    updatePaginationControls();
+}
+
+function changePage(delta) {
+    showPage(currentPage + delta);
+}
+
+function goToPage(page) {
+    showPage(page);
+}
+
+function updatePagination() {
+    const totalPages = Math.ceil(totalStudents / studentsPerPage);
+    const paginationControls = document.getElementById('pagination_controls');
+    
+    if (totalPages <= 1) {
+        if (paginationControls) paginationControls.style.display = 'none';
+        return;
+    }
+    
+    if (paginationControls) paginationControls.style.display = 'flex';
+    updatePaginationControls();
+}
+
+function updatePaginationControls() {
+    const totalPages = Math.ceil(totalStudents / studentsPerPage);
+    const prevButton = document.getElementById('prev_page');
+    const nextButton = document.getElementById('next_page');
+    const pageNumbersDiv = document.getElementById('page_numbers');
+    
+    // Enable/disable prev/next buttons
+    if (prevButton) {
+        prevButton.disabled = currentPage === 1;
+        prevButton.style.opacity = currentPage === 1 ? '0.5' : '1';
+        prevButton.style.cursor = currentPage === 1 ? 'not-allowed' : 'pointer';
+    }
+    
+    if (nextButton) {
+        nextButton.disabled = currentPage === totalPages;
+        nextButton.style.opacity = currentPage === totalPages ? '0.5' : '1';
+        nextButton.style.cursor = currentPage === totalPages ? 'not-allowed' : 'pointer';
+    }
+    
+    // Generate page numbers
+    if (pageNumbersDiv) {
+        let html = '';
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        // Adjust start if we're near the end
+        if (endPage - startPage < maxVisiblePages - 1) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        // First page
+        if (startPage > 1) {
+            html += `<button type="button" onclick="goToPage(1)" style="padding: 0.5rem 0.75rem; background: white; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; font-weight: 600;">1</button>`;
+            if (startPage > 2) {
+                html += `<span style="padding: 0.5rem;">...</span>`;
+            }
+        }
+        
+        // Page numbers
+        for (let i = startPage; i <= endPage; i++) {
+            const isActive = i === currentPage;
+            html += `<button type="button" onclick="goToPage(${i})" 
+                            style="padding: 0.5rem 0.75rem; background: ${isActive ? '#667eea' : 'white'}; 
+                                   color: ${isActive ? 'white' : '#374151'}; border: 1px solid ${isActive ? '#667eea' : '#cbd5e1'}; 
+                                   border-radius: 6px; cursor: pointer; font-weight: 600;">${i}</button>`;
+        }
+        
+        // Last page
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                html += `<span style="padding: 0.5rem;">...</span>`;
+            }
+            html += `<button type="button" onclick="goToPage(${totalPages})" style="padding: 0.5rem 0.75rem; background: white; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; font-weight: 600;">${totalPages}</button>`;
+        }
+        
+        pageNumbersDiv.innerHTML = html;
+    }
 }
 
 // Preview function - opens in new tab
