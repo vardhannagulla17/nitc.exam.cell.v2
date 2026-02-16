@@ -2012,7 +2012,7 @@ def clear_bucket_page():
 
 
 def generate_consolidated_absentee_html(absentees):
-    """Generate consolidated HTML for all approved absentees grouped by course"""
+    """Generate consolidated HTML for all approved absentees as a single flat list"""
     from helpers.utils import sort_by_roll_number
     
     # Collect unique exam dates from absentees
@@ -2022,20 +2022,9 @@ def generate_consolidated_absentee_html(absentees):
     else:
         formatted_date = f"{len(unique_dates)} dates"
     
-    # Group absentees by course
-    courses = {}
-    for a in absentees:
-        code = a['course_code']
-        if code not in courses:
-            courses[code] = {
-                'course_title': a.get('course_title', ''),
-                'students': []
-            }
-        courses[code]['students'].append((a['roll_no'], a['name'], a['course_code'], a.get('course_title', '')))
-    
-    # Sort students within each course
-    for code in courses:
-        courses[code]['students'] = sort_by_roll_number(courses[code]['students'])
+    # Convert to tuple format and sort by roll number
+    students_tuples = [(a['roll_no'], a['name'], a['course_code'], a.get('course_title', '')) for a in absentees]
+    sorted_students = sort_by_roll_number(students_tuples)
     
     # Generate HTML
     html = f"""<!DOCTYPE html>
@@ -2049,10 +2038,7 @@ def generate_consolidated_absentee_html(absentees):
         .header {{ text-align: center; margin-bottom: 20px; }}
         .header h1 {{ font-size: 16pt; margin: 5px 0; }}
         .header h2 {{ font-size: 13pt; margin: 5px 0; font-weight: normal; }}
-        .course-section {{ margin-bottom: 30px; page-break-inside: avoid; }}
-        .course-header {{ background: #f0f0f0; padding: 10px; margin-bottom: 10px; border: 1px solid #333; }}
-        .course-header h3 {{ margin: 0; font-size: 12pt; }}
-        table {{ width: 100%; border-collapse: collapse; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
         th, td {{ border: 1px solid black; padding: 6px; text-align: left; }}
         th {{ background-color: #e0e0e0; font-weight: bold; }}
         .summary {{ margin-top: 30px; padding: 15px; background: #f9f9f9; border: 1px solid #333; }}
@@ -2066,49 +2052,36 @@ def generate_consolidated_absentee_html(absentees):
         <h2>Consolidated Absentee List</h2>
         <p><strong>Exam Date:</strong> {formatted_date}</p>
     </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 60px;">S.No</th>
+                <th style="width: 140px;">Roll Number</th>
+                <th style="width: 250px;">Student Name</th>
+                <th>Course (Code - Title)</th>
+            </tr>
+        </thead>
+        <tbody>
 """
     
-    total_absentees = 0
-    for code in sorted(courses.keys()):
-        course = courses[code]
-        students = course['students']
-        total_absentees += len(students)
-        
-        html += f"""
-    <div class="course-section">
-        <div class="course-header">
-            <h3>{code} - {course['course_title']}</h3>
-            <p>Total Absentees: {len(students)}</p>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 50px;">S.No</th>
-                    <th style="width: 150px;">Roll Number</th>
-                    <th>Student Name</th>
-                    <th style="width: 120px;">Course Code</th>
-                </tr>
-            </thead>
-            <tbody>
-"""
-        for idx, student in enumerate(students, 1):
-            html += f"""                <tr>
-                    <td>{idx}</td>
-                    <td>{student[0]}</td>
-                    <td>{student[1]}</td>
-                    <td>{student[2]}</td>
-                </tr>
-"""
-        html += """            </tbody>
-        </table>
-    </div>
+    # Add all students in a single flat list
+    for idx, student in enumerate(sorted_students, 1):
+        roll_no, name, course_code, course_title = student
+        html += f"""            <tr>
+                <td>{idx}</td>
+                <td>{roll_no}</td>
+                <td>{name}</td>
+                <td>{course_code} - {course_title}</td>
+            </tr>
 """
     
-    html += f"""
+    html += f"""        </tbody>
+    </table>
+    
     <div class="summary">
         <h3>Summary</h3>
-        <p><strong>Total Courses with Absentees:</strong> {len(courses)}</p>
-        <p><strong>Total Absentees:</strong> {total_absentees}</p>
+        <p><strong>Total Absentees:</strong> {len(sorted_students)}</p>
         <p><strong>Generated on:</strong> {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</p>
     </div>
     
