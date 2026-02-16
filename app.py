@@ -176,11 +176,24 @@ def get_semester_stats():
                 total_semesters = len(semesters_result.data) if semesters_result.data else 0
                 print(f"DEBUG: Found {total_semesters} semesters")
                 
-                students_result = supabase.table('students').select('id, course_code').execute()
-                total_students = len(students_result.data) if students_result.data else 0
-                print(f"DEBUG: Found {total_students} students")
+                # Handle pagination for students - fetch all records
+                all_students = []
+                page_size = 1000
+                offset = 0
                 
-                unique_courses = set(row['course_code'] for row in students_result.data) if students_result.data else set()
+                while True:
+                    students_result = supabase.table('students').select('id, course_code').range(offset, offset + page_size - 1).execute()
+                    if not students_result.data:
+                        break
+                    all_students.extend(students_result.data)
+                    if len(students_result.data) < page_size:
+                        break
+                    offset += page_size
+                
+                total_students = len(all_students)
+                print(f"DEBUG: Found {total_students} students (paginated)")
+                
+                unique_courses = set(row['course_code'] for row in all_students)
                 total_courses = len(unique_courses)
                 print(f"DEBUG: Found {total_courses} unique courses")
                 
