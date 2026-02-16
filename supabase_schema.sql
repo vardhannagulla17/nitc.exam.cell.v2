@@ -67,15 +67,20 @@ CREATE TABLE IF NOT EXISTS students (
     main_instructor TEXT,
     primary_mail TEXT,
     course_category_code TEXT,
+    section TEXT,
     semester_id BIGINT REFERENCES semesters(id) ON DELETE CASCADE,
     uploaded_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Migration: Add section column if it doesn't exist (for existing databases)
+ALTER TABLE students ADD COLUMN IF NOT EXISTS section TEXT;
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_students_semester_id ON students(semester_id);
 CREATE INDEX IF NOT EXISTS idx_students_course_code ON students(course_code);
 CREATE INDEX IF NOT EXISTS idx_students_roll_no ON students(roll_no);
 CREATE INDEX IF NOT EXISTS idx_students_program_name ON students(program_name);
+CREATE INDEX IF NOT EXISTS idx_students_section ON students(section);
 CREATE INDEX IF NOT EXISTS idx_semesters_db_name ON semesters(db_name);
 
 -- Enable Row Level Security (RLS)

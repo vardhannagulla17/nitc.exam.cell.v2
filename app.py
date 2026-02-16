@@ -1437,7 +1437,7 @@ def absentee_sheet():
                 flash('Please select a course.', 'error')
             elif USE_SUPABASE_DB and supabase:
                 try:
-                    # Build query
+                    # Build query with optional section filter
                     query = supabase.table('students')\
                         .select('roll_no, name, course_code, course_title, section')\
                         .eq('course_code', course_code)

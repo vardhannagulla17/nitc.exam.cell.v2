@@ -40,17 +40,19 @@
                                    style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
                             <input type="hidden" name="course_code" id="course_code" value="{{ selected_course_code if selected_course_code else '' }}">
                             <div id="course_dropdown" 
-                                 style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; border-top: none; border-radius: 0 0 6px 6px; max-height: 300px; overflow-y: auto; display: none; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                 style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; border-top: none; border-radius: 0 0 6px 6px; max-height: 500px; overflow-y: auto; display: none; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                             </div>
                         </div>
                     </div>
+
+
 
                     <div class="form-field" id="section_field" style="display: none;">
                         <label for="section">
                             <i class="fas fa-users"></i> Section (Optional - leave empty for all students)
                         </label>
                         <input type="text" name="section" id="section" 
-                               placeholder="e.g., A1, B2 (optional)"
+                               placeholder="e.g., ME01, EC02 (optional)"
                                style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; text-transform: uppercase;">
                     </div>
 
@@ -64,7 +66,7 @@
                 <div style="margin-top: 1.5rem; padding: 1.5rem; background: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px;">
                     <h3 style="color: #1e40af; margin-bottom: 1rem;">
                         <i class="fas fa-list-ul"></i> Students in {{ selected_course_code }}
-                        {% if selected_section %}(Section: {{ selected_section }}){% endif %}
+                        {% if selected_section %}<span style="font-size: 0.9rem; font-weight: normal;">(Section: {{ selected_section }})</span>{% endif %}
                     </h3>
                     <p style="font-size: 0.9rem; color: #475569; margin-bottom: 1rem;">
                         Select students to mark absent ({{ course_students|length }} students found)
@@ -321,7 +323,7 @@ function initCourseSearch() {
         if (course) {
             searchInput.value = savedCourse + ' - ' + course.title;
             courseCodeInput.value = savedCourse;
-            sectionField.style.display = 'block';
+            if (sectionField) sectionField.style.display = 'block';
         }
     }
     
@@ -389,7 +391,7 @@ function selectCourse(code, title) {
     searchInput.value = code + ' - ' + title;
     courseCodeInput.value = code;
     dropdown.style.display = 'none';
-    sectionField.style.display = 'block';
+    if (sectionField) sectionField.style.display = 'block';
     
     // Save to cookie
     setCookie('last_course_code', code, 30);

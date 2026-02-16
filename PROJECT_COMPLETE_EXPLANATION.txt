@@ -1,0 +1,2667 @@
+================================================================================
+NITC EXAM CELL ATTENDANCE MANAGEMENT SYSTEM - COMPLETE TECHNICAL DOCUMENTATION
+================================================================================
+Created: February 9, 2026
+Author: GitHub Copilot
+Purpose: Complete A-Z explanation for interview preparation
+================================================================================
+
+TABLE OF CONTENTS
+=================
+1. PROJECT OVERVIEW
+2. TECHNOLOGY STACK & WHY EACH IS USED
+3. PROJECT ARCHITECTURE
+4. FILE STRUCTURE EXPLAINED
+5. DATABASE DESIGN & SUPABASE INTEGRATION
+6. AUTHENTICATION & AUTHORIZATION SYSTEM
+7. FEATURES & WORKFLOWS (DETAILED)
+8. DATA FLOW DIAGRAMS
+9. FRONTEND-BACKEND INTEGRATION
+10. API ENDPOINTS REFERENCE
+11. SECURITY MEASURES
+12. DEPLOYMENT & HOSTING
+13. KEY CODE PATTERNS & BEST PRACTICES
+14. INTERVIEW TALKING POINTS
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+Project Name: NITC Exam Cell Attendance Management System
+Institution: National Institute of Technology Calicut (NITC)
+Purpose: Automate and streamline the process of managing student attendance 
+         during examinations across multiple departments, programs, and courses.
+
+PROBLEM IT SOLVES:
+------------------
+Before: 
+- Staff manually created attendance sheets in Excel/Word
+- No centralized tracking of absentees
+- Time-consuming consolidation of absentee reports
+- Difficult to maintain historical records
+- Error-prone manual processes
+
+After (with this system):
+- Automated attendance sheet generation from enrollment data
+- Centralized absentee tracking with admin approval workflow
+- Real-time statistics and reporting
+- Cloud-based storage with Supabase
+- Role-based access control (Admin vs Staff)
+- Audit trail for all actions
+
+================================================================================
+2. TECHNOLOGY STACK & WHY EACH IS USED
+================================================================================
+
+BACKEND:
+--------
+1. Flask (Python Web Framework)
+   - Lightweight and flexible
+   - Quick development cycle
+   - Excellent for prototyping
+   - Easy to learn and maintain
+   - Built-in development server
+
+2. Python 3.x
+   - Rich ecosystem for data processing
+   - pandas for Excel manipulation
+   - openpyxl for reading/writing Excel files
+   - Simple syntax, rapid development
+
+3. Supabase (PostgreSQL Database + Storage)
+   - Open-source Firebase alternative
+   - PostgreSQL database (ACID compliant, relational)
+   - Built-in authentication (not used but available)
+   - Storage buckets for file management
+   - Row Level Security (RLS) for data protection
+   - Real-time subscriptions (future capability)
+   - API auto-generated from schema
+
+4. Werkzeug (WSGI utility library)
+   - Password hashing and verification
+   - Secure filename handling
+   - Request/response utilities
+   - Comes bundled with Flask
+
+FRONTEND:
+---------
+1. HTML5 + Jinja2 Templates
+   - Server-side rendering (SSR)
+   - Template inheritance (base.html)
+   - Dynamic content generation
+   - SEO-friendly
+
+2. CSS3 (Custom Styling)
+   - Responsive design
+   - Modern UI components
+   - Gradient effects
+   - Custom card layouts
+   - Mobile-friendly
+
+3. JavaScript (Vanilla JS)
+   - Form validation
+   - Dynamic interactions
+   - AJAX requests for async operations
+   - File upload handling
+   - Alert/confirmation dialogs
+
+4. Font Awesome Icons
+   - Professional iconography
+   - Scalable vector icons
+   - Wide variety of icons
+
+DATA PROCESSING:
+----------------
+1. Pandas (Python Data Analysis Library)
+   - Excel file reading (read_excel)
+   - Data manipulation and filtering
+   - DataFrame operations
+   - Data validation
+
+2. OpenPyXL
+   - Excel file format support
+   - .xlsx file reading/writing
+   - Cell-level operations
+
+INFRASTRUCTURE:
+---------------
+1. Environment Variables (.env file)
+   - Secret key management
+   - Database credentials
+   - API keys
+   - Environment-specific configs
+
+2. python-dotenv
+   - Load .env variables into os.environ
+   - Development vs Production configs
+
+3. Git & GitHub
+   - Version control
+   - Collaboration
+   - Deployment integration
+
+================================================================================
+3. PROJECT ARCHITECTURE
+================================================================================
+
+ARCHITECTURE PATTERN: Monolithic MVC (Model-View-Controller)
+-----------------------------------------------------------
+
+[CLIENT BROWSER]
+       ↓↑ HTTP Requests/Responses
+[FLASK APPLICATION]
+       ├── Routes (Controller) - app.py, app/routes.py
+       ├── Models (Data Logic) - app/models.py, app/database.py
+       ├── Views (Templates) - templates/*.html
+       └── Utilities - helpers/, app/attendance.py
+           ↓↑
+[SUPABASE CLOUD]
+       ├── PostgreSQL Database (users, students, absentees, etc.)
+       └── Storage Buckets (pending_absentee, approved_absentee)
+
+LAYERED ARCHITECTURE:
+--------------------
+Layer 1: PRESENTATION LAYER (Frontend)
+   - HTML templates with Jinja2
+   - CSS styling
+   - JavaScript for interactivity
+   - User interface components
+
+Layer 2: APPLICATION LAYER (Backend Logic)
+   - Flask routes (URL handlers)
+   - Business logic
+   - Form processing
+   - Session management
+   - Authentication/Authorization
+
+Layer 3: DATA ACCESS LAYER
+   - Supabase client (supabase_client.py)
+   - Database operations (CRUD)
+   - ORM-like operations using Supabase Python SDK
+   - Query building
+
+Layer 4: DATA STORAGE LAYER
+   - Supabase PostgreSQL database
+   - Supabase Storage buckets
+   - Row-level security policies
+
+Layer 5: EXTERNAL SERVICES
+   - None currently (could add email, SMS, etc.)
+
+REQUEST FLOW:
+-------------
+1. User makes HTTP request (e.g., GET /dashboard)
+2. Flask routing matches URL to handler function
+3. Handler checks authentication (session)
+4. Handler queries database via Supabase client
+5. Data is processed/formatted
+6. Template is rendered with data
+7. HTML response sent back to browser
+8. Browser renders the page
+
+================================================================================
+4. FILE STRUCTURE EXPLAINED (Directory by Directory)
+================================================================================
+
+ROOT DIRECTORY:
+---------------
+v:\nitc.exam.cell.v2\
+│
+├── app.py                          # MAIN APPLICATION FILE
+│   ├── Flask app initialization
+│   ├── All route definitions (@app.route decorators)
+│   ├── Database initialization
+│   ├── Session management
+│   ├── File upload/download logic
+│   └── 2131 lines of code (monolithic structure)
+│
+├── config.py                       # CONFIGURATION SETTINGS
+│   ├── Config class with app settings
+│   ├── Environment-specific configs (Dev, Prod, Vercel)
+│   ├── File paths, allowed extensions
+│   └── Constants (PROGRAM_LEVELS, SEMESTER_TYPES, etc.)
+│
+├── supabase_client.py             # SUPABASE CONNECTION
+│   ├── Initializes Supabase client
+│   ├── Reads credentials from environment variables
+│   ├── Exports global 'supabase' object
+│   └── Used by all database operations
+│
+├── supabase_schema.sql            # DATABASE SCHEMA
+│   ├── SQL DDL statements
+│   ├── CREATE TABLE statements for all tables
+│   ├── Index definitions
+│   ├── Row Level Security policies
+│   ├── Storage bucket policies
+│   └── Idempotent (can run multiple times safely)
+│
+├── requirements.txt               # PYTHON DEPENDENCIES
+│   ├── Flask==2.3.3
+│   ├── pandas==2.1.4
+│   ├── openpyxl==3.1.2
+│   ├── supabase==2.25.0
+│   └── python-dotenv==1.0.0
+│
+├── run.py                         # ENTRY POINT (if separate from app.py)
+│   └── Runs Flask dev server
+│
+├── README.md                      # PROJECT DOCUMENTATION
+│   └── Installation, usage, features
+│
+├── .env                          # ENVIRONMENT VARIABLES (not in git)
+│   ├── SECRET_KEY=your-secret-key
+│   ├── SUPABASE_URL=https://...
+│   ├── SUPABASE_ANON_KEY=eyJh...
+│   └── SUPABASE_SERVICE_ROLE_KEY=eyJh...
+│
+├── .gitignore                    # GIT IGNORE RULES
+│   ├── __pycache__/
+│   ├── .env
+│   ├── uploads/
+│   └── downloads/
+│
+├── docker-compose.yml            # DOCKER CONFIGURATION (if used)
+├── Dockerfile                    # DOCKER IMAGE BUILD
+├── vercel.json                   # VERCEL DEPLOYMENT CONFIG
+└── runtime.txt                   # PYTHON VERSION FOR DEPLOYMENT
+
+APP DIRECTORY:
+--------------
+app/
+│
+├── __init__.py                   # PACKAGE INITIALIZER
+│   └── Makes 'app' a Python package
+│
+├── database.py                   # DATABASE UTILITIES
+│   ├── USE_SUPABASE_DB flag
+│   ├── Database initialization
+│   ├── Helper functions for DB operations
+│   └── Imports supabase client
+│
+├── models.py                     # DATA MODELS & BUSINESS LOGIC
+│   ├── User operations (login, registration)
+│   ├── Student data operations
+│   ├── Semester management
+│   ├── Course queries
+│   └── CRUD operations wrapper
+│
+├── routes.py                     # ADDITIONAL ROUTES (modular)
+│   ├── Blueprint-based routes
+│   ├── Admin routes
+│   ├── User management routes
+│   └── Alternative to monolithic app.py
+│
+└── attendance.py                 # ATTENDANCE SHEET GENERATION
+    ├── generate_attendance_sheet()
+    ├── HTML generation logic
+    ├── Data formatting
+    └── Export to file
+
+TEMPLATES DIRECTORY:
+--------------------
+templates/
+│
+├── base.html                     # BASE TEMPLATE (ALL INHERIT FROM THIS)
+│   ├── HTML structure
+│   ├── Navigation bar
+│   ├── Flash message display
+│   ├── Common CSS/JS includes
+│   └── {% block content %} for child templates
+│
+├── login.html                    # LOGIN PAGE
+│   └── Username/password form
+│
+├── register.html                 # STAFF REGISTRATION
+│   └── Self-registration form
+│
+├── verify_otp.html              # OTP VERIFICATION
+│   └── 6-digit OTP input
+│
+├── dashboard.html               # MAIN DASHBOARD (after login)
+│   ├── Role-based tiles (admin vs staff)
+│   ├── Quick access to features
+│   └── Statistics display
+│
+├── upload.html                  # FILE UPLOAD INTERFACE
+│   ├── Drag-and-drop zone
+│   ├── Semester selection
+│   ├── File browser
+│   └── Upload progress
+│
+├── download.html                # ATTENDANCE SHEET DOWNLOAD
+│   ├── Semester/program filters
+│   ├── Course list
+│   ├── Individual download buttons
+│   └── Bulk download ZIP
+│
+├── absentee.html               # MARK ABSENTEES (STAFF)
+│   ├── Student search
+│   ├── Add to absentee list
+│   ├── Preview/Download
+│   └── Upload to admin
+│
+├── admin_absentees.html        # MANAGE ABSENTEES (ADMIN)
+│   ├── View all absentee submissions
+│   ├── Approve/Reject workflow
+│   ├── Filter by date/status/course
+│   ├── Consolidated preview/download
+│   └── Statistics cards
+│
+├── admin_users.html            # USER MANAGEMENT (ADMIN)
+│   ├── Pending user approvals
+│   ├── Active user list
+│   ├── Role assignment
+│   └── Enable/disable users
+│
+├── timetable.html              # EXAM TIMETABLE MANAGEMENT
+│   ├── Upload timetable
+│   ├── View timetable
+│   └── Auto-fill exam dates
+│
+├── error.html                  # ERROR PAGE
+└── error_simple.html          # SIMPLE ERROR PAGE
+
+STATIC DIRECTORY:
+-----------------
+static/
+│
+├── style.css                   # LEGACY GLOBAL STYLES
+│
+├── css/                        # MODULAR CSS FILES
+│   ├── base.css               # Base styles, resets
+│   ├── components.css         # Reusable components
+│   ├── dashboard.css          # Dashboard-specific
+│   ├── download-clean.css     # Download page styles
+│   ├── forms.css              # Form styling
+│   ├── layout.css             # Layout utilities
+│   ├── login.css              # Login page styles
+│   ├── upload.css             # Upload page styles
+│   └── utils.css              # Utility classes
+│
+├── js/                        # JAVASCRIPT FILES
+│   └── (currently in inline <script> tags)
+│
+└── images/                    # IMAGE ASSETS
+    └── (logos, icons, etc.)
+
+HELPERS DIRECTORY:
+------------------
+helpers/
+│
+├── __init__.py               # Package initializer
+│
+├── supabase_storage.py      # SUPABASE STORAGE UTILITIES
+│   ├── SupabaseStorage class (generic)
+│   ├── AbsenteeStorage class (specific to absentees)
+│   ├── File upload to buckets
+│   ├── File download from buckets
+│   ├── Move files between buckets
+│   └── List files in buckets
+│
+├── database_utils.py        # DATABASE HELPER FUNCTIONS
+│   └── Common DB queries
+│
+├── file_utils.py           # FILE HANDLING UTILITIES
+│   └── Excel parsing, validation
+│
+└── utils.py               # GENERAL UTILITIES
+    └── Miscellaneous helper functions
+
+UPLOADS DIRECTORY:
+------------------
+uploads/
+└── (Excel files uploaded by users - gitignored)
+
+DOWNLOADS DIRECTORY:
+--------------------
+downloads/
+├── UG/                    # Undergraduate attendance sheets
+├── PG/                    # Postgraduate attendance sheets
+└── PhD/                   # PhD attendance sheets
+(All gitignored)
+
+LOGS DIRECTORY:
+---------------
+logs/
+└── (Application logs - if logging configured)
+
+TESTS DIRECTORY:
+----------------
+tests/
+├── test_app_startup.py
+├── test_login.py
+├── test_absentee_workflow.py
+├── test_preview.py
+├── test_preview_fix.py
+├── test_preview_approved.py
+└── (Unit and integration tests)
+
+DOCS DIRECTORY:
+---------------
+docs/
+├── API.md              # API endpoint documentation
+└── DEPLOYMENT.md       # Deployment guide
+
+================================================================================
+5. DATABASE DESIGN & SUPABASE INTEGRATION
+================================================================================
+
+SUPABASE OVERVIEW:
+------------------
+Supabase = Open-source Firebase alternative
+Components used in this project:
+1. PostgreSQL Database (primary data store)
+2. Storage Buckets (file storage)
+3. Row Level Security (RLS) policies
+4. Auto-generated REST API
+
+CONNECTION SETUP:
+-----------------
+File: supabase_client.py
+
+```python
+from supabase import create_client, Client
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+```
+
+DATABASE SCHEMA:
+----------------
+
+TABLE 1: users
+--------------
+Purpose: Store user accounts (admin and staff)
+
+Columns:
+- id (BIGSERIAL PRIMARY KEY)          # Auto-incrementing unique ID
+- email (TEXT UNIQUE NOT NULL)        # User's email (login identifier)
+- full_name (TEXT NOT NULL)           # Display name
+- password_hash (TEXT NOT NULL)       # Bcrypt hashed password
+- role (TEXT DEFAULT 'staff')         # 'admin' or 'staff'
+- is_approved (BOOLEAN DEFAULT FALSE) # Admin approval required
+- is_active (BOOLEAN DEFAULT TRUE)    # Enabled/disabled status
+- created_at (TIMESTAMP DEFAULT NOW())
+- approved_at (TIMESTAMP)
+- approved_by (TEXT)                  # Admin who approved
+
+Indexes:
+- idx_users_email (on email)
+- idx_users_is_approved (on is_approved)
+
+Usage:
+- Login authentication
+- Role-based access control
+- User management by admin
+
+TABLE 2: semesters
+------------------
+Purpose: Define semester/exam configurations
+
+Columns:
+- id (BIGSERIAL PRIMARY KEY)
+- academic_year (TEXT NOT NULL)       # e.g., "2025-26"
+- semester_type (TEXT NOT NULL)       # "monsoon" or "winter"
+- degree_level (TEXT NOT NULL)        # "UG", "PG", "PhD"
+- exam_type (TEXT NOT NULL)           # "midsem" or "endsem"
+- db_name (TEXT UNIQUE NOT NULL)      # Unique identifier
+- created_at (TIMESTAMP DEFAULT NOW())
+
+Indexes:
+- idx_semesters_db_name (on db_name)
+
+Usage:
+- Organize student data by semester
+- Filter attendance sheets by semester
+- Track exam schedules
+
+TABLE 3: students
+-----------------
+Purpose: Store student enrollment data
+
+Columns:
+- id (BIGSERIAL PRIMARY KEY)
+- roll_no (TEXT NOT NULL)             # Student roll number
+- name (TEXT NOT NULL)                # Student name
+- email_id (TEXT)                     # Student email
+- student_sess (TEXT)                 # Session/batch
+- course_code (TEXT)                  # Course code (e.g., ME6323E)
+- credits (INTEGER)                   # Course credits
+- course_title (TEXT)                 # Full course name
+- program_name (TEXT)                 # Degree program
+- timetable_batch (TEXT)              # Exam batch assignment
+- slot_code (TEXT)                    # Time slot
+- main_instructor (TEXT)              # Course instructor
+- primary_mail (TEXT)                 # Instructor email
+- course_category_code (TEXT)         # Category (core, elective, etc.)
+- semester_id (BIGINT REFERENCES semesters(id) ON DELETE CASCADE)
+- uploaded_at (TIMESTAMP DEFAULT NOW())
+
+Indexes:
+- idx_students_semester_id (on semester_id)
+- idx_students_course_code (on course_code)
+- idx_students_roll_no (on roll_no)
+- idx_students_program_name (on program_name)
+
+Usage:
+- Source data for attendance sheets
+- Course enrollment lists
+- Student search and filtering
+
+TABLE 4: absentees
+------------------
+Purpose: Track students marked absent with approval workflow
+
+Columns:
+- id (BIGSERIAL PRIMARY KEY)
+- roll_no (TEXT NOT NULL)             # Absent student roll number
+- name (TEXT NOT NULL)                # Absent student name
+- course_code (TEXT NOT NULL)         # Course where absent
+- course_title (TEXT)                 # Course name
+- exam_date (DATE NOT NULL)           # Exam date
+- semester_id (BIGINT REFERENCES semesters(id))
+- marked_by (TEXT NOT NULL)           # Staff username who marked
+- status (TEXT DEFAULT 'pending')     # 'pending', 'approved', 'rejected'
+- created_at (TIMESTAMP DEFAULT NOW())
+- approved_at (TIMESTAMP)
+- approved_by (TEXT)                  # Admin username
+- rejected_at (TIMESTAMP)
+- rejected_by (TEXT)                  # Admin username
+- storage_filename (TEXT)             # Associated file in bucket
+
+Indexes:
+- idx_absentees_course_code (on course_code)
+- idx_absentees_exam_date (on exam_date)
+- idx_absentees_status (on status)
+- idx_absentees_marked_by (on marked_by)
+- idx_absentees_semester_id (on semester_id)
+- idx_absentees_storage_filename (on storage_filename)
+
+Usage:
+- Staff mark students as absent
+- Admin reviews and approves/rejects
+- Generate consolidated absentee reports
+- Statistics and analytics
+
+TABLE 5: exam_timetable
+-----------------------
+Purpose: Store exam schedules for auto-fill
+
+Columns:
+- id (BIGSERIAL PRIMARY KEY)
+- semester_id (BIGINT REFERENCES semesters(id))
+- course_code (TEXT NOT NULL)
+- course_title (TEXT)
+- exam_date (DATE NOT NULL)
+- exam_time (TEXT)                    # Time slot
+- venue (TEXT)                        # Exam location
+- created_at (TIMESTAMP DEFAULT NOW())
+- created_by (TEXT)                   # Username
+
+Indexes:
+- idx_exam_timetable_semester_id (on semester_id)
+- idx_exam_timetable_course_code (on course_code)
+- idx_exam_timetable_exam_date (on exam_date)
+
+Usage:
+- Upload exam timetables
+- Auto-fill exam dates when marking absentees
+- Filter by exam date
+
+STORAGE BUCKETS:
+----------------
+
+Bucket 1: pending_absentee
+--------------------------
+Purpose: Store absentee submissions from staff awaiting admin review
+Files: JSON format with structure:
+{
+  "exam_date": "2026-02-09",
+  "marked_by": "staff_username",
+  "course_code": "ME6323E",
+  "uploaded_at": "2026-02-09T10:30:00",
+  "absentees": [
+    {"roll_no": "B210001ME", "name": "John Doe", ...},
+    ...
+  ]
+}
+
+Bucket 2: approved_absentee
+----------------------------
+Purpose: Store admin-approved absentee records
+Files: Same JSON format as pending
+Moved here when admin approves
+
+Bucket 3: rejected_absentee
+---------------------------
+Purpose: Store rejected absentee submissions (for audit trail)
+Files: Same JSON format
+Moved here when admin rejects
+
+SUPABASE OPERATIONS (CRUD):
+----------------------------
+
+1. CREATE (Insert):
+```python
+result = supabase.table('absentees').insert({
+    'roll_no': 'B210001ME',
+    'name': 'John Doe',
+    'course_code': 'ME6323E',
+    'exam_date': '2026-02-09',
+    'marked_by': 'staff1',
+    'status': 'pending'
+}).execute()
+```
+
+2. READ (Select):
+```python
+# Get all approved absentees
+result = supabase.table('absentees')\
+    .select('*')\
+    .eq('status', 'approved')\
+    .execute()
+
+# Get with filters
+result = supabase.table('students')\
+    .select('*')\
+    .eq('semester_id', 1)\
+    .eq('course_code', 'ME6323E')\
+    .execute()
+```
+
+3. UPDATE:
+```python
+result = supabase.table('absentees')\
+    .update({
+        'status': 'approved',
+        'approved_at': datetime.now().isoformat(),
+        'approved_by': 'admin'
+    })\
+    .eq('id', absentee_id)\
+    .execute()
+```
+
+4. DELETE:
+```python
+result = supabase.table('absentees')\
+    .delete()\
+    .eq('id', absentee_id)\
+    .execute()
+```
+
+5. STORAGE OPERATIONS:
+```python
+# Upload file
+result = supabase.storage\
+    .from_('pending_absentee')\
+    .upload('filename.json', content.encode('utf-8'))
+
+# Download file
+content = supabase.storage\
+    .from_('approved_absentee')\
+    .download('filename.json')
+
+# List files
+files = supabase.storage\
+    .from_('pending_absentee')\
+    .list()
+
+# Delete file
+result = supabase.storage\
+    .from_('pending_absentee')\
+    .remove(['filename.json'])
+```
+
+ROW LEVEL SECURITY (RLS):
+--------------------------
+All tables have RLS enabled with policies that allow service role to access.
+This ensures data security at the database level.
+
+Policy examples from schema:
+```sql
+CREATE POLICY "Enable all for service role" ON users
+    FOR ALL 
+    USING (true)
+    WITH CHECK (true);
+```
+
+In production, you'd have more granular policies like:
+- Users can only see their own data
+- Admins can see all data
+- Staff can only update their own records
+
+================================================================================
+6. AUTHENTICATION & AUTHORIZATION SYSTEM
+================================================================================
+
+AUTHENTICATION FLOW:
+--------------------
+
+1. REGISTRATION (Staff Self-Registration):
+   Step 1: User fills registration form (register.html)
+           - Email (must be @nitc.ac.in)
+           - Full name
+           - Password
+   
+   Step 2: Form submits to /register route
+   
+   Step 3: Backend validates input:
+           - Email format check
+           - Password strength
+           - Check if email already exists
+   
+   Step 4: Generate OTP (6-digit random number)
+           - Store in session
+           - Send via email (if SMTP configured)
+   
+   Step 5: Redirect to OTP verification page
+   
+   Step 6: User enters OTP
+   
+   Step 7: If OTP matches:
+           - Hash password with bcrypt
+           - Create user record with is_approved=False
+           - Redirect to waiting page
+   
+   Step 8: Admin reviews and approves user
+
+2. LOGIN:
+   Step 1: User enters username (email) and password (login.html)
+   
+   Step 2: Form submits to /login route
+   
+   Step 3: Backend validates:
+           ```python
+           # Find user by email
+           user = supabase.table('users')\
+               .select('*')\
+               .eq('email', username)\
+               .execute()
+           
+           # Verify password
+           from werkzeug.security import check_password_hash
+           if check_password_hash(user['password_hash'], password):
+               # Password correct
+           ```
+   
+   Step 4: Check if user is approved and active
+   
+   Step 5: If valid, create session:
+           ```python
+           session['user_id'] = user['id']
+           session['username'] = user['email']
+           session['role'] = user['role']
+           session['full_name'] = user['full_name']
+           session.permanent = True
+           ```
+   
+   Step 6: Redirect to dashboard
+
+3. SESSION MANAGEMENT:
+   - Flask sessions (server-side)
+   - Secret key for encryption
+   - Persistent for 24 hours
+   - Stored in browser cookie (encrypted)
+
+4. LOGOUT:
+   ```python
+   @app.route('/logout')
+   def logout():
+       session.clear()
+       return redirect(url_for('login'))
+   ```
+
+AUTHORIZATION (Role-Based Access Control):
+-------------------------------------------
+
+DECORATOR PATTERN:
+```python
+def require_login(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def require_admin(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get('role') != 'admin':
+            flash('Access denied. Admins only.')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+```
+
+IMPLEMENTATION IN ROUTES:
+```python
+@app.route('/admin/users')
+def admin_users():
+    # Check authentication
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Check authorization
+    if session.get('role') != 'admin':
+        flash('Access denied. Admins only.')
+        return redirect(url_for('dashboard'))
+    
+    # Proceed with admin-only logic
+    users = get_all_users()
+    return render_template('admin_users.html', users=users)
+```
+
+ROLE PERMISSIONS:
+-----------------
+
+ADMIN CAN:
+- Everything staff can do
+- Approve/reject pending users
+- Enable/disable users
+- Change user roles
+- Delete users
+- View all absentee submissions from all staff
+- Approve/reject absentees
+- Download consolidated reports
+- Delete any absentee record
+- View system statistics
+
+STAFF CAN:
+- Upload student enrollment data
+- Generate attendance sheets
+- Mark students as absent
+- Preview/download their own absentees
+- Upload absentees to admin for approval
+- View their own uploaded absentees
+
+PUBLIC (NOT LOGGED IN):
+- View login page
+- Register new account
+- Verify OTP
+- Nothing else
+
+SESSION DATA STRUCTURE:
+-----------------------
+```python
+session = {
+    'user_id': 123,                    # Database ID
+    'username': 'staff1@nitc.ac.in',  # Email
+    'role': 'staff',                   # 'admin' or 'staff'
+    'full_name': 'John Doe',          # Display name
+    'absentees': [                     # Temporary absentee list
+        {'roll_no': 'B210001ME', 'name': 'Student 1', ...},
+        ...
+    ]
+}
+```
+
+PASSWORD SECURITY:
+------------------
+1. Never store plain passwords
+2. Use bcrypt hashing (via werkzeug.security)
+3. Hash generation:
+   ```python
+   from werkzeug.security import generate_password_hash
+   hashed = generate_password_hash(password, method='pbkdf2:sha256')
+   ```
+4. Hash verification:
+   ```python
+   from werkzeug.security import check_password_hash
+   is_valid = check_password_hash(stored_hash, entered_password)
+   ```
+
+================================================================================
+7. FEATURES & WORKFLOWS (DETAILED)
+================================================================================
+
+FEATURE 1: USER MANAGEMENT
+---------------------------
+
+A. STAFF REGISTRATION:
+   1. Navigate to /register
+   2. Fill form with @nitc.ac.in email
+   3. Submit form
+   4. Receive OTP (displayed on screen if email not configured)
+   5. Enter OTP on verification page
+   6. Account created with status = "pending approval"
+   7. Wait for admin approval
+
+B. ADMIN USER APPROVAL:
+   1. Admin logs in
+   2. Clicks "Manage Users" on dashboard
+   3. Sees list of pending users
+   4. Reviews user details
+   5. Clicks "Approve" button
+   6. User's is_approved flag set to true
+   7. User can now log in
+
+C. USER MANAGEMENT:
+   1. Admin can view all users
+   2. Enable/disable users (toggle is_active)
+   3. Change user roles (admin ↔ staff)
+   4. Delete users permanently
+   5. View registration dates and approval status
+
+FEATURE 2: STUDENT DATA UPLOAD
+-------------------------------
+
+Workflow:
+---------
+1. Admin navigates to /upload
+2. Selects semester parameters:
+   - Academic Year (e.g., 2025-26)
+   - Semester Type (monsoon/winter)
+   - Degree Level (UG/PG/PhD)
+   - Exam Type (midsem/endsem)
+3. Drops/selects Excel file (.xlsx or .xls)
+4. Clicks "Upload File"
+
+Backend Processing:
+-------------------
+```python
+# 1. Validate file
+if not allowed_file(file.filename):
+    return error
+
+# 2. Save file temporarily
+filename = secure_filename(file.filename)
+filepath = os.path.join(UPLOAD_FOLDER, filename)
+file.save(filepath)
+
+# 3. Read Excel with pandas
+import pandas as pd
+df = pd.read_excel(filepath)
+
+# 4. Create or get semester record
+semester = supabase.table('semesters').insert({
+    'academic_year': academic_year,
+    'semester_type': semester_type,
+    'degree_level': degree_level,
+    'exam_type': exam_type,
+    'db_name': f"{academic_year}_{semester_type}_{degree_level}_{exam_type}"
+}).execute()
+
+# 5. Process each row
+for index, row in df.iterrows():
+    student_data = {
+        'roll_no': row['RollNo'],
+        'name': row['NameasPerXStd'],
+        'email_id': row['EmailId'],
+        'course_code': row['CourseCode'],
+        'course_title': row['CourseTitle'],
+        # ... other fields
+        'semester_id': semester.data[0]['id']
+    }
+    
+    # Insert into database
+    supabase.table('students').insert(student_data).execute()
+
+# 6. Success message
+flash(f'{len(df)} students uploaded successfully!')
+```
+
+Expected Excel Format:
+----------------------
+| RollNo    | NameasPerXStd | EmailId          | CourseCode | CourseTitle | ... |
+|-----------|---------------|------------------|------------|-------------|-----|
+| B210001ME | John Doe      | john@nitc.ac.in  | ME6323E    | CAD/CAM     | ... |
+| B210002ME | Jane Smith    | jane@nitc.ac.in  | ME6323E    | CAD/CAM     | ... |
+
+FEATURE 3: ATTENDANCE SHEET GENERATION
+---------------------------------------
+
+Workflow:
+---------
+1. User navigates to /download
+2. Selects semester (dropdown shows all uploaded semesters)
+3. System displays all courses in that semester
+4. User can:
+   - Preview single course attendance sheet
+   - Download single course (HTML file)
+   - Download all courses as ZIP
+
+Backend Logic:
+--------------
+```python
+def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False):
+    # 1. Get all students for this course
+    students = supabase.table('students')\
+        .select('*')\
+        .eq('semester_id', semester_id)\
+        .eq('course_code', course_code)\
+        .execute()
+    
+    # 2. Sort by roll number
+    students = sorted(students.data, key=lambda x: x['roll_no'])
+    
+    # 3. Generate HTML table
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Attendance Sheet - {course_code}</title>
+        <style>
+            table {{ border-collapse: collapse; width: 100%; }}
+            th, td {{ border: 1px solid black; padding: 8px; }}
+            th {{ background-color: #f2f2f2; }}
+        </style>
+    </head>
+    <body>
+        <h1>{course_code} - {students[0]['course_title']}</h1>
+        <h2>Exam Date: {exam_date}</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>Roll No</th>
+                    <th>Name</th>
+                    <th>Signature</th>
+                    <th>Bio-break Out</th>
+                    <th>Bio-break In</th>
+                    <th>Additional Sheet No.</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    # 4. Add student rows
+    for i, student in enumerate(students, 1):
+        html += f"""
+                <tr>
+                    <td>{i}</td>
+                    <td>{student['roll_no']}</td>
+                    <td>{student['name']}</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+        """
+    
+    html += """
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+    
+    # 5. Return HTML (for preview) or save to file (for download)
+    if preview:
+        return html
+    else:
+        # Save to downloads folder
+        filename = f"Attendance_{course_code}_{exam_date}.html"
+        filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(html)
+        return filepath
+```
+
+Bulk Download:
+--------------
+1. Generate all attendance sheets
+2. Create ZIP file
+3. Add all HTML files to ZIP
+4. Send ZIP to user
+
+FEATURE 4: ABSENTEE MANAGEMENT (STAFF)
+---------------------------------------
+
+Workflow:
+---------
+1. Staff navigates to /absentee
+2. Selects course (or course is auto-filled from timetable)
+3. Searches for student by roll number
+4. Clicks "Add to Absentee List"
+5. Student appears in list on right side
+6. Repeat for all absent students
+7. Select exam date
+8. Has 4 options:
+   a. Preview - Opens HTML preview in new tab
+   b. Download - Downloads HTML file
+   c. Upload to Admin - Sends to admin for approval
+   d. Clear - Removes all from list
+
+Backend - Add to List:
+----------------------
+```python
+@app.route('/absentee', methods=['POST'])
+def absentee_sheet():
+    if action == 'add_absentee':
+        # Get student details
+        roll_no = request.form.get('roll_no')
+        name = request.form.get('name')
+        course_code = request.form.get('course_code')
+        
+        # Add to session (temporary storage)
+        if 'absentees' not in session:
+            session['absentees'] = []
+        
+        # Check if already in list
+        if not any(a['roll_no'] == roll_no for a in session['absentees']):
+            session['absentees'].append({
+                'roll_no': roll_no,
+                'name': name,
+                'course_code': course_code,
+                'course_title': course_title
+            })
+            session.modified = True
+            flash(f'Added {name} to absentee list')
+```
+
+Backend - Upload to Admin:
+---------------------------
+```python
+if action == 'upload_to_admin':
+    # 1. Get absentees from session
+    absentees = session.get('absentees', [])
+    
+    # 2. Generate unique batch ID
+    batch_id = datetime.now().strftime('%Y%m%d%H%M%S')
+    
+    # 3. Insert into database
+    for absentee in absentees:
+        supabase.table('absentees').insert({
+            'roll_no': absentee['roll_no'],
+            'name': absentee['name'],
+            'course_code': absentee['course_code'],
+            'course_title': absentee['course_title'],
+            'exam_date': exam_date,
+            'marked_by': session['username'],
+            'status': 'pending',
+            'storage_filename': f"{exam_date}_{course_code}_{marked_by}_{batch_id}.json"
+        }).execute()
+    
+    # 4. Upload to Supabase storage
+    storage_content = {
+        'exam_date': exam_date,
+        'marked_by': session['username'],
+        'course_code': course_code,
+        'uploaded_at': datetime.now().isoformat(),
+        'absentees': absentees
+    }
+    
+    supabase.storage\
+        .from_('pending_absentee')\
+        .upload(storage_filename, json.dumps(storage_content))
+    
+    # 5. Clear session
+    session['absentees'] = []
+    flash('Uploaded to admin successfully!')
+```
+
+FEATURE 5: ABSENTEE APPROVAL (ADMIN)
+-------------------------------------
+
+Workflow:
+---------
+1. Admin navigates to /admin/absentees
+2. Sees table of all absentees with filters:
+   - Status (pending/approved/rejected)
+   - Exam Date
+   - Course Code
+3. Statistics cards show:
+   - Total records
+   - Pending count
+   - Approved count
+   - Rejected count
+4. Can select multiple absentees (checkboxes)
+5. Actions available:
+   - Approve Selected
+   - Reject Selected
+   - Set Pending
+   - Delete Selected
+   - Preview All (approved)
+   - Download All (approved)
+
+Backend - Approve:
+------------------
+```python
+@app.route('/api/absentees/approve', methods=['POST'])
+def api_approve_absentees():
+    # Get selected IDs from request
+    data = request.get_json()
+    selected_ids = data.get('ids', [])
+    
+    # Update each record
+    for absentee_id in selected_ids:
+        supabase.table('absentees').update({
+            'status': 'approved',
+            'approved_at': datetime.now().isoformat(),
+            'approved_by': session.get('username')
+        }).eq('id', absentee_id).execute()
+    
+    # Move file from pending to approved bucket
+    # (if storage_filename is set)
+    
+    return jsonify({
+        'success': True,
+        'message': f'Approved {len(selected_ids)} records'
+    })
+```
+
+Frontend - AJAX Update:
+-----------------------
+```javascript
+async function approveSelected() {
+    const ids = getSelectedIds(); // Get checked checkboxes
+    
+    const response = await fetch('/api/absentees/approve', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: ids})
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+        // Update UI without page reload
+        ids.forEach(id => {
+            const row = document.getElementById('row-' + id);
+            row.style.background = '#f0fdf4'; // Green background
+            
+            // Update status badge
+            const statusCell = row.querySelector('.status-cell');
+            statusCell.innerHTML = '<span class="status-approved">Approved</span>';
+        });
+        
+        showMessage(data.message);
+        refreshStats(); // Update statistics cards
+    }
+}
+```
+
+FEATURE 6: CONSOLIDATED PREVIEW
+--------------------------------
+
+Fixed Implementation:
+---------------------
+Problem: formtarget="_blank" doesn't work reliably with POST
+Solution: JavaScript form submission
+
+```javascript
+function previewConsolidated() {
+    // Create temporary form
+    const tempForm = document.createElement('form');
+    tempForm.method = 'POST';
+    tempForm.action = '/admin/absentees';
+    tempForm.target = '_blank'; // Open in new tab
+    
+    // Add action field
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'preview_consolidated';
+    tempForm.appendChild(actionInput);
+    
+    // Submit and cleanup
+    document.body.appendChild(tempForm);
+    tempForm.submit();
+    document.body.removeChild(tempForm);
+}
+```
+
+Backend - Generate Preview:
+----------------------------
+```python
+if action == 'preview_consolidated':
+    # Get all approved absentees
+    result = supabase.table('absentees')\
+        .select('*')\
+        .eq('status', 'approved')\
+        .execute()
+    
+    if result.data:
+        # Generate consolidated HTML
+        html = generate_consolidated_absentee_html(result.data)
+        return html  # Returns HTML directly (opens in new tab)
+    else:
+        return "<html><body><h2>No approved absentees found</h2></body></html>"
+```
+
+FEATURE 7: EXAM TIMETABLE UPLOAD
+---------------------------------
+
+Purpose: Auto-fill exam dates when marking absentees
+
+Workflow:
+---------
+1. Admin uploads timetable Excel/PDF
+2. System parses timetable
+3. Stores course_code → exam_date mapping
+4. When staff marks absentees, exam date is pre-filled
+
+Implementation:
+---------------
+Table: exam_timetable
+- course_code
+- exam_date
+- exam_time
+- venue
+
+Query when marking absentees:
+```python
+exam_info = supabase.table('exam_timetable')\
+    .select('*')\
+    .eq('course_code', course_code)\
+    .eq('semester_id', semester_id)\
+    .execute()
+
+if exam_info.data:
+    auto_filled_date = exam_info.data[0]['exam_date']
+```
+
+FEATURE 8: FILTERS & SEARCH
+----------------------------
+
+Admin Absentees Page Filters:
+------------------------------
+1. Exam Date Dropdown
+   - Shows all unique exam dates
+   - Filters absentees by selected date
+
+2. Status Filter
+   - All / Pending / Approved / Rejected
+   - Real-time filtering
+
+3. Course Code Filter
+   - Shows all unique courses
+   - Filters by course
+
+Implementation:
+```python
+query = supabase.table('absentees').select('*')
+
+if filter_status:
+    query = query.eq('status', filter_status)
+if filter_date:
+    query = query.eq('exam_date', filter_date)
+if filter_course:
+    query = query.eq('course_code', filter_course)
+
+result = query.execute()
+```
+
+FEATURE 9: STATISTICS & ANALYTICS
+----------------------------------
+
+Dashboard Statistics:
+---------------------
+1. Total users
+2. Pending approvals
+3. Active semesters
+4. Total students
+5. Absentees today
+
+Admin Absentees Statistics:
+---------------------------
+1. Total absentee records
+2. Pending count
+3. Approved count
+4. Rejected count
+
+Calculation:
+```python
+all_absentees = supabase.table('absentees').select('*').execute()
+
+stats = {
+    'total': len(all_absentees.data),
+    'pending': len([a for a in all_absentees.data if a['status'] == 'pending']),
+    'approved': len([a for a in all_absentees.data if a['status'] == 'approved']),
+    'rejected': len([a for a in all_absentees.data if a['status'] == 'rejected'])
+}
+```
+
+================================================================================
+8. DATA FLOW DIAGRAMS
+================================================================================
+
+FLOW 1: USER REGISTRATION AND LOGIN
+------------------------------------
+[User Browser]
+      ↓
+[/register GET] → Display registration form
+      ↓
+[User fills form]
+      ↓
+[/register POST] → Validate input → Generate OTP
+      ↓
+[/verify_otp GET] → Display OTP input
+      ↓
+[User enters OTP]
+      ↓
+[/verify_otp POST] → Validate OTP → Create user (is_approved=false)
+      ↓
+[Waiting page] → "Wait for admin approval"
+      ↓
+[Admin reviews] → /admin/users → Approve user
+      ↓
+[User can login]
+      ↓
+[/login POST] → Authenticate → Create session
+      ↓
+[/dashboard] → Display dashboard
+
+FLOW 2: STUDENT DATA UPLOAD
+----------------------------
+[Admin Browser]
+      ↓
+[/upload GET] → Display upload form
+      ↓
+[Admin selects file & semester params]
+      ↓
+[/upload POST] → Receive file
+      ↓
+[Save to temp storage]
+      ↓
+[Read Excel with pandas]
+      ↓
+[Create/get semester record in DB]
+      ↓
+[For each row in Excel:]
+   [Parse student data]
+        ↓
+   [Insert into students table]
+        ↓
+   [Link to semester_id]
+      ↓
+[Success message]
+      ↓
+[Redirect to /upload with success flash]
+
+FLOW 3: MARK ABSENTEES (STAFF)
+-------------------------------
+[Staff Browser]
+      ↓
+[/absentee GET] → Display marking interface
+      ↓
+[Staff searches student]
+      ↓
+[/absentee POST action=add] → Add to session['absentees']
+      ↓
+[Display updated list] (stays on same page)
+      ↓
+[Repeat for all absent students]
+      ↓
+[Staff clicks "Upload to Admin"]
+      ↓
+[/absentee POST action=upload_to_admin]
+      ↓
+[For each absentee in session:]
+   [Insert into absentees table (status=pending)]
+      ↓
+[Upload JSON to pending_absentee bucket]
+      ↓
+[Clear session['absentees']]
+      ↓
+[Success message]
+
+FLOW 4: APPROVE ABSENTEES (ADMIN)
+----------------------------------
+[Admin Browser]
+      ↓
+[/admin/absentees GET] → Fetch all absentees
+      ↓
+[Display table with filters]
+      ↓
+[Admin selects absentees (checkboxes)]
+      ↓
+[Admin clicks "Approve Selected"]
+      ↓
+[JavaScript: approveSelected()]
+      ↓
+[AJAX POST /api/absentees/approve]
+      ↓
+[Backend: Update status='approved' in DB]
+      ↓
+[Move file from pending → approved bucket]
+      ↓
+[Return JSON {success: true}]
+      ↓
+[JavaScript: Update UI (change row color, update badge)]
+      ↓
+[JavaScript: Refresh statistics]
+
+FLOW 5: GENERATE ATTENDANCE SHEET
+----------------------------------
+[User Browser]
+      ↓
+[/download GET] → Select semester
+      ↓
+[Display courses in semester]
+      ↓
+[User clicks "Preview" for a course]
+      ↓
+[/download POST action=preview]
+      ↓
+[Query students for course]
+      ↓
+[Generate HTML table]
+      ↓
+[Return HTML response]
+      ↓
+[Browser displays in new tab]
+
+Or:
+[User clicks "Download"]
+      ↓
+[/download POST action=download]
+      ↓
+[Generate HTML file]
+      ↓
+[Save to downloads folder]
+      ↓
+[send_file(filepath)]
+      ↓
+[Browser downloads file]
+
+FLOW 6: CONSOLIDATED PREVIEW (FIXED)
+-------------------------------------
+[Admin Browser]
+      ↓
+[/admin/absentees] → Display page
+      ↓
+[Admin clicks "Preview All"]
+      ↓
+[JavaScript: previewConsolidated()]
+      ↓
+[Create temporary form with action=preview_consolidated]
+      ↓
+[Submit form to new tab]
+      ↓
+[/admin/absentees POST action=preview_consolidated]
+      ↓
+[Query all approved absentees]
+      ↓
+[Generate consolidated HTML]
+      ↓
+[Return HTML]
+      ↓
+[New tab displays HTML]
+
+================================================================================
+9. FRONTEND-BACKEND INTEGRATION
+================================================================================
+
+TEMPLATE ENGINE: Jinja2
+-----------------------
+Flask uses Jinja2 to render dynamic HTML templates.
+
+Basic Syntax:
+```html
+{# Comment #}
+
+{{ variable }}                     <!-- Output variable -->
+{% if condition %}...{% endif %}   <!-- Conditional -->
+{% for item in items %}...{% endfor %} <!-- Loop -->
+{% block name %}...{% endblock %}  <!-- Template block -->
+{% extends "base.html" %}          <!-- Template inheritance -->
+```
+
+Example: admin_absentees.html
+```html
+{% extends "base.html" %}
+
+{% block title %}Manage Absentees{% endblock %}
+
+{% block content %}
+<div class="stats">
+    <div class="stat-card">
+        <h3>{{ stats.total }}</h3>
+        <p>Total Records</p>
+    </div>
+    
+    {% if absentees %}
+    <table>
+        {% for absentee in absentees %}
+        <tr id="row-{{ absentee.id }}">
+            <td>{{ absentee.roll_no }}</td>
+            <td>{{ absentee.name }}</td>
+            <td>
+                {% if absentee.status == 'approved' %}
+                    <span class="badge-success">Approved</span>
+                {% elif absentee.status == 'pending' %}
+                    <span class="badge-warning">Pending</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No absentees found.</p>
+    {% endif %}
+</div>
+{% endblock %}
+```
+
+Backend Route:
+```python
+@app.route('/admin/absentees')
+def admin_absentees():
+    # Fetch data
+    absentees = supabase.table('absentees').select('*').execute()
+    
+    stats = {
+        'total': len(absentees.data),
+        'approved': len([a for a in absentees.data if a['status'] == 'approved']),
+        'pending': len([a for a in absentees.data if a['status'] == 'pending'])
+    }
+    
+    # Render template with data
+    return render_template('admin_absentees.html',
+                         absentees=absentees.data,
+                         stats=stats)
+```
+
+FORM HANDLING:
+--------------
+
+Frontend Form:
+```html
+<form method="POST" action="/absentee">
+    <input type="hidden" name="action" value="add_absentee">
+    <input type="text" name="roll_no" required>
+    <input type="text" name="name" required>
+    <button type="submit">Add</button>
+</form>
+```
+
+Backend Handler:
+```python
+@app.route('/absentee', methods=['POST'])
+def absentee_sheet():
+    action = request.form.get('action')
+    
+    if action == 'add_absentee':
+        roll_no = request.form.get('roll_no')
+        name = request.form.get('name')
+        # Process...
+        flash('Student added successfully')
+        return redirect(url_for('absentee_sheet'))
+```
+
+FLASH MESSAGES:
+---------------
+Flask's flash() function shows one-time messages.
+
+Backend:
+```python
+from flask import flash
+
+flash('Operation successful!', 'success')
+flash('Error occurred!', 'error')
+flash('Warning!', 'warning')
+flash('Info message', 'info')
+
+return redirect(url_for('some_page'))
+```
+
+Frontend (base.html):
+```html
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }}">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endif %}
+{% endwith %}
+```
+
+AJAX REQUESTS:
+--------------
+
+Frontend JavaScript:
+```javascript
+async function approveSelected() {
+    const ids = [1, 2, 3]; // Selected IDs
+    
+    try {
+        const response = await fetch('/api/absentees/approve', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ids: ids})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            // Update UI
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Network error:', error);
+    }
+}
+```
+
+Backend API:
+```python
+@app.route('/api/absentees/approve', methods=['POST'])
+def api_approve_absentees():
+    try:
+        data = request.get_json()
+        ids = data.get('ids', [])
+        
+        # Process...
+        
+        return jsonify({
+            'success': True,
+            'message': f'Approved {len(ids)} records'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+```
+
+URL GENERATION:
+---------------
+Flask's url_for() generates URLs dynamically.
+
+Template:
+```html
+<a href="{{ url_for('dashboard') }}">Dashboard</a>
+<a href="{{ url_for('admin_absentees', status='pending') }}">Pending</a>
+
+<form action="{{ url_for('absentee_sheet') }}" method="POST">
+    ...
+</form>
+```
+
+Backend:
+```python
+from flask import url_for
+
+return redirect(url_for('dashboard'))
+return redirect(url_for('admin_absentees', status='approved'))
+```
+
+FILE UPLOADS:
+-------------
+
+Frontend:
+```html
+<form method="POST" enctype="multipart/form-data" action="/upload">
+    <input type="file" name="file" accept=".xlsx,.xls">
+    <button type="submit">Upload</button>
+</form>
+```
+
+Backend:
+```python
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        flash('No file selected')
+        return redirect(request.url)
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        flash('No file selected')
+        return redirect(request.url)
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        
+        # Process file...
+        
+        flash('File uploaded successfully')
+        return redirect(url_for('dashboard'))
+```
+
+FILE DOWNLOADS:
+---------------
+
+Backend:
+```python
+from flask import send_file
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+    return send_file(filepath, as_attachment=True)
+```
+
+Or for in-memory files:
+```python
+from io import BytesIO
+
+content = generate_html_content()
+return send_file(
+    BytesIO(content.encode('utf-8')),
+    mimetype='text/html',
+    as_attachment=True,
+    download_name='attendance.html'
+)
+```
+
+STATIC FILES:
+-------------
+
+Template:
+```html
+<link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+<img src="{{ url_for('static', filename='images/logo.png') }}">
+```
+
+Flask automatically serves files from static/ directory.
+
+JAVASCRIPT INTEGRATION:
+-----------------------
+
+Inline in Template:
+```html
+<script>
+// Can access Jinja2 variables
+const userId = {{ session.user_id }};
+const role = "{{ session.role }}";
+
+// Generate URL with Flask
+const apiUrl = "{{ url_for('api_approve_absentees') }}";
+
+fetch(apiUrl, {
+    method: 'POST',
+    body: JSON.stringify({id: userId})
+});
+</script>
+```
+
+================================================================================
+10. API ENDPOINTS REFERENCE
+================================================================================
+
+PUBLIC ENDPOINTS (No Authentication Required):
+-----------------------------------------------
+
+GET /
+GET /login
+    - Display login page
+    - Returns: login.html
+
+POST /login
+    - Authenticate user
+    - Parameters: username, password
+    - Returns: Redirect to /dashboard or error
+
+GET /register
+    - Display registration form
+    - Returns: register.html
+
+POST /register
+    - Create new user account
+    - Parameters: email, full_name, password
+    - Returns: Redirect to /verify_otp
+
+GET /verify_otp
+    - Display OTP verification page
+    - Returns: verify_otp.html
+
+POST /verify_otp
+    - Verify OTP and activate account
+    - Parameters: otp
+    - Returns: Redirect to waiting page or login
+
+GET /logout
+    - Clear session and logout
+    - Returns: Redirect to /login
+
+AUTHENTICATED ENDPOINTS (Login Required):
+------------------------------------------
+
+GET /dashboard
+    - Main dashboard after login
+    - Returns: dashboard.html with user-specific data
+    - Shows different tiles based on role
+
+GET /upload
+    - File upload interface (Admin only)
+    - Returns: upload.html
+
+POST /upload
+    - Handle Excel file upload
+    - Parameters: file, academic_year, semester_type, degree_level, exam_type
+    - Returns: Redirect to /upload with success message
+
+GET /download
+    - Attendance sheet download interface
+    - Parameters: semester_id (query param)
+    - Returns: download.html with courses list
+
+POST /download
+    - Generate/preview attendance sheet
+    - Parameters: action, course_code, exam_date, semester_id
+    - Actions:
+        - preview: Returns HTML in new tab
+        - download: Returns HTML file download
+        - download_all: Returns ZIP file
+    - Returns: HTML or file download
+
+GET /absentee
+    - Mark absentees interface (Staff)
+    - Returns: absentee.html
+
+POST /absentee
+    - Handle absentee operations
+    - Parameters: action, [other params based on action]
+    - Actions:
+        - add_absentee: Add student to session list
+        - remove_absentee: Remove from session list
+        - preview_absentees: Generate preview HTML
+        - download_absentees: Download HTML file
+        - upload_to_admin: Submit to admin for approval
+        - clear_absentees: Clear session list
+    - Returns: Redirect or HTML
+
+GET /timetable
+    - Exam timetable management
+    - Returns: timetable.html
+
+POST /timetable
+    - Upload/manage timetable
+    - Returns: Redirect with message
+
+ADMIN ENDPOINTS (Admin Role Required):
+---------------------------------------
+
+GET /admin/users
+    - User management interface
+    - Returns: admin_users.html with user lists
+
+POST /admin/users/approve/<user_id>
+    - Approve pending user
+    - Returns: Redirect to /admin/users
+
+POST /admin/users/reject/<user_id>
+    - Reject pending user
+    - Returns: Redirect to /admin/users
+
+POST /admin/users/toggle/<user_id>
+    - Enable/disable user
+    - Returns: Redirect to /admin/users
+
+POST /admin/users/role/<user_id>
+    - Change user role
+    - Parameters: role
+    - Returns: Redirect to /admin/users
+
+POST /admin/users/delete/<user_id>
+    - Delete user permanently
+    - Returns: Redirect to /admin/users
+
+GET /admin/absentees
+    - Absentee management interface
+    - Parameters: exam_date, status, course_code (query params for filtering)
+    - Returns: admin_absentees.html
+
+POST /admin/absentees
+    - Handle absentee admin actions
+    - Parameters: action, [other params]
+    - Actions:
+        - preview_consolidated: Preview all approved absentees
+        - download_consolidated: Download all approved as HTML
+        - download_from_storage: Download from Supabase buckets
+    - Returns: HTML or file download
+
+API ENDPOINTS (AJAX - JSON Response):
+--------------------------------------
+
+POST /api/absentees/approve
+    - Approve selected absentees
+    - Body: {"ids": [1, 2, 3]}
+    - Returns: {"success": true, "message": "..."}
+
+POST /api/absentees/reject
+    - Reject selected absentees
+    - Body: {"ids": [1, 2, 3]}
+    - Returns: {"success": true, "message": "..."}
+
+POST /api/absentees/pending
+    - Set absentees back to pending
+    - Body: {"ids": [1, 2, 3]}
+    - Returns: {"success": true, "message": "..."}
+
+POST /api/absentees/delete
+    - Delete absentees permanently
+    - Body: {"ids": [1, 2, 3]}
+    - Returns: {"success": true, "message": "..."}
+
+GET /api/absentees/list
+    - Get filtered absentee list
+    - Parameters: status, exam_date, course_code (query params)
+    - Returns: {"success": true, "absentees": [...], "stats": {...}}
+
+ERROR HANDLING:
+---------------
+
+404 Not Found
+    - Returns: error.html or error_simple.html
+
+500 Internal Server Error
+    - Returns: error.html with error details (in development)
+
+All routes check authentication and authorization.
+Unauthorized access redirects to /login.
+Forbidden access (wrong role) redirects to /dashboard with error.
+
+================================================================================
+11. SECURITY MEASURES
+================================================================================
+
+1. PASSWORD SECURITY:
+   - Bcrypt hashing (via werkzeug.security)
+   - Salted hashing (unique salt per password)
+   - Never store plain passwords
+   - Hash comparison using check_password_hash()
+
+2. SESSION SECURITY:
+   - Encrypted session cookies
+   - Secret key for signing
+   - Expires after 24 hours
+   - Server-side session data
+
+3. INPUT VALIDATION:
+   - File type checking (allowed_file())
+   - Filename sanitization (secure_filename())
+   - SQL injection prevention (Supabase parameterized queries)
+   - XSS prevention (Jinja2 auto-escaping)
+
+4. AUTHENTICATION:
+   - Session-based authentication
+   - Login required decorators
+   - Role-based access control
+
+5. AUTHORIZATION:
+   - User role checking (admin vs staff)
+   - Feature access restriction
+   - Resource ownership validation
+
+6. FILE UPLOAD SECURITY:
+   - File size limit (16MB)
+   - Extension whitelist (.xlsx, .xls only)
+   - Secure filename handling
+   - Temporary storage in controlled directory
+
+7. DATABASE SECURITY:
+   - Supabase Row Level Security (RLS)
+   - Service role key for backend (not exposed)
+   - Parameterized queries (no raw SQL with user input)
+
+8. CORS & CSRF:
+   - Same-origin policy
+   - No CSRF token needed (same-origin requests)
+   - Flash messages prevent replay
+
+9. ERROR HANDLING:
+   - Generic error messages to users
+   - Detailed errors only in development
+   - No sensitive data in error messages
+
+10. ENVIRONMENT VARIABLES:
+    - Secret keys in .env (not in git)
+    - Database credentials in .env
+    - Production/development separation
+
+SECURITY BEST PRACTICES IMPLEMENTED:
+-------------------------------------
+✅ Password hashing
+✅ Session management
+✅ Input validation
+✅ File type checking
+✅ Role-based access
+✅ Environment variables
+✅ Error handling
+✅ Secure filename handling
+
+SECURITY IMPROVEMENTS NEEDED (For Production):
+-----------------------------------------------
+❌ HTTPS enforcement
+❌ CSRF token protection
+❌ Rate limiting
+❌ Account lockout after failed attempts
+❌ Two-factor authentication
+❌ Audit logging
+❌ SQL injection testing
+❌ Penetration testing
+❌ Security headers (CSP, HSTS, etc.)
+
+================================================================================
+12. DEPLOYMENT & HOSTING
+================================================================================
+
+LOCAL DEVELOPMENT:
+------------------
+
+Setup:
+1. Install Python 3.9+
+2. Create virtual environment:
+   ```
+   python -m venv venv
+   venv\Scripts\activate  (Windows)
+   source venv/bin/activate  (Linux/Mac)
+   ```
+3. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+4. Create .env file:
+   ```
+   SECRET_KEY=your-secret-key-here
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-anon-key
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   ```
+5. Run application:
+   ```
+   python app.py
+   or
+   python run.py
+   or
+   flask run
+   ```
+6. Access at http://127.0.0.1:5000
+
+VERCEL DEPLOYMENT (Serverless):
+--------------------------------
+
+1. Install Vercel CLI:
+   ```
+   npm install -g vercel
+   ```
+
+2. Create vercel.json:
+   ```json
+   {
+     "version": 2,
+     "builds": [
+       {
+         "src": "app.py",
+         "use": "@vercel/python"
+       }
+     ],
+     "routes": [
+       {
+         "src": "/(.*)",
+         "dest": "app.py"
+       }
+     ],
+     "env": {
+       "SECRET_KEY": "@secret-key",
+       "SUPABASE_URL": "@supabase-url",
+       "SUPABASE_ANON_KEY": "@supabase-anon-key"
+     }
+   }
+   ```
+
+3. Add environment variables in Vercel dashboard
+
+4. Deploy:
+   ```
+   vercel
+   ```
+
+5. Production deployment:
+   ```
+   vercel --prod
+   ```
+
+Considerations for Vercel:
+- Serverless (no persistent storage)
+- Use Supabase for all data
+- File uploads go to /tmp (temporary)
+- Consider Supabase Storage for file persistence
+
+HEROKU DEPLOYMENT:
+------------------
+
+1. Create Procfile:
+   ```
+   web: gunicorn app:app
+   ```
+
+2. Create runtime.txt:
+   ```
+   python-3.9.18
+   ```
+
+3. Install gunicorn:
+   ```
+   pip install gunicorn
+   pip freeze > requirements.txt
+   ```
+
+4. Create Heroku app:
+   ```
+   heroku create nitc-exam-cell
+   ```
+
+5. Set environment variables:
+   ```
+   heroku config:set SECRET_KEY=your-secret-key
+   heroku config:set SUPABASE_URL=your-url
+   heroku config:set SUPABASE_ANON_KEY=your-key
+   ```
+
+6. Deploy:
+   ```
+   git push heroku main
+   ```
+
+DOCKER DEPLOYMENT:
+------------------
+
+Dockerfile:
+```dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["python", "app.py"]
+```
+
+Build and run:
+```bash
+docker build -t nitc-exam-cell .
+docker run -p 5000:5000 --env-file .env nitc-exam-cell
+```
+
+PRODUCTION CHECKLIST:
+---------------------
+✅ Set DEBUG=False
+✅ Use strong SECRET_KEY
+✅ Enable HTTPS
+✅ Set up proper logging
+✅ Configure error monitoring (Sentry)
+✅ Set up backups (Supabase auto-backups)
+✅ Configure CORS if needed
+✅ Set up CDN for static files
+✅ Monitor performance
+✅ Set up CI/CD pipeline
+
+================================================================================
+13. KEY CODE PATTERNS & BEST PRACTICES
+================================================================================
+
+PATTERN 1: Route Handler Template
+----------------------------------
+```python
+@app.route('/endpoint', methods=['GET', 'POST'])
+def handler_function():
+    # 1. Authentication check
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # 2. Authorization check (if needed)
+    if session.get('role') != 'admin':
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
+    
+    # 3. GET request - display form
+    if request.method == 'GET':
+        # Fetch data
+        data = fetch_data_from_db()
+        # Render template
+        return render_template('template.html', data=data)
+    
+    # 4. POST request - process form
+    if request.method == 'POST':
+        # Get form data
+        value = request.form.get('field_name')
+        
+        # Validate input
+        if not value:
+            flash('Field required', 'error')
+            return redirect(request.url)
+        
+        # Process data
+        try:
+            result = process_data(value)
+            flash('Success!', 'success')
+            return redirect(url_for('success_page'))
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'error')
+            return redirect(request.url)
+```
+
+PATTERN 2: Database Query Pattern
+----------------------------------
+```python
+# SELECT with filters
+result = supabase.table('table_name')\
+    .select('*')\
+    .eq('column1', value1)\
+    .eq('column2', value2)\
+    .order('created_at', desc=True)\
+    .limit(10)\
+    .execute()
+
+# Check if data exists
+if result.data:
+    for row in result.data:
+        process(row)
+else:
+    handle_no_data()
+
+# INSERT
+result = supabase.table('table_name')\
+    .insert({'field': 'value'})\
+    .execute()
+
+# UPDATE
+result = supabase.table('table_name')\
+    .update({'status': 'approved'})\
+    .eq('id', record_id)\
+    .execute()
+
+# DELETE
+result = supabase.table('table_name')\
+    .delete()\
+    .eq('id', record_id)\
+    .execute()
+```
+
+PATTERN 3: Error Handling
+--------------------------
+```python
+try:
+    # Risky operation
+    result = perform_operation()
+    return result
+except SpecificException as e:
+    # Handle specific error
+    print(f'Specific error: {e}')
+    return handle_specific_error(e)
+except Exception as e:
+    # Handle general error
+    print(f'General error: {e}')
+    if app.debug:
+        raise  # Re-raise in development
+    return handle_general_error(e)
+finally:
+    # Cleanup (always runs)
+    cleanup_resources()
+```
+
+PATTERN 4: AJAX API Response
+-----------------------------
+```python
+@app.route('/api/endpoint', methods=['POST'])
+def api_endpoint():
+    try:
+        # Get JSON data
+        data = request.get_json()
+        
+        # Validate
+        if not data or 'required_field' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field'
+            }), 400
+        
+        # Process
+        result = process(data)
+        
+        # Success response
+        return jsonify({
+            'success': True,
+            'message': 'Operation successful',
+            'data': result
+        }), 200
+        
+    except Exception as e:
+        # Error response
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+```
+
+PATTERN 5: Form Validation
+---------------------------
+```python
+def validate_form():
+    errors = []
+    
+    # Check required fields
+    if not request.form.get('name'):
+        errors.append('Name is required')
+    
+    # Check format
+    email = request.form.get('email')
+    if email and not is_valid_email(email):
+        errors.append('Invalid email format')
+    
+    # Check value range
+    age = request.form.get('age', type=int)
+    if age and (age < 18 or age > 100):
+        errors.append('Age must be between 18 and 100')
+    
+    return errors
+
+# Usage
+errors = validate_form()
+if errors:
+    for error in errors:
+        flash(error, 'error')
+    return redirect(request.url)
+```
+
+BEST PRACTICES FOLLOWED:
+------------------------
+
+1. SEPARATION OF CONCERNS:
+   - Database logic in separate functions
+   - Template logic in Jinja2 templates
+   - Business logic in route handlers
+   - Utilities in helper modules
+
+2. DRY (Don't Repeat Yourself):
+   - Helper functions for common operations
+   - Template inheritance (base.html)
+   - Reusable CSS classes
+
+3. NAMING CONVENTIONS:
+   - snake_case for functions/variables
+   - PascalCase for classes
+   - CAPS for constants
+   - Descriptive names
+
+4. CODE ORGANIZATION:
+   - Group related routes
+   - Comments for complex logic
+   - Docstrings for functions
+   - Type hints (where used)
+
+5. ERROR HANDLING:
+   - Try-except blocks
+   - Specific exception handling
+   - User-friendly error messages
+   - Logging errors
+
+6. SECURITY:
+   - Input validation
+   - Password hashing
+   - Session management
+   - CSRF protection (where needed)
+
+7. PERFORMANCE:
+   - Database indexing
+   - Query optimization
+   - Caching (where applicable)
+   - Lazy loading
+
+8. TESTING:
+   - Test files in tests/ directory
+   - Unit tests for functions
+   - Integration tests for workflows
+   - Test coverage
+
+================================================================================
+14. INTERVIEW TALKING POINTS
+================================================================================
+
+INTRODUCTION:
+-------------
+"I developed an Exam Cell Attendance Management System for NITC using Flask,
+PostgreSQL (via Supabase), and vanilla JavaScript. The system automates the
+generation of attendance sheets and manages an approval workflow for absentee
+reports. It handles multiple semesters, degree programs, and courses with
+role-based access control for administrators and staff."
+
+PROJECT HIGHLIGHTS:
+-------------------
+
+1. FULL-STACK DEVELOPMENT:
+   "I built both frontend and backend, handling user authentication, database
+   design, API development, and responsive UI implementation. The frontend uses
+   server-side rendering with Jinja2 templates and dynamic interactions with
+   vanilla JavaScript."
+
+2. DATABASE DESIGN:
+   "I designed a relational schema with 5 main tables - users, semesters,
+   students, absentees, and exam_timetable. I implemented proper foreign key
+   relationships, indexes for query optimization, and Row Level Security
+   policies for data protection."
+
+3. AUTOMATED WORKFLOW:
+   "Staff can upload Excel files with student data, and the system automatically
+   parses and stores it. They can mark absentees and submit for approval. The
+   admin reviews submissions through an approval workflow with real-time status
+   updates without page reloads."
+
+4. SUPABASE INTEGRATION:
+   "I used Supabase as the backend-as-a-service, leveraging its PostgreSQL
+   database and storage buckets. The storage buckets (pending, approved, rejected)
+   act as a file-based audit trail for absentee submissions."
+
+5. SECURITY IMPLEMENTATION:
+   "I implemented bcrypt password hashing, session-based authentication,
+   role-based authorization, file upload validation, and input sanitization
+   to prevent common vulnerabilities like SQL injection and XSS."
+
+6. BUG FIXING & DEBUGGING:
+   "Recently fixed a tricky bug where the preview functionality wasn't working.
+   The issue was that browsers don't reliably handle POST requests with
+   formtarget='_blank'. I solved it by implementing a JavaScript solution that
+   dynamically creates and submits a form, ensuring the POST data reaches the
+   server correctly."
+
+7. REAL-TIME FEATURES:
+   "Implemented AJAX-based operations for approving/rejecting absentees,
+   allowing admins to perform bulk actions without page reloads. The UI
+   updates dynamically to reflect status changes."
+
+TECHNICAL QUESTIONS YOU MIGHT FACE:
+------------------------------------
+
+Q: Why Flask over Django?
+A: "Flask is lightweight and gave me flexibility in structure. For this
+   project, I didn't need Django's built-in admin panel or ORM since I was
+   using Supabase. Flask's simplicity allowed rapid development while meeting
+   all requirements."
+
+Q: How does the authentication work?
+A: "I use session-based authentication with Flask's secure sessions. Passwords
+   are hashed with bcrypt. After successful login, user details are stored in
+   the session cookie (encrypted with the secret key). Each route checks if
+   user_id exists in the session."
+
+Q: Why Supabase instead of traditional PostgreSQL?
+A: "Supabase provides PostgreSQL with additional features - auto-generated
+   REST API, real-time subscriptions, storage buckets, and Row Level Security.
+   It accelerated development by handling infrastructure while giving me full
+   SQL access when needed."
+
+Q: How do you handle file uploads?
+A: "Files are validated for type and size, then saved with secure filenames
+   using Werkzeug's secure_filename(). I parse Excel files with pandas, extract
+   student data, and insert it into the database. For deployment, files go to
+   temp storage, with metadata stored in the database."
+
+Q: What's the most challenging part you built?
+A: "The absentee approval workflow with three-way storage buckets (pending,
+   approved, rejected) and maintaining consistency between database records
+   and storage files. Also, implementing the bulk approval feature with
+   real-time UI updates without page refresh was challenging."
+
+Q: How would you scale this application?
+A: "Currently it's monolithic. For scaling, I'd:
+   1. Separate frontend (React/Next.js) from backend (REST API)
+   2. Add Redis for session caching
+   3. Implement database connection pooling
+   4. Use CDN for static assets
+   5. Add horizontal scaling with load balancer
+   6. Implement background job queues for file processing"
+
+Q: How do you ensure data integrity?
+A: "Database constraints (foreign keys, unique constraints, not null), input
+   validation on both frontend and backend, transaction handling for multi-step
+   operations, and backup strategy through Supabase's automatic backups."
+
+Q: What would you change if you rebuilt this?
+A: "I'd use a modern frontend framework like React or Next.js for better
+   component reusability and state management. I'd also implement a proper
+   microservices architecture, add comprehensive logging and monitoring,
+   implement CI/CD pipelines, and add automated tests with >80% coverage."
+
+SHOW YOUR VALUE:
+----------------
+1. "I documented the entire system thoroughly"
+2. "I follow Git best practices with descriptive commits"
+3. "I write clean, readable code with comments"
+4. "I handle errors gracefully with user-friendly messages"
+5. "I test edge cases and fix bugs systematically"
+6. "I'm open to feedback and continuously learning"
+
+PROJECT DEMONSTRATION FLOW:
+---------------------------
+1. Show dashboard - "This is role-based, different for admin and staff"
+2. Upload feature - "Admin uploads student data from Excel"
+3. Mark absentees - "Staff marks absent students for their courses"
+4. Admin approval - "Admin reviews and approves with real-time updates"
+5. Preview feature - "Show the fixed preview functionality"
+6. Show code - "Here's how I implemented the authentication..."
+7. Database - "This is the schema, notice the indexes for performance..."
+8. Mention testing - "I wrote test scripts to verify workflows"
+
+QUESTIONS TO ASK INTERVIEWER:
+------------------------------
+1. "What's your current tech stack?"
+2. "How do you handle deployment and CI/CD?"
+3. "What's your approach to code review?"
+4. "Do you follow agile/scrum methodology?"
+5. "What kind of projects would I work on?"
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+
+This document covers the COMPLETE technical architecture, implementation
+details, and workflows of the NITC Exam Cell Attendance Management System.
+
+Use this for interview preparation to understand every aspect of the project
+from A to Z.
+
+Good luck with your interview! 🚀
+
+================================================================================
