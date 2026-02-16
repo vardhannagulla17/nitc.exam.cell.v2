@@ -941,6 +941,50 @@ def api_get_courses(semester_id, program_level):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/sections/<semester_id>/<course_code>', methods=['GET'])
+def api_get_sections(semester_id, course_code):
+    """Get sections/batches for a specific course via JSON API"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        if USE_SUPABASE_DB and supabase:
+            # Get unique sections with their instructors
+            all_records = []
+            page_size = 1000
+            offset = 0
+            
+            while True:
+                result = supabase.table('students')\
+                    .select('timetable_batch, main_instructor')\
+                    .eq('semester_id', semester_id)\
+                    .eq('course_code', course_code)\
+                    .range(offset, offset + page_size - 1)\
+                    .execute()
+                if not result.data:
+                    break
+                all_records.extend(result.data)
+                if len(result.data) < page_size:
+                    break
+                offset += page_size
+            
+            # Get unique sections with their instructors
+            sections_dict = {}
+            for record in all_records:
+                batch = record.get('timetable_batch')
+                instructor = record.get('main_instructor', 'Unknown')
+                if batch and batch not in sections_dict:
+                    sections_dict[batch] = instructor
+            
+            # Convert to list and sort
+            sections = [{'code': code, 'instructor': instructor} for code, instructor in sorted(sections_dict.items())]
+            
+            return jsonify({'sections': sections}), 200
+        else:
+            return jsonify({'sections': []}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # ============================================
 # ABSENTEE MANAGEMENT API ENDPOINTS
@@ -1183,10 +1227,11 @@ def download_attendance():
         semester_id = request.form.get('semester_id')
         course_code = request.form.get('course_code')
         exam_date = request.form.get('exam_date')
+        section = request.form.get('section', 'all')  # Default to 'all' sections
         
         print(f"DEBUG: POST request received with action={action}")
         print(f"program_level={program_level}, semester_id={semester_id}")
-        print(f"course_code={course_code}, exam_date={exam_date}")
+        print(f"course_code={course_code}, exam_date={exam_date}, section={section}")
         
         if not semester_id:
             flash('Please select a semester!', 'error')
@@ -1245,8 +1290,8 @@ def download_attendance():
                         flash(f'Error generating ZIP: {message}', 'error')
                     
             elif action == 'preview' and course_code:
-                print(f"DEBUG: Generating preview for {course_code}")
-                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, program_level=program_level)
+                print(f"DEBUG: Generating preview for {course_code}, section={section}")
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, program_level=program_level, section=section)
                     
                 if html_content:
                     return html_content
@@ -1254,15 +1299,16 @@ def download_attendance():
                     flash(f'Error generating preview: {message}', 'error')
                     
             elif action == 'download' and course_code:
-                print(f"DEBUG: Generating download for {course_code}")
+                print(f"DEBUG: Generating download for {course_code}, section={section}")
                 if IS_VERCEL:
                     # For Vercel, generate in memory and send directly
-                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level)
+                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level, section=section)
                     if html_content:
                         # Create a proper filename for download
                         safe_course = secure_filename(str(course_code))
                         safe_date = secure_filename(str(exam_date))
-                        filename = f"Attendance_{safe_course}_{safe_date}.html"
+                        section_suffix = f"_{section}" if section != 'all' else ""
+                        filename = f"Attendance_{safe_course}{section_suffix}_{safe_date}.html"
                         return send_file(
                             BytesIO(html_content.encode('utf-8')),
                             mimetype='text/html',
@@ -1273,7 +1319,7 @@ def download_attendance():
                         flash(f'Error generating download: {message}', 'error')
                 else:
                     # For local, generate file and send
-                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, program_level=program_level)
+                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, program_level=program_level, section=section)
                     if filepath and os.path.exists(filepath):
                         return send_file(filepath, as_attachment=True)
                     else:

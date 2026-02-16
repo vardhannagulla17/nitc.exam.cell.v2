@@ -65,6 +65,16 @@
                         </select>
                     </div>
 
+                    <!-- Section/Batch -->
+                    <div class="form-field" id="section-field" style="display:none;">
+                        <label for="section">
+                            <i class="fas fa-users"></i> Section/Batch
+                        </label>
+                        <select name="section" id="section">
+                            <option value="all">All Sections</option>
+                        </select>
+                    </div>
+
                     <!-- Exam Date -->
                     <div class="form-field" id="date-field" style="display:none;">
                         <label for="exam_date">
@@ -131,6 +141,7 @@ const $ = id => document.getElementById(id);
 const programSelect = $('program_level');
 const semesterSelect = $('semester_id');
 const courseSelect = $('course_code');
+const sectionSelect = $('section');
 const dateInput = $('exam_date');
 const previewBtn = $('preview-btn');
 const downloadBtn = $('download-btn');
@@ -145,9 +156,11 @@ if (dateInput) {
 function updateVisibility() {
     const hasProgram = programSelect.value;
     const hasSemester = semesterSelect.value;
+    const hasCourse = courseSelect.value;
     
     $('semester-field').style.display = hasProgram ? 'block' : 'none';
     $('course-field').style.display = hasSemester ? 'block' : 'none';
+    $('section-field').style.display = hasCourse ? 'block' : 'none';
     $('date-field').style.display = hasSemester ? 'block' : 'none';
     $('action-buttons').style.display = hasSemester ? 'flex' : 'none';
 }
@@ -238,7 +251,7 @@ semesterSelect.addEventListener('change', async () => {
     updateButtons();
 });
 
-// Course/date change - update buttons
+// Course/date change - update buttons and fetch sections
 courseSelect.addEventListener('change', async () => {
     const semester = semesterSelect.value;
     const courseCode = courseSelect.value;
@@ -247,8 +260,29 @@ courseSelect.addEventListener('change', async () => {
     // Hide badge initially
     if (autoFillBadge) autoFillBadge.style.display = 'none';
     
-    // Try to auto-fill exam date from timetable
+    // Reset section dropdown
+    sectionSelect.innerHTML = '<option value="all">All Sections</option>';
+    
+    // Fetch sections and exam date if both semester and course are selected
     if (semester && courseCode) {
+        // Fetch sections for this course
+        try {
+            const sectionsResponse = await fetch(`/api/sections/${semester}/${encodeURIComponent(courseCode)}`);
+            const sectionsData = await sectionsResponse.json();
+            
+            if (sectionsData.sections && sectionsData.sections.length > 0) {
+                sectionsData.sections.forEach(section => {
+                    const option = document.createElement('option');
+                    option.value = section.code;
+                    option.textContent = `${section.code} (${section.instructor})`;
+                    sectionSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching sections:', error);
+        }
+        
+        // Try to auto-fill exam date from timetable
         try {
             const response = await fetch(`/api/exam-date/${semester}/${encodeURIComponent(courseCode)}`);
             const data = await response.json();
@@ -270,6 +304,7 @@ courseSelect.addEventListener('change', async () => {
         }
     }
     
+    updateVisibility();
     updateButtons();
 });
 

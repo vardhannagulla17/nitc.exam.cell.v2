@@ -12,8 +12,13 @@ from app.database import USE_SUPABASE_DB
 
 # Get download folder path
 
-def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None):
-    """Generate HTML attendance sheet for a specific course and date using NITC format"""
+def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None, section=None):
+    """Generate HTML attendance sheet for a specific course and date using NITC format
+    
+    Args:
+        section: Optional timetable_batch value (e.g., 'ME01', 'ME02') to filter students by section
+                If None or 'all', includes all sections
+    """
     # For Vercel deployment, always use in_memory=True
     IS_VERCEL = os.environ.get('VERCEL') in ('1', 'true', 'True', True)
     if IS_VERCEL or current_app.config.get('IS_VERCEL'):
@@ -54,9 +59,9 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             academic_year, semester_type, degree_level, exam_type, db_name = semester_info
         
         # Get students from database
-        students_sorted = get_sorted_students(semester_id, course_code, program_level) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code, program_level)
+        students_sorted = get_sorted_students(semester_id, course_code, program_level, section) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code, program_level, section)
         if not students_sorted:
-            return None, "No students found for this course"
+            return None, "No students found for this course" + (f" and section {section}" if section and section != 'all' else "")
         
         # Get course details
         course_title = students_sorted[0][2] if students_sorted else "Unknown Course"
@@ -278,8 +283,13 @@ Each course folder contains:
         return None, f"Error generating bulk attendance sheets: {str(e)}"
 
 # Helper functions
-def get_sorted_students(db_name_or_semester_id, course_code, program_level=None):
-    """Get sorted list of students for a course"""
+def get_sorted_students(db_name_or_semester_id, course_code, program_level=None, section=None):
+    """Get sorted list of students for a course
+    
+    Args:
+        section: Optional timetable_batch value to filter by section (e.g., 'ME01')
+                If None or 'all', returns all sections
+    """
     import sqlite3
     try:
         if USE_SUPABASE_DB and supabase:
@@ -292,13 +302,17 @@ def get_sorted_students(db_name_or_semester_id, course_code, program_level=None)
             offset = 0
             
             while True:
-                query = supabase.table('students').select('roll_no, name, course_title, main_instructor, program_name').eq('semester_id', semester_id).eq('course_code', course_code)
+                query = supabase.table('students').select('roll_no, name, course_title, main_instructor, program_name, timetable_batch').eq('semester_id', semester_id).eq('course_code', course_code)
                 
                 if program_level:
                     prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
                     prefix = prefix_map.get(program_level)
                     if prefix:
                         query = query.like('roll_no', f'{prefix}%')
+                
+                # Filter by section if specified
+                if section and section != 'all':
+                    query = query.eq('timetable_batch', section)
                 
                 result = query.range(offset, offset + page_size - 1).execute()
                 if not result.data:
