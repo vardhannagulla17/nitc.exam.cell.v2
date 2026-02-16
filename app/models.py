@@ -28,6 +28,35 @@ SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
 SMTP_FROM = os.environ.get('SMTP_FROM', '')
 SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'NITC Exam Cell')
 
+# Simple cache for query results (reduces database load)
+_query_cache = {}
+_cache_timestamps = {}
+
+def _get_cached(cache_key, fetch_function, ttl_seconds=300):
+    """
+    Simple caching helper to reduce database queries.
+    Args:
+        cache_key: Unique key for this cached data
+        fetch_function: Function to call if cache miss
+        ttl_seconds: Time to live in seconds (default 5 minutes)
+    """
+    now = datetime.now()
+    
+    # Check if we have cached data
+    if cache_key in _query_cache and cache_key in _cache_timestamps:
+        cached_time = _cache_timestamps[cache_key]
+        age = (now - cached_time).total_seconds()
+        
+        # Return cached data if still fresh
+        if age < ttl_seconds:
+            return _query_cache[cache_key]
+    
+    # Cache miss or expired - fetch fresh data
+    data = fetch_function()
+    _query_cache[cache_key] = data
+    _cache_timestamps[cache_key] = now
+    return data
+
 def generate_otp():
     """Generate a random 6-digit OTP"""
     return ''.join(random.choices(string.digits, k=OTP_LENGTH))
@@ -1076,25 +1105,48 @@ def get_semesters_for_program_level(program_level=None):
         return semesters
 
 def get_all_semesters():
-    """Get all available semesters that have students"""
+    """Get all available semesters that have students - OPTIMIZED"""
+    
+    # Use cache to avoid repeated queries (10 minute TTL)
+    return _get_cached('all_semesters', _fetch_semesters_with_students, ttl_seconds=600)
+
+def _fetch_semesters_with_students():
+    """Internal function to fetch semesters with students (called when cache expires)"""
     if USE_SUPABASE_DB and supabase:
         try:
+            # OPTIMIZED: Single query to get semesters along with student counts
+            # This replaces the N+1 query pattern (1 query for semesters + N queries for student counts)
+            
             # Get all semesters
             result = supabase.table('semesters').select('id, academic_year, semester_type, degree_level, exam_type').order('academic_year', desc=True).order('semester_type').execute()
             
-            # Filter to only include semesters that have students
-            semesters_with_students = []
-            for s in result.data:
-                # Check if this semester has any students
-                student_check = supabase.table('students').select('id', count='exact').eq('semester_id', s['id']).limit(1).execute()
-                if student_check.count and student_check.count > 0:
-                    semesters_with_students.append((s['id'], s['academic_year'], s['semester_type'], s['degree_level'], s['exam_type']))
+            if not result.data:
+                return []
             
-            return semesters_with_students
+            # Get student counts for all semesters in a single query using RPC or aggregation
+            # For now, we'll use a more efficient approach: get distinct semester_ids from students table
+            semester_ids_result = supabase.table('students').select('semester_id').execute()
+            
+            if semester_ids_result.data:
+                # Get unique semester IDs that have students
+                semester_ids_with_students = set(row['semester_id'] for row in semester_ids_result.data if row.get('semester_id'))
+                
+                # Filter semesters to only those with students
+                semesters_with_students = [
+                    (s['id'], s['academic_year'], s['semester_type'], s['degree_level'], s['exam_type'])
+                    for s in result.data
+                    if s['id'] in semester_ids_with_students
+                ]
+                
+                return semesters_with_students
+            
+            return []
+            
         except Exception as e:
             print(f"Error getting semesters: {e}")
             return []
     else:
+        # SQLite fallback (local development)
         conn = sqlite3.connect('exam_cell.db')
         cursor = conn.cursor()
         cursor.execute('SELECT id, academic_year, semester_type, degree_level, exam_type FROM semesters ORDER BY academic_year DESC, semester_type')
