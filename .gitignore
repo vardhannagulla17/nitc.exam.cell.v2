@@ -163,3 +163,8 @@ logs/*
 
 # Generated files
 students_*.db
+
+# MATLAB installation files (not part of project)
+_temp_matlab_R2025b_Windows/
+matlab_R2025b_Windows.exe
+*.exe

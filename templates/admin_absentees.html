@@ -50,7 +50,7 @@
             </div>
         </div>
         <div style="padding: 1rem;">
-            <form method="POST" action="{{ url_for('admin_absentees') }}" style="display: flex; gap: 1rem; align-items: center;">
+            <form method="POST" action="{{ url_for('admin_absentees') }}" style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
                 <div class="form-field" style="flex: 1;">
                     <label for="storage_date"><i class="fas fa-calendar"></i> Filter by Date (optional)</label>
                     <input type="date" name="exam_date" id="storage_date" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
@@ -59,6 +59,38 @@
                     <i class="fas fa-cloud-download-alt"></i> Download from Cloud Storage
                 </button>
             </form>
+            
+            <!-- Bucket Management Section -->
+            <div style="border-top: 1px solid #e5e7eb; padding-top: 1rem;">
+                <h3 style="margin-bottom: 0.75rem; color: #374151; font-size: 0.95rem;">
+                    <i class="fas fa-database"></i> Bucket Management
+                </h3>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <form method="POST" action="{{ url_for('clear_bucket_page') }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to clear the PENDING bucket? This will permanently delete {{ storage_stats.pending_files }} file(s).');">
+                        <button type="submit" name="action" value="clear_pending" class="btn btn-warning" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: linear-gradient(135deg, #f59e0b, #d97706); border: none;">
+                            <i class="fas fa-trash-alt"></i> Clear Pending ({{ storage_stats.pending_files }})
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('clear_bucket_page') }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to clear the APPROVED bucket? This will permanently delete {{ storage_stats.approved_files }} file(s).');">
+                        <button type="submit" name="action" value="clear_approved" class="btn btn-warning" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: linear-gradient(135deg, #10b981, #059669); border: none; color: white;">
+                            <i class="fas fa-trash-alt"></i> Clear Approved ({{ storage_stats.approved_files }})
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('clear_bucket_page') }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to clear the REJECTED bucket? This will permanently delete {{ storage_stats.rejected_files }} file(s).');">
+                        <button type="submit" name="action" value="clear_rejected" class="btn btn-warning" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: linear-gradient(135deg, #ef4444, #dc2626); border: none; color: white;">
+                            <i class="fas fa-trash-alt"></i> Clear Rejected ({{ storage_stats.rejected_files }})
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('clear_bucket_page') }}" style="display: inline; margin-left: auto;" onsubmit="return confirm('⚠️ WARNING: This will permanently delete ALL files from ALL buckets (Pending, Approved, and Rejected). This action cannot be undone!\n\nTotal files to be deleted: {{ storage_stats.pending_files + storage_stats.approved_files + storage_stats.rejected_files }}\n\nAre you absolutely sure?');">
+                        <button type="submit" name="action" value="clear_all" class="btn btn-danger" style="padding: 0.5rem 1.5rem; font-size: 0.85rem;">
+                            <i class="fas fa-exclamation-triangle"></i> Clear ALL Buckets
+                        </button>
+                    </form>
+                </div>
+                <p style="margin-top: 0.5rem; color: #6b7280; font-size: 0.8rem; font-style: italic;">
+                    <i class="fas fa-info-circle"></i> Clearing a bucket will permanently delete all files from cloud storage. This action cannot be undone.
+                </p>
+            </div>
         </div>
     </div>
     {% endif %}

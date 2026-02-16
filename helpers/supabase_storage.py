@@ -370,6 +370,57 @@ class AbsenteeStorage:
         except Exception as e:
             print(f"Error deleting from pending: {str(e)}")
             return False
+    
+    def clear_bucket(self, bucket_name: str) -> tuple:
+        """
+        Delete all files from a specific bucket
+        Returns: (success: bool, message: str, deleted_count: int)
+        """
+        if not self.client:
+            return False, "Supabase client not initialized", 0
+        
+        try:
+            # List all files in the bucket
+            files = self.client.storage.from_(bucket_name).list()
+            file_list = [f.get('name') for f in files if f.get('name') and not f['name'].endswith('/')]
+            
+            if not file_list:
+                return True, f"No files to delete in {bucket_name} bucket", 0
+            
+            # Delete all files
+            result = self.client.storage.from_(bucket_name).remove(file_list)
+            deleted_count = len(file_list)
+            
+            return True, f"Successfully deleted {deleted_count} files from {bucket_name} bucket", deleted_count
+            
+        except Exception as e:
+            error_msg = f"Error clearing {bucket_name} bucket: {str(e)}"
+            print(error_msg)
+            return False, error_msg, 0
+    
+    def clear_pending_bucket(self) -> tuple:
+        """Clear all files from pending_absentee bucket"""
+        return self.clear_bucket(PENDING_ABSENTEE_BUCKET)
+    
+    def clear_approved_bucket(self) -> tuple:
+        """Clear all files from approved_absentee bucket"""
+        return self.clear_bucket(APPROVED_ABSENTEE_BUCKET)
+    
+    def clear_rejected_bucket(self) -> tuple:
+        """Clear all files from rejected_absentee bucket"""
+        return self.clear_bucket(REJECTED_ABSENTEE_BUCKET)
+    
+    def clear_all_absentee_buckets(self) -> dict:
+        """
+        Clear all absentee buckets (pending, approved, rejected)
+        Returns: dict with results for each bucket
+        """
+        results = {
+            'pending': self.clear_pending_bucket(),
+            'approved': self.clear_approved_bucket(),
+            'rejected': self.clear_rejected_bucket()
+        }
+        return results
 
 
 # Global instance for absentee storage

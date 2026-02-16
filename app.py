@@ -1881,6 +1881,95 @@ def admin_absentees():
                          storage_stats=storage_stats)
 
 
+@app.route('/clear_bucket/<bucket_type>', methods=['POST'])
+def clear_bucket(bucket_type):
+    """Clear all files from a specific bucket"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    # Only admin can clear buckets
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': 'Access denied. Only administrators can clear buckets.'}), 403
+    
+    if not USE_SUPABASE_DB or not supabase:
+        return jsonify({'success': False, 'message': 'Database not configured.'}), 500
+    
+    # Validate bucket type
+    valid_buckets = ['pending', 'approved', 'rejected', 'all']
+    if bucket_type not in valid_buckets:
+        return jsonify({'success': False, 'message': f'Invalid bucket type. Must be one of: {", ".join(valid_buckets)}'}), 400
+    
+    try:
+        results = {}
+        
+        if bucket_type == 'all':
+            # Clear all absentee buckets
+            results = absentee_storage.clear_all_absentee_buckets()
+            total_deleted = sum(r[2] for r in results.values())
+            
+            return jsonify({
+                'success': True,
+                'message': f'Successfully cleared all absentee buckets. Total files deleted: {total_deleted}',
+                'details': {
+                    'pending': {'count': results['pending'][2], 'message': results['pending'][1]},
+                    'approved': {'count': results['approved'][2], 'message': results['approved'][1]},
+                    'rejected': {'count': results['rejected'][2], 'message': results['rejected'][1]}
+                }
+            })
+        else:
+            # Clear specific bucket
+            if bucket_type == 'pending':
+                success, message, count = absentee_storage.clear_pending_bucket()
+            elif bucket_type == 'approved':
+                success, message, count = absentee_storage.clear_approved_bucket()
+            elif bucket_type == 'rejected':
+                success, message, count = absentee_storage.clear_rejected_bucket()
+            
+            if success:
+                return jsonify({'success': True, 'message': message, 'deleted_count': count})
+            else:
+                return jsonify({'success': False, 'message': message}), 500
+                
+    except Exception as e:
+        print(f"Error clearing bucket: {e}")
+        return jsonify({'success': False, 'message': f'Error clearing bucket: {str(e)}'}), 500
+
+
+@app.route('/clear_bucket_page', methods=['GET', 'POST'])
+def clear_bucket_page():
+    """Admin page to clear storage buckets"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Only admin can access this page
+    if session.get('role') != 'admin':
+        flash('Access denied. Only administrators can access this page.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Handle POST actions
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'clear_pending':
+            success, message, count = absentee_storage.clear_pending_bucket()
+            flash(message, 'success' if success else 'error')
+        elif action == 'clear_approved':
+            success, message, count = absentee_storage.clear_approved_bucket()
+            flash(message, 'success' if success else 'error')
+        elif action == 'clear_rejected':
+            success, message, count = absentee_storage.clear_rejected_bucket()
+            flash(message, 'success' if success else 'error')
+        elif action == 'clear_all':
+            results = absentee_storage.clear_all_absentee_buckets()
+            total_deleted = sum(r[2] for r in results.values())
+            flash(f'Cleared all buckets. Total files deleted: {total_deleted}', 'success')
+        
+        return redirect(url_for('admin_absentees'))
+    
+    # For GET, redirect to admin absentees page
+    return redirect(url_for('admin_absentees'))
+
+
 def generate_consolidated_absentee_html(absentees):
     """Generate consolidated HTML for all approved absentees grouped by course"""
     from helpers.utils import sort_by_roll_number
