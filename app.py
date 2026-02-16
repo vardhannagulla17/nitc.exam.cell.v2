@@ -284,10 +284,23 @@ def get_database_usage_stats():
             semesters = supabase.table('semesters').select('id, academic_year, semester_type, degree_level, exam_type').execute()
             
             for sem in semesters.data:
-                students = supabase.table('students').select('id').eq('semester_id', sem['id']).execute()
+                # Handle pagination for student count per semester
+                student_count = 0
+                page_size = 1000
+                offset = 0
+                
+                while True:
+                    students = supabase.table('students').select('id').eq('semester_id', sem['id']).range(offset, offset + page_size - 1).execute()
+                    if not students.data:
+                        break
+                    student_count += len(students.data)
+                    if len(students.data) < page_size:
+                        break
+                    offset += page_size
+                
                 semester_breakdown.append({
                     'name': f"{sem['academic_year']} {sem['semester_type']} {sem['degree_level']} {sem['exam_type']}",
-                    'count': len(students.data) if students.data else 0
+                    'count': student_count
                 })
             
             # Get total counts
@@ -1331,17 +1344,31 @@ def absentee_sheet():
     all_courses = []
     if USE_SUPABASE_DB and supabase:
         try:
-            response = supabase.table('students').select('course_code, course_title').execute()
-            if response.data:
+            # Handle pagination - Supabase has 1000 record default limit
+            all_students = []
+            page_size = 1000
+            offset = 0
+            
+            while True:
+                response = supabase.table('students').select('course_code, course_title').range(offset, offset + page_size - 1).execute()
+                if not response.data:
+                    break
+                all_students.extend(response.data)
+                if len(response.data) < page_size:
+                    break
+                offset += page_size
+            
+            if all_students:
                 # Create unique set of courses
                 unique_courses = {}
-                for row in response.data:
+                for row in all_students:
                     code = row.get('course_code')
                     title = row.get('course_title')
                     if code and title and code not in unique_courses:
                         unique_courses[code] = title
                 # Convert to sorted list of tuples
                 all_courses = sorted([(code, title) for code, title in unique_courses.items()])
+                print(f"DEBUG: Loaded {len(all_courses)} unique courses for absentee sheet (from {len(all_students)} students)")
         except Exception as e:
             print(f"Error loading courses: {e}")
             flash('Error loading courses from database.', 'error')
