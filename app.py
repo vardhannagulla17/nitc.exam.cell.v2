@@ -1437,14 +1437,14 @@ def absentee_sheet():
                 flash('Please select a course.', 'error')
             elif USE_SUPABASE_DB and supabase:
                 try:
-                    # Build query with optional section filter
+                    # Build query with optional section filter (timetable_batch column)
                     query = supabase.table('students')\
-                        .select('roll_no, name, course_code, course_title, section')\
+                        .select('roll_no, name, course_code, course_title, timetable_batch')\
                         .eq('course_code', course_code)
                     
                     # Add section filter if specified
                     if section:
-                        query = query.eq('section', section)
+                        query = query.eq('timetable_batch', section)
                     
                     response = query.order('roll_no').execute()
                     
@@ -1514,10 +1514,10 @@ def absentee_sheet():
                 selected_section = section if section else None
                 try:
                     query = supabase.table('students')\
-                        .select('roll_no, name, course_code, course_title, section')\
+                        .select('roll_no, name, course_code, course_title, timetable_batch')\
                         .eq('course_code', course_code)
                     if section:
-                        query = query.eq('section', section)
+                        query = query.eq('timetable_batch', section)
                     response = query.order('roll_no').execute()
                     if response.data:
                         course_students = response.data
