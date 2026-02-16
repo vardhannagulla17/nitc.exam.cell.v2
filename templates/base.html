@@ -22,6 +22,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     {% block extra_css %}{% endblock %}
     {% block head %}{% endblock %}
+    
+    <!-- Vercel Analytics - Track page views and performance -->
+    <script defer src="https://va.vercel-scripts.com/v1/script.js"></script>
+    <!-- Vercel Speed Insights - Monitor site performance -->
+    <script defer src="https://va.vercel-scripts.com/v1/speed-insights/script.js"></script>
 </head>
 <body>
     {% if session.user_id %}
