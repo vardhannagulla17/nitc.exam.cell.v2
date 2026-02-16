@@ -141,7 +141,9 @@ class AbsenteeStorage:
         """Initialize the Supabase client with current environment variables"""
         self._initialized = True
         url = os.environ.get('SUPABASE_URL')
-        key = os.environ.get('SUPABASE_ANON_KEY')
+        # Use SERVICE_ROLE_KEY for admin operations like deleting files
+        # Fall back to ANON_KEY if service role key not available
+        key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_ANON_KEY')
         
         if SUPABASE_AVAILABLE and url and key:
             try:
@@ -381,21 +383,38 @@ class AbsenteeStorage:
         
         try:
             # List all files in the bucket
+            print(f"[DEBUG] Listing files in bucket: {bucket_name}")
             files = self.client.storage.from_(bucket_name).list()
+            print(f"[DEBUG] Raw files response: {files}")
+            
             file_list = [f.get('name') for f in files if f.get('name') and not f['name'].endswith('/')]
+            print(f"[DEBUG] Files to delete: {file_list}")
             
             if not file_list:
                 return True, f"No files to delete in {bucket_name} bucket", 0
             
             # Delete all files
+            print(f"[DEBUG] Attempting to delete {len(file_list)} files from {bucket_name}")
             result = self.client.storage.from_(bucket_name).remove(file_list)
+            print(f"[DEBUG] Delete result: {result}")
+            
             deleted_count = len(file_list)
             
-            return True, f"Successfully deleted {deleted_count} files from {bucket_name} bucket", deleted_count
+            # Verify deletion
+            verification = self.client.storage.from_(bucket_name).list()
+            remaining = [f for f in verification if f.get('name') and not f['name'].endswith('/')]
+            print(f"[DEBUG] Files remaining after deletion: {len(remaining)}")
+            
+            if len(remaining) == 0:
+                return True, f"Successfully deleted {deleted_count} files from {bucket_name} bucket", deleted_count
+            else:
+                return False, f"Attempted to delete {deleted_count} files but {len(remaining)} remain in {bucket_name} bucket", deleted_count
             
         except Exception as e:
             error_msg = f"Error clearing {bucket_name} bucket: {str(e)}"
-            print(error_msg)
+            print(f"[ERROR] {error_msg}")
+            import traceback
+            traceback.print_exc()
             return False, error_msg, 0
     
     def clear_pending_bucket(self) -> tuple:
