@@ -18,40 +18,97 @@
                     <p>Select course and enter roll number</p>
                 </div>
 
-                <form method="POST" action="/absentee" style="padding: 1.5rem;">
-                    <input type="hidden" name="action" value="search_student">
+                <form method="POST" action="/absentee" id="courseSelectionForm" style="padding: 1.5rem;">
+                    <input type="hidden" name="action" value="load_students">
                     
                     <div class="form-field">
-                        <label for="course_code">
-                            <i class="fas fa-book"></i> Select Course
+                        <label for="course_search">
+                            <i class="fas fa-book"></i> Search Course (Type code or name)
                             {% if all_courses %}
                             <span style="color: #10b981; font-size: 0.875rem;">({{ all_courses|length }} courses)</span>
                             {% else %}
                             <span style="color: #ef4444; font-size: 0.875rem;">(Upload Excel file first)</span>
                             {% endif %}
                         </label>
-                        <select name="course_code" id="course_code" required
-                                style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
-                            <option value="">-- Select a Course --</option>
-                            {% for code, title in all_courses %}
-                            <option value="{{ code }}">{{ code }} - {{ title }}</option>
-                            {% endfor %}
-                        </select>
+                        <div style="position: relative;">
+                            <input type="text" 
+                                   id="course_search" 
+                                   name="course_search"
+                                   placeholder="Type course code or subject name..."
+                                   autocomplete="off"
+                                   value="{{ selected_course_code if selected_course_code else '' }}"
+                                   style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                            <input type="hidden" name="course_code" id="course_code" value="{{ selected_course_code if selected_course_code else '' }}">
+                            <div id="course_dropdown" 
+                                 style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; border-top: none; border-radius: 0 0 6px 6px; max-height: 300px; overflow-y: auto; display: none; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="form-field">
-                        <label for="roll_no">
-                            <i class="fas fa-id-card"></i> Roll Number
+                    <div class="form-field" id="section_field" style="display: none;">
+                        <label for="section">
+                            <i class="fas fa-users"></i> Section (Optional - leave empty for all students)
                         </label>
-                        <input type="text" name="roll_no" id="roll_no" 
-                               placeholder="e.g., B210001ME" required
+                        <input type="text" name="section" id="section" 
+                               placeholder="e.g., A1, B2 (optional)"
                                style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; text-transform: uppercase;">
                     </div>
 
                     <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
-                        <i class="fas fa-search"></i> Search Student
+                        <i class="fas fa-users"></i> Load All Students
                     </button>
                 </form>
+
+                <!-- Students List for Selection -->
+                {% if course_students %}
+                <div style="margin-top: 1.5rem; padding: 1.5rem; background: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px;">
+                    <h3 style="color: #1e40af; margin-bottom: 1rem;">
+                        <i class="fas fa-list-ul"></i> Students in {{ selected_course_code }}
+                        {% if selected_section %}(Section: {{ selected_section }}){% endif %}
+                    </h3>
+                    <p style="font-size: 0.9rem; color: #475569; margin-bottom: 1rem;">
+                        Select students to mark absent ({{ course_students|length }} students found)
+                    </p>
+                    
+                    <form method="POST" action="/absentee">
+                        <input type="hidden" name="action" value="add_multiple_absentees">
+                        <input type="hidden" name="course_code" value="{{ selected_course_code }}">
+                        <input type="hidden" name="section" value="{{ selected_section if selected_section else '' }}">
+                        
+                        <div style="max-height: 400px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #cbd5e1; border-radius: 6px; background: white;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead style="background: #f1f5f9; position: sticky; top: 0;">
+                                    <tr>
+                                        <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #cbd5e1; width: 60px;">
+                                            <input type="checkbox" id="select_all" onclick="toggleAllStudents(this)" 
+                                                   style="width: 18px; height: 18px; cursor: pointer;">
+                                        </th>
+                                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #cbd5e1;">Roll No</th>
+                                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #cbd5e1;">Name</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in course_students %}
+                                    <tr style="border-bottom: 1px solid #f3f4f6;">
+                                        <td style="padding: 0.75rem; text-align: center;">
+                                            <input type="checkbox" name="selected_students" value="{{ student.roll_no }}|{{ student.name }}" 
+                                                   class="student-checkbox"
+                                                   style="width: 18px; height: 18px; cursor: pointer;">
+                                        </td>
+                                        <td style="padding: 0.75rem;">{{ student.roll_no }}</td>
+                                        <td style="padding: 0.75rem;">{{ student.name }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-success" style="width: 100%;">
+                            <i class="fas fa-user-times"></i> Mark Selected as Absent
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
 
                 <!-- Student Info Display -->
                 {% if student_info %}
@@ -181,22 +238,170 @@
 </div>
 
 <script>
+// Course data for search
+const allCourses = [
+    {% for code, title in all_courses %}
+    { code: "{{ code }}", title: "{{ title }}" },
+    {% endfor %}
+];
+
+// Cookie management functions
+function setCookie(name, value, days) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires.toUTCString() + ';path=/';
+}
+
+function getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for(let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) == 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+    }
+    return null;
+}
+
 // Set today's date as default
 document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.getElementById('exam_date');
-    if (dateInput && !dateInput.value) {
-        const today = new Date().toISOString().split('T')[0];
-        dateInput.value = today;
+    if (dateInput) {
+        // Try to load from cookie first
+        const savedDate = getCookie('last_exam_date');
+        if (savedDate && !dateInput.value) {
+            dateInput.value = savedDate;
+        } else if (!dateInput.value) {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
+        }
+        // Save date when changed
+        dateInput.addEventListener('change', function() {
+            setCookie('last_exam_date', this.value, 30);
+        });
     }
     
-    // Auto-uppercase roll number
-    const rollInput = document.getElementById('roll_no');
-    if (rollInput) {
-        rollInput.addEventListener('input', function() {
+    // Load saved semester
+    const semesterInput = document.getElementById('semester_id');
+    if (semesterInput) {
+        const savedSemester = getCookie('last_semester');
+        if (savedSemester && !semesterInput.value) {
+            semesterInput.value = savedSemester;
+        }
+        semesterInput.addEventListener('change', function() {
+            setCookie('last_semester', this.value, 30);
+        });
+    }
+    
+    // Auto-uppercase section input
+    const sectionInput = document.getElementById('section');
+    if (sectionInput) {
+        sectionInput.addEventListener('input', function() {
             this.value = this.value.toUpperCase();
         });
     }
+    
+    // Initialize searchable course dropdown
+    initCourseSearch();
 });
+
+// Searchable course dropdown
+function initCourseSearch() {
+    const searchInput = document.getElementById('course_search');
+    const courseCodeInput = document.getElementById('course_code');
+    const dropdown = document.getElementById('course_dropdown');
+    const sectionField = document.getElementById('section_field');
+    
+    if (!searchInput || !dropdown) return;
+    
+    // Load saved course from cookie
+    const savedCourse = getCookie('last_course_code');
+    if (savedCourse && !searchInput.value) {
+        const course = allCourses.find(c => c.code === savedCourse);
+        if (course) {
+            searchInput.value = savedCourse + ' - ' + course.title;
+            courseCodeInput.value = savedCourse;
+            sectionField.style.display = 'block';
+        }
+    }
+    
+    searchInput.addEventListener('focus', function() {
+        showAllCourses();
+    });
+    
+    searchInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        
+        if (query === '') {
+            showAllCourses();
+        } else {
+            const filtered = allCourses.filter(course => 
+                course.code.toLowerCase().includes(query) || 
+                course.title.toLowerCase().includes(query)
+            );
+            displayCourseResults(filtered);
+        }
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+}
+
+function showAllCourses() {
+    displayCourseResults(allCourses);
+}
+
+function displayCourseResults(courses) {
+    const dropdown = document.getElementById('course_dropdown');
+    
+    if (courses.length === 0) {
+        dropdown.innerHTML = '<div style="padding: 1rem; color: #6b7280; text-align: center;">No courses found</div>';
+        dropdown.style.display = 'block';
+        return;
+    }
+    
+    let html = '';
+    courses.forEach(course => {
+        html += `<div class="course-option" 
+                      onclick="selectCourse('${course.code}', '${course.title.replace(/'/g, "\\'")}')"
+                      style="padding: 0.75rem; cursor: pointer; border-bottom: 1px solid #f3f4f6; transition: background 0.2s;"
+                      onmouseover="this.style.background='#f3f4f6'"
+                      onmouseout="this.style.background='white'">
+                    <div style="font-weight: 600; color: #1f2937;">${course.code}</div>
+                    <div style="font-size: 0.875rem; color: #6b7280;">${course.title}</div>
+                 </div>`;
+    });
+    
+    dropdown.innerHTML = html;
+    dropdown.style.display = 'block';
+}
+
+function selectCourse(code, title) {
+    const searchInput = document.getElementById('course_search');
+    const courseCodeInput = document.getElementById('course_code');
+    const dropdown = document.getElementById('course_dropdown');
+    const sectionField = document.getElementById('section_field');
+    
+    searchInput.value = code + ' - ' + title;
+    courseCodeInput.value = code;
+    dropdown.style.display = 'none';
+    sectionField.style.display = 'block';
+    
+    // Save to cookie
+    setCookie('last_course_code', code, 30);
+}
+
+// Toggle all students checkbox
+function toggleAllStudents(checkbox) {
+    const studentCheckboxes = document.querySelectorAll('.student-checkbox');
+    studentCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+}
 
 // Preview function - opens in new tab
 function previewAbsentees() {

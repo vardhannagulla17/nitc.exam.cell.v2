@@ -1421,11 +1421,110 @@ def absentee_sheet():
     
     # Handle POST actions
     student_info = None
+    course_students = None
+    selected_course_code = None
+    selected_section = None
     
     if request.method == 'POST':
         action = request.form.get('action')
         
-        if action == 'search_student':
+        if action == 'load_students':
+            # Load all students for a selected course
+            course_code = request.form.get('course_code', '').strip()
+            section = request.form.get('section', '').strip().upper()
+            
+            if not course_code:
+                flash('Please select a course.', 'error')
+            elif USE_SUPABASE_DB and supabase:
+                try:
+                    # Build query
+                    query = supabase.table('students')\
+                        .select('roll_no, name, course_code, course_title, section')\
+                        .eq('course_code', course_code)
+                    
+                    # Add section filter if specified
+                    if section:
+                        query = query.eq('section', section)
+                    
+                    response = query.order('roll_no').execute()
+                    
+                    if response.data and len(response.data) > 0:
+                        course_students = response.data
+                        selected_course_code = course_code
+                        selected_section = section if section else None
+                        flash(f'Loaded {len(course_students)} students from {course_code}' + 
+                              (f' (Section: {section})' if section else ''), 'success')
+                    else:
+                        flash(f'No students found in course {course_code}' + 
+                              (f' section {section}' if section else ''), 'error')
+                except Exception as e:
+                    print(f"Error loading students: {e}")
+                    flash('Error loading students from database.', 'error')
+        
+        elif action == 'add_multiple_absentees':
+            # Add multiple selected students to absentee list
+            course_code = request.form.get('course_code', '').strip()
+            section = request.form.get('section', '').strip().upper()
+            selected_students = request.form.getlist('selected_students')
+            
+            if not selected_students:
+                flash('No students selected.', 'warning')
+            else:
+                added_count = 0
+                for student_data in selected_students:
+                    # Parse student data (format: "roll_no|name")
+                    try:
+                        roll_no, name = student_data.split('|', 1)
+                        
+                        # Get course title from database
+                        response = supabase.table('students')\
+                            .select('course_title')\
+                            .eq('course_code', course_code)\
+                            .eq('roll_no', roll_no)\
+                            .limit(1)\
+                            .execute()
+                        
+                        course_title = response.data[0]['course_title'] if response.data else ''
+                        
+                        # Check if student already in list
+                        already_added = any(
+                            a['roll_no'] == roll_no and a['course_code'] == course_code 
+                            for a in session['absentees']
+                        )
+                        
+                        if not already_added:
+                            session['absentees'].append({
+                                'roll_no': roll_no,
+                                'name': name,
+                                'course_code': course_code,
+                                'course_title': course_title
+                            })
+                            added_count += 1
+                    except Exception as e:
+                        print(f"Error processing student {student_data}: {e}")
+                
+                session.modified = True
+                if added_count > 0:
+                    flash(f'Added {added_count} student(s) to absentee list.', 'success')
+                else:
+                    flash('All selected students were already in the list.', 'info')
+                
+                # Reload the student list to show updated view
+                selected_course_code = course_code
+                selected_section = section if section else None
+                try:
+                    query = supabase.table('students')\
+                        .select('roll_no, name, course_code, course_title, section')\
+                        .eq('course_code', course_code)
+                    if section:
+                        query = query.eq('section', section)
+                    response = query.order('roll_no').execute()
+                    if response.data:
+                        course_students = response.data
+                except Exception as e:
+                    print(f"Error reloading students: {e}")
+        
+        elif action == 'search_student':
             course_code = request.form.get('course_code', '').strip()
             roll_no = request.form.get('roll_no', '').strip().upper()
             
@@ -1594,6 +1693,9 @@ def absentee_sheet():
                          absentees=session['absentees'],
                          course_info=course_info,
                          student_info=student_info,
+                         course_students=course_students,
+                         selected_course_code=selected_course_code,
+                         selected_section=selected_section,
                          semesters=semesters)
 
 
