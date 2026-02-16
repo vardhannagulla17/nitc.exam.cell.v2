@@ -1898,8 +1898,23 @@ def admin_absentees():
         elif action == 'preview_consolidated':
             # Show ALL approved absentees (no date filter)
             try:
-                # Get all approved absentees
+                # Get all approved absentees with instructor info from students table
+                # Using a subquery approach since Supabase doesn't support joins directly
                 result = supabase.table('absentees').select('*').eq('status', 'approved').execute()
+                
+                # Enrich with instructor data
+                if result.data:
+                    for absentee in result.data:
+                        # Get instructor from students table
+                        student_query = supabase.table('students')\
+                            .select('main_instructor')\
+                            .eq('course_code', absentee['course_code'])\
+                            .limit(1)\
+                            .execute()
+                        if student_query.data:
+                            absentee['instructor'] = student_query.data[0].get('main_instructor', 'N/A')
+                        else:
+                            absentee['instructor'] = 'N/A'
                 
                 if result.data:
                     # Generate consolidated HTML for preview (not download)
@@ -1957,10 +1972,23 @@ def admin_absentees():
         elif action == 'download_consolidated':
             # Download ALL approved absentees (no date filter)
             try:
-                # Get all approved absentees
+                # Get all approved absentees with instructor info
                 result = supabase.table('absentees').select('*').eq('status', 'approved').execute()
                 
+                # Enrich with instructor data
                 if result.data:
+                    for absentee in result.data:
+                        # Get instructor from students table
+                        student_query = supabase.table('students')\
+                            .select('main_instructor')\
+                            .eq('course_code', absentee['course_code'])\
+                            .limit(1)\
+                            .execute()
+                        if student_query.data:
+                            absentee['instructor'] = student_query.data[0].get('main_instructor', 'N/A')
+                        else:
+                            absentee['instructor'] = 'N/A'
+                    
                     # Generate consolidated HTML
                     html_content = generate_consolidated_absentee_html(result.data)
                     filename = f"Consolidated_Absentees_{datetime.now().strftime('%Y-%m-%d')}.html"
@@ -1984,8 +2012,21 @@ def admin_absentees():
                 absentees_from_storage = absentee_storage.get_approved_absentees_data(exam_date if exam_date else None)
                 
                 if absentees_from_storage:
+                    # Enrich with instructor data
+                    for absentee in absentees_from_storage:
+                        # Get instructor from students table
+                        student_query = supabase.table('students')\
+                            .select('main_instructor')\
+                            .eq('course_code', absentee.get('course_code', ''))\
+                            .limit(1)\
+                            .execute()
+                        if student_query.data:
+                            absentee['instructor'] = student_query.data[0].get('main_instructor', 'N/A')
+                        else:
+                            absentee['instructor'] = 'N/A'
+                    
                     # Generate HTML for storage absentees
-                    html_content = generate_consolidated_absentee_html(absentees_from_storage, exam_date or 'all')
+                    html_content = generate_consolidated_absentee_html(absentees_from_storage)
                     filename = f"Storage_Absentees_{exam_date or 'all'}.html"
                     
                     return send_file(
@@ -2170,8 +2211,9 @@ def generate_consolidated_absentee_html(absentees):
     else:
         formatted_date = f"{len(unique_dates)} dates"
     
-    # Convert to tuple format and sort by roll number
-    students_tuples = [(a['roll_no'], a['name'], a['course_code'], a.get('course_title', '')) for a in absentees]
+    # Convert to tuple format with exam_date and instructor, and sort by roll number
+    students_tuples = [(a['roll_no'], a['name'], a['course_code'], a.get('course_title', ''), 
+                       a.get('exam_date', 'N/A'), a.get('instructor', 'N/A')) for a in absentees]
     sorted_students = sort_by_roll_number(students_tuples)
     
     # Generate HTML
@@ -2204,10 +2246,12 @@ def generate_consolidated_absentee_html(absentees):
     <table>
         <thead>
             <tr>
-                <th style="width: 60px;">S.No</th>
-                <th style="width: 140px;">Roll Number</th>
-                <th style="width: 250px;">Student Name</th>
-                <th>Course (Code - Title)</th>
+                <th style="width: 50px;">S.No</th>
+                <th style="width: 120px;">Roll Number</th>
+                <th style="width: 200px;">Student Name</th>
+                <th style="width: 250px;">Course (Code - Title)</th>
+                <th style="width: 95px;">Exam Date</th>
+                <th>Instructor</th>
             </tr>
         </thead>
         <tbody>
@@ -2215,12 +2259,19 @@ def generate_consolidated_absentee_html(absentees):
     
     # Add all students in a single flat list
     for idx, student in enumerate(sorted_students, 1):
-        roll_no, name, course_code, course_title = student
+        roll_no, name, course_code, course_title, exam_date, instructor = student
+        # Format exam date
+        try:
+            formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
+        except:
+            formatted_exam_date = exam_date
         html += f"""            <tr>
                 <td>{idx}</td>
                 <td>{roll_no}</td>
                 <td>{name}</td>
                 <td>{course_code} - {course_title}</td>
+                <td>{formatted_exam_date}</td>
+                <td>{instructor}</td>
             </tr>
 """
     
