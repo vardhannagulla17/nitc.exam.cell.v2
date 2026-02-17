@@ -427,6 +427,7 @@ def login():
                 
                 session['user_id'] = user['id']
                 session['email'] = user['email']
+                session['username'] = user['email']  # For backward compatibility with marked_by field
                 session['full_name'] = user['full_name']
                 session['role'] = user['role']
                 flash(f'Welcome back, {user["full_name"]}!', 'success')
@@ -2244,23 +2245,25 @@ def admin_absentees():
         # Sort by creation date
         absentees_list = sorted(absentees_list, key=lambda x: x.get('created_at', ''), reverse=True)
         
-        # Get all unique usernames from filtered absentees for batch lookup
-        unique_usernames = list(set(a.get('marked_by', 'unknown') for a in absentees_list))
+        # Get all unique emails/usernames from filtered absentees for batch lookup
+        unique_marked_by = list(set(a.get('marked_by', 'unknown') for a in absentees_list))
+        # Remove 'unknown' from the list to avoid unnecessary queries
+        unique_marked_by = [m for m in unique_marked_by if m != 'unknown']
         
-        # Batch fetch staff names from users table
-        username_to_name = {}
-        if unique_usernames:
+        # Batch fetch staff names from users table (marked_by contains email)
+        email_to_name = {}
+        if unique_marked_by:
             try:
-                users_result = supabase.table('users').select('username, name').in_('username', unique_usernames).execute()
+                users_result = supabase.table('users').select('email, full_name').in_('email', unique_marked_by).execute()
                 if users_result.data:
-                    username_to_name = {u['username']: u['name'] for u in users_result.data}
+                    email_to_name = {u['email']: u['full_name'] for u in users_result.data}
             except Exception as e:
                 print(f"Error fetching user names: {e}")
         
         # Enrich absentees with staff names and formatted dates
         for absentee in absentees_list:
-            marked_by_username = absentee.get('marked_by', 'unknown')
-            absentee['marked_by_name'] = username_to_name.get(marked_by_username, marked_by_username)
+            marked_by_email = absentee.get('marked_by', 'unknown')
+            absentee['marked_by_name'] = email_to_name.get(marked_by_email, marked_by_email)
             
             # Format exam_date to dd/mm/yyyy
             exam_date = absentee.get('exam_date', '')
