@@ -2216,29 +2216,51 @@ def admin_absentees():
     
     # Fetch absentees based on filters
     try:
-        query = supabase.table('absentees').select('*')
+        # Fetch ALL absentees once for stats and unique values
+        all_data_result = supabase.table('absentees').select('*').execute()
+        all_records = all_data_result.data if all_data_result.data else []
         
+        # Compute statistics from ALL records
+        stats = {
+            'total': len(all_records),
+            'pending': len([a for a in all_records if a['status'] == 'pending']),
+            'approved': len([a for a in all_records if a['status'] == 'approved']),
+            'rejected': len([a for a in all_records if a['status'] == 'rejected'])
+        }
+        
+        # Get unique dates and courses from ALL records
+        unique_dates = sorted(set(row['exam_date'] for row in all_records)) if all_records else []
+        unique_courses = sorted(set(row['course_code'] for row in all_records)) if all_records else []
+        
+        # Filter records for display
+        absentees_list = all_records
         if filter_status:
-            query = query.eq('status', filter_status)
+            absentees_list = [a for a in absentees_list if a['status'] == filter_status]
         if filter_date:
-            query = query.eq('exam_date', filter_date)
+            absentees_list = [a for a in absentees_list if a['exam_date'] == filter_date]
         if filter_course:
-            query = query.eq('course_code', filter_course)
+            absentees_list = [a for a in absentees_list if a['course_code'] == filter_course]
         
-        result = query.order('created_at', desc=True).execute()
-        absentees_list = result.data if result.data else []
+        # Sort by creation date
+        absentees_list = sorted(absentees_list, key=lambda x: x.get('created_at', ''), reverse=True)
         
-        # Enrich absentees with actual staff names from users table
+        # Get all unique usernames from filtered absentees for batch lookup
+        unique_usernames = list(set(a.get('marked_by', 'unknown') for a in absentees_list))
+        
+        # Batch fetch staff names from users table
+        username_to_name = {}
+        if unique_usernames:
+            try:
+                users_result = supabase.table('users').select('username, name').in_('username', unique_usernames).execute()
+                if users_result.data:
+                    username_to_name = {u['username']: u['name'] for u in users_result.data}
+            except Exception as e:
+                print(f"Error fetching user names: {e}")
+        
+        # Enrich absentees with staff names and formatted dates
         for absentee in absentees_list:
             marked_by_username = absentee.get('marked_by', 'unknown')
-            try:
-                user_query = supabase.table('users').select('name').eq('username', marked_by_username).limit(1).execute()
-                if user_query.data:
-                    absentee['marked_by_name'] = user_query.data[0].get('name', marked_by_username)
-                else:
-                    absentee['marked_by_name'] = marked_by_username
-            except:
-                absentee['marked_by_name'] = marked_by_username
+            absentee['marked_by_name'] = username_to_name.get(marked_by_username, marked_by_username)
             
             # Format exam_date to dd/mm/yyyy
             exam_date = absentee.get('exam_date', '')
@@ -2247,20 +2269,6 @@ def admin_absentees():
                 absentee['exam_date_formatted'] = date_obj.strftime('%d/%m/%Y')
             except:
                 absentee['exam_date_formatted'] = exam_date
-        
-        # Get unique dates and courses for filters
-        all_data = supabase.table('absentees').select('*').execute()
-        all_records = all_data.data if all_data.data else []
-        unique_dates = sorted(set(row['exam_date'] for row in all_records)) if all_records else []
-        unique_courses = sorted(set(row['course_code'] for row in all_records)) if all_records else []
-        
-        # Get statistics from ALL records (not filtered)
-        stats = {
-            'total': len(all_records),
-            'pending': len([a for a in all_records if a['status'] == 'pending']),
-            'approved': len([a for a in all_records if a['status'] == 'approved']),
-            'rejected': len([a for a in all_records if a['status'] == 'rejected'])
-        }
         
         # Get storage bucket file counts
         try:

@@ -122,12 +122,18 @@
                 </div>
                 <div class="form-field">
                     <label for="course_code"><i class="fas fa-book"></i> Course</label>
-                    <select name="course_code" id="course_code" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
-                        <option value="">All Courses</option>
-                        {% for course in unique_courses %}
-                        <option value="{{ course }}" {% if filter_course == course %}selected{% endif %}>{{ course }}</option>
-                        {% endfor %}
-                    </select>
+                    <div class="autocomplete-wrapper" style="position: relative;">
+                        <input type="text" 
+                               name="course_code" 
+                               id="course_code" 
+                               class="course-search-input"
+                               placeholder="Type to search courses..." 
+                               value="{{ filter_course }}"
+                               autocomplete="off"
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        <div id="courseDropdown" class="autocomplete-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; border-top: none; border-radius: 0 0 6px 6px; max-height: 250px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"></div>
+                    </div>
+                    <input type="hidden" id="allCourses" value='{{ unique_courses | tojson }}'>
                 </div>
                 <button type="submit" class="btn btn-primary" style="height: fit-content;">
                     <i class="fas fa-search"></i> Apply Filters
@@ -458,6 +464,121 @@ function previewConsolidated() {
     tempForm.submit();
     document.body.removeChild(tempForm);
 }
+
+// Course autocomplete functionality
+(function() {
+    const courseInput = document.getElementById('course_code');
+    const courseDropdown = document.getElementById('courseDropdown');
+    const allCoursesJson = document.getElementById('allCourses').value;
+    let allCourses = [];
+    
+    try {
+        allCourses = JSON.parse(allCoursesJson);
+        // Add "All Courses" option at the beginning
+        allCourses.unshift('');
+    } catch(e) {
+        console.error('Error parsing courses:', e);
+    }
+    
+    let selectedIndex = -1;
+    
+    // Filter and display courses
+    function filterCourses(searchTerm) {
+        const filtered = allCourses.filter(course => {
+            if (course === '' && searchTerm === '') return true;
+            if (course === '') return false;
+            return course.toLowerCase().includes(searchTerm.toLowerCase());
+        });
+        
+        displayCourses(filtered);
+    }
+    
+    // Display courses in dropdown
+    function displayCourses(courses) {
+        if (courses.length === 0 || (courses.length === 1 && courses[0] === '')) {
+            courseDropdown.style.display = 'none';
+            return;
+        }
+        
+        courseDropdown.innerHTML = '';
+        selectedIndex = -1;
+        
+        courses.forEach((course, index) => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.textContent = course === '' ? 'All Courses' : course;
+            item.dataset.value = course;
+            item.style.cssText = 'padding: 0.75rem; cursor: pointer; transition: background 0.15s;';
+            
+            item.addEventListener('mouseenter', function() {
+                this.style.background = '#f3f4f6';
+            });
+            
+            item.addEventListener('mouseleave', function() {
+                this.style.background = 'white';
+            });
+            
+            item.addEventListener('click', function() {
+                courseInput.value = this.dataset.value;
+                courseDropdown.style.display = 'none';
+            });
+            
+            courseDropdown.appendChild(item);
+        });
+        
+        courseDropdown.style.display = 'block';
+    }
+    
+    // Show all courses when input is focused and empty
+    courseInput.addEventListener('focus', function() {
+        filterCourses(this.value);
+    });
+    
+    // Filter as user types
+    courseInput.addEventListener('input', function() {
+        filterCourses(this.value);
+    });
+    
+    // Handle keyboard navigation
+    courseInput.addEventListener('keydown', function(e) {
+        const items = courseDropdown.querySelectorAll('.autocomplete-item');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+            updateSelectedItem(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, 0);
+            updateSelectedItem(items);
+        } else if (e.key === 'Enter' && selectedIndex >= 0) {
+            e.preventDefault();
+            items[selectedIndex].click();
+        } else if (e.key === 'Escape') {
+            courseDropdown.style.display = 'none';
+        }
+    });
+    
+    // Update selected item highlight
+    function updateSelectedItem(items) {
+        items.forEach((item, index) => {
+            if (index === selectedIndex) {
+                item.style.background = '#e0e7ff';
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.style.background = 'white';
+            }
+        });
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!courseInput.contains(e.target) && !courseDropdown.contains(e.target)) {
+            courseDropdown.style.display = 'none';
+        }
+    });
+})();
+
 </script>
 
 <style>
