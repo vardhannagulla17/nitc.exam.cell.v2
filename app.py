@@ -2638,23 +2638,32 @@ def generate_absentee_html_by_course(absentees, exam_dates):
         for t in sorted_absentees_tuples
     ]
     
-    # Group by course
-    by_course = {}
+    # Collect all exam dates
+    student_data = []
     for absentee in sorted_absentees:
         course_code = absentee['course_code']
-        if course_code not in by_course:
-            by_course[course_code] = {
-                'course_title': absentee['course_title'],
-                'students': [],
-                'exam_date': exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
-            }
-        by_course[course_code]['students'].append(absentee)
+        exam_date = exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
+        try:
+            formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
+        except:
+            formatted_exam_date = exam_date
+        
+        student_data.append({
+            'roll_no': absentee['roll_no'],
+            'name': absentee['name'],
+            'course_code': course_code,
+            'course_title': absentee['course_title'],
+            'exam_date': formatted_exam_date
+        })
+    
+    # Count unique courses
+    unique_courses = len(set(s['course_code'] for s in student_data))
     
     html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Absentee List - Multiple Courses</title>
+    <title>Absentee List</title>
     <style>
         @page {{
             size: A4 landscape;
@@ -2681,20 +2690,8 @@ def generate_absentee_html_by_course(absentees, exam_dates):
             margin: 5px 0;
             font-weight: normal;
         }}
-        .course-section {{
-            margin-top: 30px;
-            page-break-inside: avoid;
-        }}
-        .course-header {{
-            background-color: #f0f0f0;
-            padding: 12px;
-            font-size: 13pt;
-            font-weight: bold;
-            border: 2px solid #333;
-            margin-bottom: 10px;
-        }}
-        .course-info {{
-            margin: 10px 0;
+        .info-section {{
+            margin: 20px 0;
             font-size: 11pt;
         }}
         table {{
@@ -2717,13 +2714,10 @@ def generate_absentee_html_by_course(absentees, exam_dates):
             font-size: 10pt;
         }}
         .footer {{
-            margin-top: 20px;
+            margin-top: 30px;
             padding-top: 10px;
             border-top: 1px solid #999;
             font-size: 10pt;
-        }}
-        .page-break {{
-            page-break-after: always;
         }}
         @media print {{
             body {{ padding: 0; }}
@@ -2737,77 +2731,45 @@ def generate_absentee_html_by_course(absentees, exam_dates):
         <p style="font-size: 10pt; margin-top: 10px;">Generated on: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</p>
     </div>
     
-    <div style="margin-bottom: 20px; font-size: 11pt;">
-        <strong>Total Absentees:</strong> {len(sorted_absentees)} across {len(by_course)} course(s)
+    <div class="info-section">
+        <strong>Total Absentees:</strong> {len(student_data)} across {unique_courses} course(s)
     </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 40px;">S.No</th>
+                <th style="width: 110px;">Roll Number</th>
+                <th style="width: 200px;">Student Name</th>
+                <th style="width: 100px;">Course Code</th>
+                <th style="width: 220px;">Course Name</th>
+                <th style="width: 95px;">Exam Date</th>
+            </tr>
+        </thead>
+        <tbody>
 """
     
-    course_num = 0
-    for course_code, course_data in sorted(by_course.items()):
-        course_num += 1
-        course_title = course_data['course_title']
-        students = course_data['students']
-        exam_date = course_data['exam_date']
-        
-        try:
-            formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
-        except:
-            formatted_exam_date = exam_date
-        
-        # Add page break before each course except the first
-        if course_num > 1:
-            html += '<div class="page-break"></div>'
-        
-        html += f"""
-    <div class="course-section">
-        <div class="course-header">
-            Course {course_num}: {course_code} - {course_title}
-        </div>
-        
-        <div class="course-info">
-            <strong>Exam Date:</strong> {formatted_exam_date}<br>
-            <strong>Number of Absentees:</strong> {len(students)}
-        </div>
-        
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 40px;">S.No</th>
-                    <th style="width: 110px;">Roll Number</th>
-                    <th style="width: 200px;">Student Name</th>
-                    <th style="width: 100px;">Course Code</th>
-                    <th style="width: 220px;">Course Name</th>
-                    <th style="width: 95px;">Exam Date</th>
-                </tr>
-            </thead>
-            <tbody>
-"""
-        
-        for idx, student in enumerate(students, 1):
-            html += f"""                <tr>
-                    <td>{idx}</td>
-                    <td>{student['roll_no']}</td>
-                    <td>{student['name']}</td>
-                    <td>{course_code}</td>
-                    <td>{course_title}</td>
-                    <td>{formatted_exam_date}</td>
-                </tr>
-"""
-        
-        html += """            </tbody>
-        </table>
-        
-        <div class="footer">
-            <p>
-                <strong>Invigilator's Signature:</strong> _____________________
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                <strong>Date:</strong> _____________________
-            </p>
-        </div>
-    </div>
+    for idx, student in enumerate(student_data, 1):
+        html += f"""            <tr>
+                <td>{idx}</td>
+                <td>{student['roll_no']}</td>
+                <td>{student['name']}</td>
+                <td>{student['course_code']}</td>
+                <td>{student['course_title']}</td>
+                <td>{student['exam_date']}</td>
+            </tr>
 """
     
-    html += """
+    html += """        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p>
+            <strong>Invigilator's Signature:</strong> _____________________
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <strong>Date:</strong> _____________________
+        </p>
+    </div>
 </body>
 </html>"""
     
