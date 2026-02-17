@@ -543,7 +543,7 @@ Regards,
 NITC Exam Cell Team
 """
         
-        html = f\"\"\"
+        html = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -590,7 +590,7 @@ NITC Exam Cell Team
             <div class="footer">
                 <p><strong>NITC Exam Cell</strong></p>
                 <p>National Institute of Technology Calicut</p>
-                <p style=\"margin-top: 10px; opacity: 0.7;\">This is an automated email. Please do not reply.</p>
+                <p style="margin-top: 10px; opacity: 0.7;">This is an automated email. Please do not reply.</p>
             </div>
         </div>
     </div>
@@ -611,7 +611,7 @@ NITC Exam Cell Team
         print(f"Error sending password reset email: {e}")
         import traceback
         traceback.print_exc()
-        return False, f\"Failed to send email: {str(e)}\"
+        return False, f"Failed to send email: {str(e)}"
 
 def resend_otp(email):
     """Resend OTP for pending registration - updates database"""
