@@ -2387,19 +2387,26 @@ def generate_absentee_html(absentees, exam_date):
     <table>
         <thead>
             <tr>
-                <th>S.No</th>
-                <th>Roll Number</th>
-                <th>Student Name</th>
+                <th style="width: 50px;">S.No</th>
+                <th style="width: 120px;">Roll Number</th>
+                <th style="width: 250px;">Student Name</th>
+                <th style="width: 100px;">Course Code</th>
+                <th style="width: 300px;">Course Name</th>
+                <th style="width: 110px;">Date of Exam</th>
             </tr>
         </thead>
         <tbody>
 """
     
+    formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
     for idx, student in enumerate(sorted_absentees, 1):
         html += f"""            <tr>
                 <td>{idx}</td>
                 <td>{student['roll_no']}</td>
                 <td>{student['name']}</td>
+                <td>{course_code}</td>
+                <td>{course_title}</td>
+                <td>{formatted_exam_date}</td>
             </tr>
 """
     

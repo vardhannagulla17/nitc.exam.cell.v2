@@ -106,9 +106,14 @@
                             </table>
                         </div>
                         
-                        <button type="submit" class="btn btn-success" style="width: 100%;">
-                            <i class="fas fa-user-times"></i> Mark Selected as Absent
-                        </button>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                            <button type="submit" class="btn btn-success" style="width: 100%;">
+                                <i class="fas fa-user-times"></i> Mark Selected as Absent
+                            </button>
+                            <button type="button" onclick="clearAllSelections()" class="btn btn-danger" style="width: 100%;">
+                                <i class="fas fa-eraser"></i> Clear All Selections
+                            </button>
+                        </div>
                     </form>
                 </div>
                 {% endif %}
@@ -404,6 +409,18 @@ function toggleAllStudents(checkbox) {
     studentCheckboxes.forEach(cb => {
         cb.checked = checkbox.checked;
     });
+}
+
+// Clear all selections
+function clearAllSelections() {
+    const studentCheckboxes = document.querySelectorAll('.student-checkbox');
+    studentCheckboxes.forEach(cb => {
+        cb.checked = false;
+    });
+    const selectAllCheckbox = document.getElementById('select_all');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
 }
 
 // Preview function - opens in new tab
