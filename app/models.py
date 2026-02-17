@@ -601,14 +601,34 @@ NITC Exam Cell Team
         msg.attach(MIMEText(text, 'plain'))
         msg.attach(MIMEText(html, 'html'))
         
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
+        # Send email - try SSL first (port 465), then TLS (port 587)
+        try:
+            if SMTP_PORT == 465:
+                # Use SSL
+                import ssl
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context, timeout=10) as server:
+                    server.login(SMTP_USER, SMTP_PASSWORD)
+                    server.send_message(msg)
+            else:
+                # Use TLS (port 587)
+                with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) as server:
+                    server.starttls()
+                    server.login(SMTP_USER, SMTP_PASSWORD)
+                    server.send_message(msg)
+        except Exception as smtp_error:
+            # If port 587 fails, try port 465 with SSL
+            print(f"⚠️ Port {SMTP_PORT} failed, trying port 465 with SSL...")
+            import ssl
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(SMTP_SERVER, 465, context=context, timeout=10) as server:
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
         
+        print(f"✅ Password reset OTP email sent to {email}")
         return True, "Password reset OTP sent successfully!"
     except Exception as e:
-        print(f"Error sending password reset email: {e}")
+        print(f"❌ Error sending password reset email: {e}")
         import traceback
         traceback.print_exc()
         return False, f"Failed to send email: {str(e)}"
