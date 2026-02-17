@@ -319,6 +319,301 @@ def verify_otp_and_register(email, otp):
         return False, f"Registration failed: {str(e)}"
 
 def resend_otp(email):
+    """Resend OTP to the user's email"""
+    email_lower = email.lower()
+    
+    try:
+        if USE_SUPABASE_DB and supabase:
+            # Get pending registration
+            result = supabase.table('pending_registrations').select('*').eq('email', email_lower).execute()
+            if not result.data:
+                return False, "No pending registration found. Please register again."
+            
+            registration = result.data[0]
+            
+            # Check if already expired
+            expires_at = datetime.fromisoformat(registration['expires_at'].replace('Z', '+00:00'))
+            if datetime.now() > expires_at:
+                # Delete expired registration
+                supabase.table('pending_registrations').delete().eq('email', email_lower).execute()
+                return False, "Registration expired. Please register again."
+            
+            # Send OTP again
+            success, message = send_otp_email(email_lower, registration['otp'], registration['full_name'])
+            if success:
+                return True, "OTP resent successfully! Check your email."
+            return False, message
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM pending_registrations WHERE email = ?', (email_lower,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if not row:
+                return False, "No pending registration found. Please register again."
+            
+            expires_at = datetime.fromisoformat(row[4])
+            if datetime.now() > expires_at:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM pending_registrations WHERE email = ?', (email_lower,))
+                conn.commit()
+                conn.close()
+                return False, "Registration expired. Please register again."
+            
+            success, message = send_otp_email(email_lower, row[1], row[2])
+            if success:
+                return True, "OTP resent successfully! Check your email."
+            return False, message
+    except Exception as e:
+        print(f"Error resending OTP: {e}")
+        return False, f"Error resending OTP: {str(e)}"
+
+def create_password_reset_request(email):
+    \"\"\"Create a password reset request and send OTP\"\"\"
+    email_lower = email.lower()
+    
+    try:
+        # Check if user exists
+        if USE_SUPABASE_DB and supabase:
+            user_result = supabase.table('users').select('id, full_name, is_active').eq('email', email_lower).execute()
+            if not user_result.data:
+                return False, \"No account found with this email address.\"
+            
+            user = user_result.data[0]
+            if not user.get('is_active', True):
+                return False, \"Your account has been disabled. Contact admin.\"
+            
+            # Generate OTP
+            otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            expires_at = datetime.now() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+            
+            # Delete any existing password reset requests for this email (to avoid duplicates)  
+            supabase.table('password_reset_requests').delete().eq('email', email_lower).execute()
+            
+            # Create new password reset request
+            reset_data = {
+                'email': email_lower,
+                'otp': otp,
+                'expires_at': expires_at.isoformat(),
+                'created_at': datetime.now().isoformat()
+            }
+            supabase.table('password_reset_requests').insert(reset_data).execute()
+            
+            # Send OTP email
+            success, message = send_password_reset_email(email_lower, otp, user['full_name'])
+            if success:
+                return True, f\"Password reset OTP sent to {email_lower}. Valid for {OTP_EXPIRY_MINUTES} minutes.\"
+            return False, message
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Check if user exists
+            cursor.execute('SELECT id, full_name, is_active FROM users WHERE email = ?', (email_lower,))
+            user = cursor.fetchone()
+            if not user:
+                conn.close()
+                return False, \"No account found with this email address.\"
+            
+            if not user[2]:  # is_active
+                conn.close()
+                return False, \"Your account has been disabled. Contact admin.\"
+            
+            # Generate OTP
+            otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            expires_at = datetime.now() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+            
+            # Delete any existing reset requests
+            cursor.execute('DELETE FROM password_reset_requests WHERE email = ?', (email_lower,))
+            
+            # Create new reset request
+            cursor.execute(
+                'INSERT INTO password_reset_requests (email, otp, expires_at) VALUES (?, ?, ?)',
+                (email_lower, otp, expires_at.isoformat())
+            )
+            conn.commit()
+            conn.close()
+            
+            # Send OTP email
+            success, message = send_password_reset_email(email_lower, otp, user[1])
+            if success:
+                return True, f\"Password reset OTP sent to {email_lower}. Valid for {OTP_EXPIRY_MINUTES} minutes.\"
+            return False, message
+    except Exception as e:
+        print(f\"Error creating password reset request: {e}\")
+        return False, f\"Error: {str(e)}\"
+
+def verify_password_reset_otp(email, otp, new_password):
+    \"\"\"Verify OTP and reset password\"\"\"
+    email_lower = email.lower()
+    
+    try:
+        if USE_SUPABASE_DB and supabase:
+            # Get password reset request
+            result = supabase.table('password_reset_requests').select('*').eq('email', email_lower).execute()
+            if not result.data:
+                return False, \"No password reset request found. Please request again.\"
+            
+            reset_request = result.data[0]
+            expires_at = datetime.fromisoformat(reset_request['expires_at'].replace('Z', '+00:00'))
+            
+            # Check if expired
+            if datetime.now() > expires_at:
+                supabase.table('password_reset_requests').delete().eq('email', email_lower).execute()
+                return False, \"OTP has expired. Please request a new one.\"
+            
+            # Check if OTP matches
+            if reset_request['otp'] != otp:
+                return False, \"Invalid OTP. Please check and try again.\"
+            
+            # OTP verified - update password
+            password_hash = generate_password_hash(new_password)
+            supabase.table('users').update({'password_hash': password_hash}).eq('email', email_lower).execute()
+            
+            # Delete password reset request
+            supabase.table('password_reset_requests').delete().eq('email', email_lower).execute()
+            
+            return True, \"Password reset successfully! You can now log in with your new password.\"
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Get password reset request
+            cursor.execute('SELECT * FROM password_reset_requests WHERE email = ?', (email_lower,))
+            row = cursor.fetchone()
+            
+            if not row:
+                conn.close()
+                return False, \"No password reset request found. Please request again.\"
+            
+            expires_at = datetime.fromisoformat(row[2])  # expires_at is third column
+            
+            # Check if expired
+            if datetime.now() > expires_at:
+                cursor.execute('DELETE FROM password_reset_requests WHERE email = ?', (email_lower,))
+                conn.commit()
+                conn.close()
+                return False, \"OTP has expired. Please request a new one.\"
+            
+            # Check if OTP matches
+            if row[1] != otp:  # otp is second column
+                conn.close()
+                return False, \"Invalid OTP. Please check and try again.\"
+            
+            # OTP verified - update password
+            password_hash = generate_password_hash(new_password)
+            cursor.execute('UPDATE users SET password_hash = ? WHERE email = ?', (password_hash, email_lower))
+            
+            # Delete password reset request
+            cursor.execute('DELETE FROM password_reset_requests WHERE email = ?', (email_lower,))
+            conn.commit()
+            conn.close()
+            
+            return True, \"Password reset successfully! You can now log in with your new password.\"
+    except Exception as e:
+        print(f\"Error verifying password reset: {e}\")
+        return False, f\"Error: {str(e)}\"
+
+def send_password_reset_email(email, otp, full_name):
+    \"\"\"Send password reset OTP to user's email\"\"\"
+    if not SMTP_USER or not SMTP_PASSWORD:
+        print(f\"⚠️ SMTP not configured. Password reset OTP for {email}: {otp}\")
+        return True, \"OTP generated (email not configured - check console)\"
+    
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f'NITC Exam Cell - Password Reset (OTP: {otp})'
+        msg['From'] = f'{SMTP_FROM_NAME} <{SMTP_FROM or SMTP_USER}>'
+        msg['To'] = email
+        
+        text = f\"\"\"
+Hello {full_name},
+
+You have requested to reset your password for NITC Exam Cell.
+
+Your password reset OTP is: {otp}
+
+This OTP is valid for {OTP_EXPIRY_MINUTES} minutes.
+
+If you did not request this, please ignore this email and your password will remain unchanged.
+
+Regards,
+NITC Exam Cell Team
+\"\"\"
+        
+        html = f\"\"\"
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; background-color: #fef3c7; }}
+        .email-wrapper {{ background-color: #fef3c7; padding: 40px 20px; }}
+        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.15); }}
+        .header {{ background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 40px 30px; text-align: center; }}
+        .header h2 {{ margin: 0; font-size: 28px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        .header p {{ margin: 8px 0 0 0; font-size: 14px; opacity: 0.95; }}
+        .content {{ background: #ffffff; padding: 40px 30px; }}
+        .content p {{ color: #475569; margin: 12px 0; font-size: 16px; }}
+        .otp-box {{ background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 3px solid #f59e0b; padding: 30px; text-align: center; margin: 30px 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1); }}
+        .otp {{ font-size: 42px; font-weight: bold; color: #d97706; letter-spacing: 12px; display: block; font-family: 'Courier New', monospace; }}
+        .warning-box {{ background: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px; color: #991b1b; font-size: 14px; }}
+        .footer {{ text-align: center; padding: 30px; background: #f8fafc; color: #64748b; font-size: 13px; border-top: 1px solid #e2e8f0; }}
+        .footer strong {{ color: #d97706; }}
+    </style>
+</head>
+<body>
+    <div class=\"email-wrapper\">
+        <div class=\"container\">
+            <div class=\"header\">
+                <h2>🔒 NITC Exam Cell</h2>
+                <p>Password Reset Request</p>
+            </div>
+            <div class=\"content\">
+                <p>Hello <strong>{full_name}</strong>,</p>
+                <p>You have requested to reset your password for the NITC Exam Cell application.</p>
+                
+                <div class=\"otp-box\">
+                    <p style=\"margin: 0 0 10px 0; color: #92400e; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;\">Your Reset OTP</p>
+                    <span class=\"otp\">{otp}</span>
+                </div>
+                
+                <p>This OTP is valid for <strong>{OTP_EXPIRY_MINUTES} minutes</strong>. Enter this code on the password reset page to set your new password.</p>
+                
+                <div class=\"warning-box\">
+                    <strong>⚠️ Security Notice:</strong> If you did not request a password reset, please ignore this email. Your password will remain unchanged.
+                </div>
+                
+                <p style=\"color: #64748b; font-size: 14px; margin-top: 20px;\">For security reasons, never share this OTP with anyone.</p>
+            </div>
+            <div class=\"footer\">
+                <p><strong>NITC Exam Cell</strong></p>
+                <p>National Institute of Technology Calicut</p>
+                <p style=\"margin-top: 10px; opacity: 0.7;\">This is an automated email. Please do not reply.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+\"\"\"
+        
+        msg.attach(MIMEText(text, 'plain'))
+        msg.attach(MIMEText(html, 'html'))
+        
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(msg)
+        
+        return True, \"Password reset OTP sent successfully!\"
+    except Exception as e:
+        print(f\"Error sending password reset email: {e}\")
+        import traceback
+        traceback.print_exc()
+        return False, f\"Failed to send email: {str(e)}\"
+
+def resend_otp(email):
     """Resend OTP for pending registration - updates database"""
     email_lower = email.lower()
     
@@ -477,6 +772,16 @@ def init_db():
                 otp TEXT NOT NULL,
                 full_name TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create password_reset_requests table for password reset OTP
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS password_reset_requests (
+                email TEXT PRIMARY KEY,
+                otp TEXT NOT NULL,
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )

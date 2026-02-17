@@ -160,7 +160,8 @@ from app.models import (
     get_all_users, get_pending_users, approve_user, reject_user,
     toggle_user_active, update_user_role, delete_user,
     upload_exam_timetable, get_exam_date_for_course, get_timetable_for_semester,
-    get_courses_with_exam_dates, has_timetable_for_semester
+    get_courses_with_exam_dates, has_timetable_for_semester,
+    create_password_reset_request, verify_password_reset_otp
 )
 
 def get_semester_stats():
@@ -542,6 +543,67 @@ def logout():
     session.clear()
     flash('You have been logged out!', 'info')
     return redirect(url_for('login'))
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        
+        if not email:
+            flash('Please enter your email address!', 'error')
+            return render_template('forgot_password.html')
+        
+        success, message = create_password_reset_request(email)
+        flash(message, 'success' if success else 'error')
+        
+        if success:
+            session['reset_email'] = email
+            return redirect(url_for('reset_password'))
+        
+        return render_template('forgot_password.html')
+    
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    
+    reset_email = session.get('reset_email')
+    if not reset_email:
+        flash('Please request a password reset first.', 'error')
+        return redirect(url_for('forgot_password'))
+    
+    if request.method == 'POST':
+        otp = request.form.get('otp', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        
+        if not otp or not new_password or not confirm_password:
+            flash('Please fill in all fields!', 'error')
+            return render_template('reset_password.html', email=reset_email)
+        
+        if new_password != confirm_password:
+            flash('Passwords do not match!', 'error')
+            return render_template('reset_password.html', email=reset_email)
+        
+        if len(new_password) < 6:
+            flash('Password must be at least 6 characters!', 'error')
+            return render_template('reset_password.html', email=reset_email)
+        
+        success, message = verify_password_reset_otp(reset_email, otp, new_password)
+        flash(message, 'success' if success else 'error')
+        
+        if success:
+            session.pop('reset_email', None)
+            return redirect(url_for('login'))
+        
+        return render_template('reset_password.html', email=reset_email)
+    
+    return render_template('reset_password.html', email=reset_email)
 
 # Admin User Management Routes
 @app.route('/admin/users')

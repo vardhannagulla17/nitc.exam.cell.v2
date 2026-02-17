@@ -45,9 +45,12 @@
                     </div>
                 </div>
 
-                <div class="form-check">
-                    <input type="checkbox" id="remember" name="remember">
-                    <label for="remember">Remember me</label>
+                <div class="form-options">
+                    <div class="form-check">
+                        <input type="checkbox" id="remember" name="remember">
+                        <label for="remember">Remember me</label>
+                    </div>
+                    <a href="{{ url_for('forgot_password') }}" class="forgot-link">Forgot Password?</a>
                 </div>
 
                 <button type="submit" class="btn-login" id="loginButton">
@@ -79,15 +82,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('loginForm');
     const button = document.getElementById('loginButton');
     const passwordInput = document.getElementById('password');
+    const emailInput = document.getElementById('email');
+    const rememberCheckbox = document.getElementById('remember');
+    
+    // Load saved credentials if remember me was checked
+    const savedEmail = localStorage.getItem('rememberedEmail');
+    const savedRemember = localStorage.getItem('rememberMe');
+    if (savedRemember === 'true' && savedEmail) {
+        emailInput.value = savedEmail;
+        rememberCheckbox.checked = true;
+    }
     
     // Handle form submission
     form.addEventListener('submit', function(e) {
-        const email = document.getElementById('email').value.trim();
+        const email = emailInput.value.trim();
         const password = passwordInput.value.trim();
         
         if (!email || !password) {
             e.preventDefault();
             return;
+        }
+        
+        // Save email if remember me is checked
+        if (rememberCheckbox.checked) {
+            localStorage.setItem('rememberedEmail', email);
+            localStorage.setItem('rememberMe', 'true');
+        } else {
+            localStorage.removeItem('rememberedEmail');
+            localStorage.removeItem('rememberMe');
         }
         
         // Show loading state

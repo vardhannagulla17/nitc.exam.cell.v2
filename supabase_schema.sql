@@ -40,6 +40,17 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
 -- Create index for faster lookups and cleanup of expired entries
 CREATE INDEX IF NOT EXISTS idx_pending_registrations_expires_at ON pending_registrations(expires_at);
 
+-- Create password_reset_requests table for password reset OTP
+CREATE TABLE IF NOT EXISTS password_reset_requests (
+    email TEXT PRIMARY KEY,
+    otp TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create index for faster lookups and cleanup of expired entries
+CREATE INDEX IF NOT EXISTS idx_password_reset_requests_expires_at ON password_reset_requests(expires_at);
+
 -- Create semesters table
 CREATE TABLE IF NOT EXISTS semesters (
     id BIGSERIAL PRIMARY KEY,

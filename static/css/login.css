@@ -346,6 +346,29 @@
     user-select: none;
 }
 
+/* Form Options Container */
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 16px 0 30px;
+    gap: 1rem;
+}
+
+.forgot-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.forgot-link:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
 /* Password Toggle Enhancement */
 .password-toggle {
     position: absolute;
