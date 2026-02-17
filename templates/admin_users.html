@@ -255,13 +255,67 @@
     </div>
     
     <!-- Info about email verification -->
-    <div class="section" style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-left: 4px solid #4CAF50;">
-        <p style="margin: 0; color: #2e7d32;">
+    <div class="section" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border-left: 4px solid #f59e0b;">
+        <p style="margin: 0; color: #92400e;">
             <i class="fas fa-info-circle"></i> 
             <strong>Email Verification Active:</strong> New users register with their @nitc.ac.in email and verify via OTP. 
-            No manual approval required. You can manage roles and remove users below.
+            <strong>Manual approval required</strong> - please review pending registrations below.
         </p>
     </div>
+    
+    <!-- Pending Approval Section -->
+    {% if pending_users %}
+    <div class="section" style="border-left: 4px solid #f59e0b;">
+        <div class="section-header">
+            <h2 class="section-title">
+                <i class="fas fa-user-clock"></i> Pending Approval
+                <span class="pending-count">{{ pending_users|length }}</span>
+            </h2>
+        </div>
+        
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Registered</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in pending_users %}
+                <tr style="background: #fffbeb;">
+                    <td>
+                        <div class="user-info">
+                            <span class="user-name">{{ user.full_name }}</span>
+                            <span class="user-email">{{ user.email }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        {{ user.created_at[:10] if user.created_at else 'N/A' }}
+                    </td>
+                    <td>
+                        <div class="actions">
+                            <!-- Approve -->
+                            <form action="{{ url_for('approve_user_route', user_id=user.id) }}" method="POST" style="display: inline;">
+                                <button type="submit" class="btn-sm btn-approve">
+                                    <i class="fas fa-check"></i> Approve
+                                </button>
+                            </form>
+                            
+                            <!-- Reject -->
+                            <form action="{{ url_for('reject_user_route', user_id=user.id) }}" method="POST" style="display: inline;">
+                                <button type="submit" class="btn-sm btn-reject" onclick="return confirm('Are you sure you want to reject this registration? The user account will be deleted.')">
+                                    <i class="fas fa-times"></i> Reject
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
     
     <!-- All Users Section -->
     <div class="section">

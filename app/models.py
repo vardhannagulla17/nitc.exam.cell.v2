@@ -853,12 +853,13 @@ def register_user(email, full_name, password):
             return False, f"Registration failed: {str(e)}"
 
 def get_all_users():
-    """Get all users for admin management"""
+    """Get all approved users for admin management"""
     if USE_SUPABASE_DB:
         try:
             if not supabase:
                 return []
-            result = supabase.table('users').select('id, email, full_name, role, is_approved, is_active, created_at, approved_at, approved_by').order('created_at', desc=True).execute()
+            # Only get approved users - pending users shown separately
+            result = supabase.table('users').select('id, email, full_name, role, is_approved, is_active, created_at, approved_at, approved_by').eq('is_approved', True).order('created_at', desc=True).execute()
             return result.data
         except Exception as e:
             print(f"Error getting users: {e}")
@@ -866,7 +867,8 @@ def get_all_users():
     else:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT id, email, full_name, role, is_approved, is_active, created_at, approved_at, approved_by FROM users ORDER BY created_at DESC')
+        # Only get approved users
+        cursor.execute('SELECT id, email, full_name, role, is_approved, is_active, created_at, approved_at, approved_by FROM users WHERE is_approved = 1 ORDER BY created_at DESC')
         users = cursor.fetchall()
         conn.close()
         return [{'id': u[0], 'email': u[1], 'full_name': u[2], 'role': u[3], 'is_approved': bool(u[4]), 'is_active': bool(u[5]), 'created_at': u[6], 'approved_at': u[7], 'approved_by': u[8]} for u in users]
