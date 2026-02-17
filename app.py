@@ -2228,6 +2228,26 @@ def admin_absentees():
         result = query.order('created_at', desc=True).execute()
         absentees_list = result.data if result.data else []
         
+        # Enrich absentees with actual staff names from users table
+        for absentee in absentees_list:
+            marked_by_username = absentee.get('marked_by', 'unknown')
+            try:
+                user_query = supabase.table('users').select('name').eq('username', marked_by_username).limit(1).execute()
+                if user_query.data:
+                    absentee['marked_by_name'] = user_query.data[0].get('name', marked_by_username)
+                else:
+                    absentee['marked_by_name'] = marked_by_username
+            except:
+                absentee['marked_by_name'] = marked_by_username
+            
+            # Format exam_date to dd/mm/yyyy
+            exam_date = absentee.get('exam_date', '')
+            try:
+                date_obj = datetime.strptime(exam_date, '%Y-%m-%d')
+                absentee['exam_date_formatted'] = date_obj.strftime('%d/%m/%Y')
+            except:
+                absentee['exam_date_formatted'] = exam_date
+        
         # Get unique dates and courses for filters
         all_data = supabase.table('absentees').select('*').execute()
         all_records = all_data.data if all_data.data else []
@@ -2421,7 +2441,6 @@ def generate_consolidated_absentee_html(absentees):
         <h1>National Institute of Technology Calicut</h1>
         <h2>Consolidated Absentee List</h2>
         <p><strong>Exam Date:</strong> {formatted_date}</p>
-        <p style="font-size: 10pt; color: #666; margin-top: 5px;">Sorted by: Semester → Batch → Name (A-Z)</p>
     </div>
     
     <table>
