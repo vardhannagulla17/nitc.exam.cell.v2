@@ -160,9 +160,8 @@
                     </div>
 
                     <!-- Absentee List Table with Course Grouping -->
-                    <form method="POST" action="/absentee" id="absentee_list_form">
-                        <div style="max-height: 500px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e5e7eb; border-radius: 6px;">
-                            {% for course_code, course_data in absentees_by_course.items() %}
+                    <div style="max-height: 500px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e5e7eb; border-radius: 6px;">
+                        {% for course_code, course_data in absentees_by_course.items() %}
                             <!-- Course Header -->
                             <div style="background: #eff6ff; padding: 0.75rem; border-bottom: 2px solid #3b82f6; position: sticky; top: 0; z-index: 10;">
                                 <strong style="color: #1e40af;">
@@ -211,13 +210,15 @@
                                        class="course-exam-date" data-course="{{ course_code }}"
                                        style="margin-left: 0.5rem; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px;">
                             </div>
-                            {% endfor %}
-                        </div>
-                        
-                        <!-- Bulk Actions -->
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Bulk Actions -->
+                    <form method="POST" action="/absentee" id="absentee_remove_form">
+                        <input type="hidden" name="action" value="remove_selected">
                         <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                            <button type="submit" name="action" value="remove_selected" class="btn btn-danger" style="flex: 1;"
-                                    onclick="return confirm('Remove selected students from the absentee list?');">
+                            <button type="submit" class="btn btn-danger" style="flex: 1;"
+                                    onclick="return validateAndConfirmRemoval();">
                                 <i class="fas fa-trash-alt"></i> Remove Selected
                             </button>
                             <button type="button" onclick="clearAllAbsenteeSelections()" class="btn" style="flex: 1; background: #6b7280; color: white;">
@@ -255,8 +256,8 @@
                                     onclick="return confirm('Upload absentees to admin for consolidation?')">
                                 <i class="fas fa-cloud-upload-alt"></i> Upload to Admin
                             </button>
-                            <button type="submit" name="action" value="clear_absentees" class="btn btn-danger"
-                                    onclick="return confirm('Clear all absentees from the list?')">
+                            <button type="button" class="btn btn-danger"
+                                    onclick="handleClearAbsentees(event)">
                                 <i class="fas fa-trash"></i> Clear List
                             </button>
                         </div>
@@ -336,6 +337,12 @@ document.addEventListener('DOMContentLoaded', function() {
         sectionInput.addEventListener('input', function() {
             this.value = this.value.toUpperCase();
         });
+    }
+    
+    // Attach AJAX handlers to forms
+    const studentsForm = document.getElementById('students_form');
+    if (studentsForm) {
+        studentsForm.addEventListener('submit', handleMarkAbsentSubmit);
     }
     
     // Initialize searchable course dropdown
@@ -472,6 +479,154 @@ function clearAllAbsenteeSelections() {
     });
 }
 
+// Validate and confirm removal
+function validateAndConfirmRemoval() {
+    const form = document.getElementById('absentee_remove_form');
+    const checkboxes = document.querySelectorAll('.absentee-checkbox:checked');
+    
+    if (checkboxes.length === 0) {
+        alert('Please select at least one student to remove.');
+        return false;
+    }
+    
+    // Get selected indices
+    const selectedIndices = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (!confirm(`Remove ${checkboxes.length} selected student(s) from the absentee list?`)) {
+        return false;
+    }
+    
+    // Submit via AJAX
+    const formData = new FormData();
+    formData.append('action', 'remove_selected');
+    selectedIndices.forEach(idx => formData.append('selected_absentees', idx));
+    
+    fetch('/absentee', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            // Reload page to refresh the absentee list
+            location.reload();
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error removing students', 'error');
+    });
+    
+    return false; // Prevent form submission
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+        color: white;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 10000;
+        font-weight: 600;
+        animation: slideIn 0.3s ease-out;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transition = 'opacity 0.3s';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// AJAX handler for marking students absent
+function handleMarkAbsentSubmit(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    // Check if any students are selected
+    const selectedStudents = formData.getAll('selected_students');
+    if (selectedStudents.length === 0) {
+        showNotification('Please select at least one student', 'error');
+        return;
+    }
+    
+    fetch('/absentee', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            // Clear selections
+            clearAllSelections();
+            // Reload page to refresh absentee list
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showNotification(data.message, 'warning');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error marking students absent', 'error');
+    });
+}
+
+// AJAX handler for clearing absentees
+function handleClearAbsentees(event) {
+    event.preventDefault();
+    
+    if (!confirm('Clear all absentees from the list?')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'clear_absentees');
+    
+    fetch('/absentee', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error clearing absentees', 'error');
+    });
+}
+
 // Preview function - opens in new tab with course data
 function previewAbsentees() {
     // Get all course exam dates
@@ -517,6 +672,17 @@ function previewAbsentees() {
 </script>
 
 <style>
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
 .download-page {
     max-width: 1400px;
     margin: 0 auto;

@@ -55,6 +55,9 @@ uploads/
 downloads/
 test_app_startup.py
 test_login.py
+tests/test_ajax_absentee.py
+tests/test_ajax_integration.py
+tests/run_ajax_tests.py
 logs/
 .venv/
 .env

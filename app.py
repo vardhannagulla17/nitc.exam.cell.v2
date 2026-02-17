@@ -1468,7 +1468,9 @@ def absentee_sheet():
             selected_students = request.form.getlist('selected_students')
             
             if not selected_students:
-                flash('No students selected.', 'warning')
+                message = 'No students selected.'
+                success = False
+                added_count = 0
             else:
                 added_count = 0
                 for student_data in selected_students:
@@ -1505,9 +1507,28 @@ def absentee_sheet():
                 
                 session.modified = True
                 if added_count > 0:
-                    flash(f'Added {added_count} student(s) to absentee list.', 'success')
+                    message = f'Added {added_count} student(s) to absentee list.'
+                    success = True
                 else:
-                    flash('All selected students were already in the list.', 'info')
+                    message = 'All selected students were already in the list.'
+                    success = False
+            
+            # Return JSON for AJAX requests
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({
+                    'success': success,
+                    'message': message,
+                    'added_count': added_count,
+                    'absentees': session['absentees'],
+                    'absentees_count': len(session['absentees'])
+                })
+            else:
+                if not selected_students:
+                    flash(message, 'warning')
+                elif added_count > 0:
+                    flash(message, 'success')
+                else:
+                    flash(message, 'info')
                 
                 # Reload the student list to show updated view
                 selected_course_code = course_code
@@ -1572,9 +1593,22 @@ def absentee_sheet():
                     'course_title': course_title
                 })
                 session.modified = True
-                flash(f'Added {name} ({roll_no}) to absentee list.', 'success')
+                message = f'Added {name} ({roll_no}) to absentee list.'
+                msg_type = 'success'
             else:
-                flash('Student already in absentee list.', 'warning')
+                message = 'Student already in absentee list.'
+                msg_type = 'warning'
+            
+            # Return JSON for AJAX requests
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({
+                    'success': not already_added,
+                    'message': message,
+                    'absentees': session['absentees'],
+                    'absentees_count': len(session['absentees'])
+                })
+            else:
+                flash(message, msg_type)
         
         elif action == 'remove_absentee':
             try:
@@ -1599,12 +1633,31 @@ def absentee_sheet():
                             session['absentees'].pop(index)
                             removed_count += 1
                     session.modified = True
-                    flash(f'Removed {removed_count} student(s) from absentee list.', 'success')
+                    message = f'Removed {removed_count} student(s) from absentee list.'
+                    success = True
                 else:
-                    flash('No students selected for removal.', 'warning')
+                    message = 'No students selected for removal.'
+                    success = False
+                    removed_count = 0
+                
+                # Return JSON for AJAX requests
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({
+                        'success': success,
+                        'message': message,
+                        'removed_count': removed_count,
+                        'absentees': session['absentees'],
+                        'absentees_count': len(session['absentees'])
+                    })
+                else:
+                    flash(message, 'success' if success else 'warning')
             except Exception as e:
                 print(f"Error removing selected: {e}")
-                flash('Error removing selected students.', 'error')
+                error_msg = 'Error removing selected students.'
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'success': False, 'message': error_msg}), 400
+                else:
+                    flash(error_msg, 'error')
         
         elif action == 'preview_absentees':
             if session['absentees']:
@@ -1719,9 +1772,20 @@ def absentee_sheet():
                 flash('No absentees to upload.', 'error')
         
         elif action == 'clear_absentees':
+            count = len(session['absentees'])
             session['absentees'] = []
             session.modified = True
-            flash('Absentee list cleared.', 'info')
+            message = f'Cleared {count} absentee(s).'
+            
+            # Return JSON for AJAX requests
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({
+                    'success': True,
+                    'message': message,
+                    'absentees_count': 0
+                })
+            else:
+                flash(message, 'info')
     
     # Prepare course info for display
     course_info = None
@@ -2708,10 +2772,12 @@ def generate_absentee_html_by_course(absentees, exam_dates):
         <table>
             <thead>
                 <tr>
-                    <th style="width: 50px;">S.No</th>
-                    <th style="width: 130px;">Roll Number</th>
-                    <th style="width: 250px;">Student Name</th>
-                    <th style="width: 110px;">Exam Date</th>
+                    <th style="width: 40px;">S.No</th>
+                    <th style="width: 110px;">Roll Number</th>
+                    <th style="width: 200px;">Student Name</th>
+                    <th style="width: 100px;">Course Code</th>
+                    <th style="width: 220px;">Course Name</th>
+                    <th style="width: 95px;">Exam Date</th>
                 </tr>
             </thead>
             <tbody>
@@ -2722,6 +2788,8 @@ def generate_absentee_html_by_course(absentees, exam_dates):
                     <td>{idx}</td>
                     <td>{student['roll_no']}</td>
                     <td>{student['name']}</td>
+                    <td>{course_code}</td>
+                    <td>{course_title}</td>
                     <td>{formatted_exam_date}</td>
                 </tr>
 """
