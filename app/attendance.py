@@ -4,7 +4,7 @@ import tempfile
 import zipfile
 import sqlite3
 from io import BytesIO
-from helpers.utils import sort_by_roll_number
+from helpers.utils import sort_by_roll_number, sort_attendance_students
 from flask import current_app
 from werkzeug.utils import secure_filename
 from supabase_client import supabase
@@ -322,9 +322,9 @@ def get_sorted_students(db_name_or_semester_id, course_code, program_level=None,
                     break
                 offset += page_size
             
-            students = [(row['roll_no'], row['name'], row['course_title'], row['main_instructor'], row['program_name']) for row in all_students]
+            students = [(row['roll_no'], row['name'], row['course_title'], row['main_instructor'], row['program_name'], row.get('timetable_batch', '')) for row in all_students]
             
-            return sort_by_roll_number(students)
+            return sort_attendance_students(students)
         else:
             # db_name_or_semester_id is db_name when using SQLite
             db_name = db_name_or_semester_id
@@ -333,7 +333,7 @@ def get_sorted_students(db_name_or_semester_id, course_code, program_level=None,
             sem_conn = sqlite3.connect(db_name)
             cursor = sem_conn.cursor()
             cursor.execute('''
-                SELECT roll_no, name, course_title, main_instructor, program_name 
+                SELECT roll_no, name, course_title, main_instructor, program_name, timetable_batch 
                 FROM students 
                 WHERE course_code = ? 
                 ORDER BY roll_no
@@ -348,7 +348,7 @@ def get_sorted_students(db_name_or_semester_id, course_code, program_level=None,
                 if prefix:
                     students = [s for s in students if s[0] and str(s[0]).startswith(prefix)]
             
-            return sort_by_roll_number(students)
+            return sort_attendance_students(students)
     except Exception as e:
         print(f"Error in get_sorted_students: {e}")
         return []
@@ -541,11 +541,13 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
         <table>
             <thead>
                 <tr>
-                    <th style="width: 5%;">Sl. No.</th>
-                    <th style="width: 12%;">Roll No.</th>
-                    <th style="width: 40%;">Student Name</th>
+                    <th style="width: 4%;">Sl. No.</th>
+                    <th style="width: 5%;">Sem</th>
+                    <th style="width: 11%;">Roll No.</th>
+                    <th style="width: 6%;">Batch</th>
+                    <th style="width: 30%;">Student Name</th>
                     <th style="width: 12%;">No. of Additional Sheets</th>
-                    <th style="width: 16%;">Details of Bio Break</th>
+                    <th style="width: 17%;">Details of Bio Break</th>
                     <th style="width: 15%;">Signature</th>
                 </tr>
             </thead>
@@ -557,11 +559,22 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
             serial_no = start_idx + i + 1
             if i < len(page_students):
                 student = page_students[i]
+                roll_no = student[0] if student[0] else ''
+                name = student[1] if student[1] else ''
+                batch = student[5] if len(student) > 5 and student[5] else ''
+                
+                # Calculate semester for display
+                from helpers.utils import extract_semester_from_roll_no
+                semester = extract_semester_from_roll_no(roll_no)
+                semester_display = str(semester) if semester < 99 else '-'
+                
                 html_content += f"""
                 <tr>
                     <td>{serial_no}</td>
-                    <td>{student[0] if student[0] else ''}</td>
-                    <td>{student[1] if student[1] else ''}</td>
+                    <td style="text-align: center;">{semester_display}</td>
+                    <td>{roll_no}</td>
+                    <td>{batch if batch else '-'}</td>
+                    <td>{name}</td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -571,6 +584,8 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
                 html_content += f"""
                 <tr>
                     <td>{serial_no}</td>
+                    <td></td>
+                    <td></td>
                     <td></td>
                     <td></td>
                     <td></td>

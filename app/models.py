@@ -267,7 +267,7 @@ def verify_otp_and_register(email, otp):
         if registration['otp'] != otp:
             return False, "Invalid OTP. Please check and try again."
         
-        # OTP verified - create user account (auto-approved)
+        # OTP verified - create user account (NOT auto-approved, needs admin approval)
         if USE_SUPABASE_DB and supabase:
             # Check if email already exists
             existing = supabase.table('users').select('id').eq('email', email_lower).execute()
@@ -275,15 +275,14 @@ def verify_otp_and_register(email, otp):
                 supabase.table('pending_registrations').delete().eq('email', email_lower).execute()
                 return False, "An account with this email already exists."
             
-            # Create user (auto-approved since email is verified)
+            # Create user (requires admin approval)
             user_data = {
                 'email': email_lower,
                 'full_name': registration['full_name'],
                 'password_hash': registration['password_hash'],
                 'role': 'staff',
-                'is_approved': True,
-                'is_active': True,
-                'approved_at': datetime.now().isoformat()
+                'is_approved': False,  # Changed to False - requires admin approval
+                'is_active': True
             }
             supabase.table('users').insert(user_data).execute()
             
@@ -301,11 +300,11 @@ def verify_otp_and_register(email, otp):
                 conn.close()
                 return False, "An account with this email already exists."
             
-            # Create user (auto-approved since email is verified)
+            # Create user (requires admin approval)
             cursor.execute('''
-                INSERT INTO users (email, full_name, password_hash, role, is_approved, is_active, approved_at)
-                VALUES (?, ?, ?, 'staff', 1, 1, ?)
-            ''', (email_lower, registration['full_name'], registration['password_hash'], datetime.now()))
+                INSERT INTO users (email, full_name, password_hash, role, is_approved, is_active)
+                VALUES (?, ?, ?, 'staff', 0, 1)
+            ''', (email_lower, registration['full_name'], registration['password_hash']))
             
             # Delete pending registration
             cursor.execute('DELETE FROM pending_registrations WHERE email = ?', (email_lower,))
@@ -313,7 +312,7 @@ def verify_otp_and_register(email, otp):
             conn.commit()
             conn.close()
         
-        return True, "Registration successful! You can now login."
+        return True, "Registration successful! Your account is pending admin approval. Please wait for approval before logging in."
     
     except Exception as e:
         print(f"Error verifying OTP and registering: {e}")

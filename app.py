@@ -2005,6 +2005,39 @@ def admin_absentees():
                 print(f"Error downloading consolidated absentees: {e}")
                 flash('Error generating consolidated report.', 'error')
         
+        elif action == 'download_approved_only':
+            # Download only approved absentees from database
+            try:
+                result = supabase.table('absentees').select('*').eq('status', 'approved').execute()
+                if result.data:
+                    # Enrich with instructor data
+                    for absentee in result.data:
+                        student_query = supabase.table('students')\
+                            .select('main_instructor')\
+                            .eq('course_code', absentee.get('course_code', ''))\
+                            .limit(1)\
+                            .execute()
+                        if student_query.data:
+                            absentee['instructor'] = student_query.data[0].get('main_instructor', 'N/A')
+                        else:
+                            absentee['instructor'] = 'N/A'
+                    
+                    # Generate HTML for approved absentees 
+                    html_content = generate_consolidated_absentee_html(result.data)
+                    filename = f"Approved_Absentees_{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.html"
+                    
+                    return send_file(
+                        BytesIO(html_content.encode('utf-8')),
+                        mimetype='text/html',
+                        as_attachment=True,
+                        download_name=filename
+                    )
+                else:
+                    flash('No approved absentees found.', 'warning')
+            except Exception as e:
+                print(f"Error downloading approved absentees: {e}")
+                flash('Error generating approved absentees report.', 'error')
+        
         elif action == 'download_from_storage':
             # Download consolidated absentees from approved_absentee bucket
             exam_date = request.form.get('exam_date', '')
@@ -2202,19 +2235,38 @@ def clear_bucket_page():
 
 def generate_consolidated_absentee_html(absentees):
     """Generate consolidated HTML for all approved absentees as a single flat list"""
-    from helpers.utils import sort_by_roll_number
+    from helpers.utils import sort_absentees_by_semester_batch_name
+    
+    # Enrich absentees with timetable_batch from students table
+    for absentee in absentees:
+        roll_no = absentee.get('roll_no', '')
+        if roll_no and USE_SUPABASE_DB and supabase:
+            try:
+                # Get timetable_batch from students table
+                student_query = supabase.table('students')\
+                    .select('timetable_batch')\
+                    .eq('roll_no', roll_no)\
+                    .limit(1)\
+                    .execute()
+                if student_query.data:
+                    absentee['timetable_batch'] = student_query.data[0].get('timetable_batch', '')
+                else:
+                    absentee['timetable_batch'] = ''
+            except Exception as e:
+                print(f"Error getting timetable_batch for {roll_no}: {e}")
+                absentee['timetable_batch'] = ''
+        else:
+            absentee['timetable_batch'] = ''
+    
+    # Sort absentees by semester, batch, and name
+    sorted_absentees = sort_absentees_by_semester_batch_name(absentees)
     
     # Collect unique exam dates from absentees
-    unique_dates = sorted(set(a.get('exam_date', 'N/A') for a in absentees))
+    unique_dates = sorted(set(a.get('exam_date', 'N/A') for a in sorted_absentees))
     if len(unique_dates) == 1:
         formatted_date = datetime.strptime(unique_dates[0], '%Y-%m-%d').strftime('%d-%m-%Y') if unique_dates[0] != 'N/A' else 'N/A'
     else:
         formatted_date = f"{len(unique_dates)} dates"
-    
-    # Convert to tuple format with exam_date and instructor, and sort by roll number
-    students_tuples = [(a['roll_no'], a['name'], a['course_code'], a.get('course_title', ''), 
-                       a.get('exam_date', 'N/A'), a.get('instructor', 'N/A')) for a in absentees]
-    sorted_students = sort_by_roll_number(students_tuples)
     
     # Generate HTML
     html = f"""<!DOCTYPE html>
@@ -2241,15 +2293,18 @@ def generate_consolidated_absentee_html(absentees):
         <h1>National Institute of Technology Calicut</h1>
         <h2>Consolidated Absentee List</h2>
         <p><strong>Exam Date:</strong> {formatted_date}</p>
+        <p style="font-size: 10pt; color: #666; margin-top: 5px;">Sorted by: Semester → Batch → Name (A-Z)</p>
     </div>
     
     <table>
         <thead>
             <tr>
                 <th style="width: 50px;">S.No</th>
+                <th style="width: 70px;">Semester</th>
                 <th style="width: 120px;">Roll Number</th>
-                <th style="width: 200px;">Student Name</th>
-                <th style="width: 250px;">Course (Code - Title)</th>
+                <th style="width: 180px;">Student Name</th>
+                <th style="width: 70px;">Batch</th>
+                <th style="width: 200px;">Course (Code - Title)</th>
                 <th style="width: 95px;">Exam Date</th>
                 <th>Instructor</th>
             </tr>
@@ -2257,18 +2312,33 @@ def generate_consolidated_absentee_html(absentees):
         <tbody>
 """
     
-    # Add all students in a single flat list
-    for idx, student in enumerate(sorted_students, 1):
-        roll_no, name, course_code, course_title, exam_date, instructor = student
+    # Add all students in sorted order
+    for idx, absentee in enumerate(sorted_absentees, 1):
+        roll_no = absentee.get('roll_no', '')
+        name = absentee.get('name', '')
+        course_code = absentee.get('course_code', '')
+        course_title = absentee.get('course_title', '')
+        exam_date = absentee.get('exam_date', 'N/A')
+        instructor = absentee.get('instructor', 'N/A')
+        timetable_batch = absentee.get('timetable_batch', '')
+        
+        # Calculate semester for display
+        from helpers.utils import extract_semester_from_roll_no
+        semester = extract_semester_from_roll_no(roll_no)
+        semester_display = str(semester) if semester < 99 else '-'
+        
         # Format exam date
         try:
             formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
         except:
             formatted_exam_date = exam_date
+            
         html += f"""            <tr>
                 <td>{idx}</td>
+                <td style="text-align: center;">{semester_display}</td>
                 <td>{roll_no}</td>
                 <td>{name}</td>
+                <td>{timetable_batch if timetable_batch else '-'}</td>
                 <td>{course_code} - {course_title}</td>
                 <td>{formatted_exam_date}</td>
                 <td>{instructor}</td>
@@ -2280,7 +2350,7 @@ def generate_consolidated_absentee_html(absentees):
     
     <div class="summary">
         <h3>Summary</h3>
-        <p><strong>Total Absentees:</strong> {len(sorted_students)}</p>
+        <p><strong>Total Absentees:</strong> {len(sorted_absentees)}</p>
         <p><strong>Generated on:</strong> {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</p>
     </div>
     
