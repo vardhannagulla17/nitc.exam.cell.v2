@@ -30,6 +30,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'nitc-exam-cell-secret-key-2025')
 
+# Configure permanent session (for "Remember Me" feature)
+from datetime import timedelta
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session lasts 7 days
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to session cookie
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+
 # Supabase bucket name
 SUPABASE_BUCKET = os.environ.get('SUPABASE_BUCKET', 'uploads')
 
@@ -404,6 +411,7 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '').strip()
+        remember = request.form.get('remember') == 'on'
         
         if not email or not password:
             flash('Please enter both email and password!', 'error')
@@ -425,6 +433,14 @@ def login():
                     elif user['error'] == 'account_disabled':
                         flash('Your account has been disabled. Contact admin.', 'error')
                     return render_template('login.html')
+                
+                # Set session permanent if remember me is checked
+                if remember:
+                    session.permanent = True
+                    print(f"DEBUG: Session set to permanent (7 days) for {email}")
+                else:
+                    session.permanent = False
+                    print(f"DEBUG: Session set to temporary (browser session) for {email}")
                 
                 session['user_id'] = user['id']
                 session['email'] = user['email']

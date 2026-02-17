@@ -253,7 +253,7 @@
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
                             <button type="submit" name="action" value="upload_to_admin" class="btn btn-success"
-                                    onclick="return confirm('Upload absentees to admin for consolidation?')">
+                                    onclick="return validateSemesterAndConfirmUpload()">
                                 <i class="fas fa-cloud-upload-alt"></i> Upload to Admin
                             </button>
                             <button type="button" class="btn btn-danger"
@@ -276,6 +276,21 @@
 </div>
 
 <script>
+// Validate semester selection before upload
+function validateSemesterAndConfirmUpload() {
+    const semesterSelect = document.getElementById('semester_id');
+    if (!semesterSelect.value) {
+        alert('⚠️ Please select a semester before uploading to admin!');
+        semesterSelect.focus();
+        semesterSelect.style.border = '2px solid #ef4444';
+        setTimeout(() => {
+            semesterSelect.style.border = '1px solid #cbd5e1';
+        }, 2000);
+        return false;
+    }
+    return confirm('Upload absentees to admin for consolidation?');
+}
+
 // Course data for search
 const allCourses = [
     {% for code, title in all_courses %}

@@ -48,7 +48,7 @@
                 <div class="form-options">
                     <div class="form-check">
                         <input type="checkbox" id="remember" name="remember">
-                        <label for="remember">Remember me</label>
+                        <label for="remember">Keep me logged in for 7 days</label>
                     </div>
                     <a href="{{ url_for('forgot_password') }}" class="forgot-link">Forgot Password?</a>
                 </div>
@@ -85,12 +85,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const emailInput = document.getElementById('email');
     const rememberCheckbox = document.getElementById('remember');
     
-    // Load saved credentials if remember me was checked
-    const savedEmail = localStorage.getItem('rememberedEmail');
-    const savedRemember = localStorage.getItem('rememberMe');
-    if (savedRemember === 'true' && savedEmail) {
+    // Load saved email if previously saved (optional convenience feature)
+    const savedEmail = localStorage.getItem('lastEmail');
+    if (savedEmail) {
         emailInput.value = savedEmail;
-        rememberCheckbox.checked = true;
     }
     
     // Handle form submission
@@ -103,14 +101,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Save email if remember me is checked
-        if (rememberCheckbox.checked) {
-            localStorage.setItem('rememberedEmail', email);
-            localStorage.setItem('rememberMe', 'true');
-        } else {
-            localStorage.removeItem('rememberedEmail');
-            localStorage.removeItem('rememberMe');
-        }
+        // Save email for convenience (not related to session)
+        localStorage.setItem('lastEmail', email);
         
         // Show loading state
         button.classList.add('loading');
