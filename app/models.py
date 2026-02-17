@@ -92,49 +92,22 @@ NITC Exam Cell Team
         html = f"""
 <!DOCTYPE html>
 <html>
-<head>
-    <style>
-        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; background-color: #f0fdfa; }}
-        .email-wrapper {{ background-color: #f0fdfa; padding: 40px 20px; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(20, 184, 166, 0.15); }}
-        .header {{ background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); color: white; padding: 40px 30px; text-align: center; }}
-        .header h2 {{ margin: 0; font-size: 28px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .header p {{ margin: 8px 0 0 0; font-size: 14px; opacity: 0.95; }}
-        .content {{ background: #ffffff; padding: 40px 30px; }}
-        .content p {{ color: #475569; margin: 12px 0; font-size: 16px; }}
-        .otp-box {{ background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 3px solid #14b8a6; padding: 30px; text-align: center; margin: 30px 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(20, 184, 166, 0.1); }}
-        .otp {{ font-size: 42px; font-weight: bold; color: #0d9488; letter-spacing: 12px; display: block; font-family: 'Courier New', monospace; }}
-        .info-text {{ background: #f0fdfa; border-left: 4px solid #14b8a6; padding: 15px; margin: 20px 0; border-radius: 4px; color: #0f766e; font-size: 14px; }}
-        .footer {{ text-align: center; padding: 30px; background: #f8fafc; color: #64748b; font-size: 13px; border-top: 1px solid #e2e8f0; }}
-        .footer strong {{ color: #0d9488; }}
-        .highlight {{ color: #0d9488; font-weight: 600; }}
-    </style>
-</head>
-<body>
-    <div class="email-wrapper">
-        <div class="container">
-            <div class="header">
-                <h2>🎓 NITC Exam Cell</h2>
-                <p>Email Verification</p>
-            </div>
-            <div class="content">
-                <p>Hello <strong>{full_name}</strong>,</p>
-                <p>Thank you for registering with NITC Exam Cell. Please use the verification code below to complete your registration:</p>
-                <div class="otp-box">
-                    <span class="otp">{otp}</span>
-                </div>
-                <div class="info-text">
-                    ⏱️ This OTP is valid for <span class="highlight">{OTP_EXPIRY_MINUTES} minutes</span> only.
-                </div>
-                <p>If you did not request this verification code, please ignore this email. Your account will remain secure.</p>
-            </div>
-            <div class="footer">
-                <p><strong>National Institute of Technology Calicut</strong></p>
-                <p>NIT Campus P.O., Calicut, Kerala - 673601</p>
-                <p style="margin-top: 10px; font-size: 12px; color: #94a3b8;">This is an automated message. Please do not reply to this email.</p>
-            </div>
-        </div>
-    </div>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px;">
+    <h2>NITC Exam Cell - Email Verification</h2>
+    
+    <p>Hello <strong>{full_name}</strong>,</p>
+    
+    <p>Thank you for registering with NITC Exam Cell.</p>
+    
+    <p>Your verification OTP is: <strong style="font-size: 24px; letter-spacing: 3px;">{otp}</strong></p>
+    
+    <p>This OTP is valid for {OTP_EXPIRY_MINUTES} minutes.</p>
+    
+    <p>If you did not request this, please ignore this email.</p>
+    
+    <hr>
+    <p><small>National Institute of Technology Calicut<br>
+    This is an automated email. Please do not reply.</small></p>
 </body>
 </html>
 """
@@ -546,54 +519,24 @@ NITC Exam Cell Team
         html = f"""
 <!DOCTYPE html>
 <html>
-<head>
-    <style>
-        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; background-color: #fef3c7; }}
-        .email-wrapper {{ background-color: #fef3c7; padding: 40px 20px; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.15); }}
-        .header {{ background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 40px 30px; text-align: center; }}
-        .header h2 {{ margin: 0; font-size: 28px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .header p {{ margin: 8px 0 0 0; font-size: 14px; opacity: 0.95; }}
-        .content {{ background: #ffffff; padding: 40px 30px; }}
-        .content p {{ color: #475569; margin: 12px 0; font-size: 16px; }}
-        .otp-box {{ background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 3px solid #f59e0b; padding: 30px; text-align: center; margin: 30px 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1); }}
-        .otp {{ font-size: 42px; font-weight: bold; color: #d97706; letter-spacing: 12px; display: block; font-family: 'Courier New', monospace; }}
-        .warning-box {{ background: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px; color: #991b1b; font-size: 14px; }}
-        .footer {{ text-align: center; padding: 30px; background: #f8fafc; color: #64748b; font-size: 13px; border-top: 1px solid #e2e8f0; }}
-        .footer strong {{ color: #d97706; }}
-    </style>
-</head>
-<body>
-    <div class="email-wrapper">
-        <div class="container">
-            <div class="header">
-                <h2>🔒 NITC Exam Cell</h2>
-                <p>Password Reset Request</p>
-            </div>
-            <div class="content">
-                <p>Hello <strong>{full_name}</strong>,</p>
-                <p>You have requested to reset your password for the NITC Exam Cell application.</p>
-                
-                <div class="otp-box">
-                    <p style="margin: 0 0 10px 0; color: #92400e; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Your Reset OTP</p>
-                    <span class="otp">{otp}</span>
-                </div>
-                
-                <p>This OTP is valid for <strong>{OTP_EXPIRY_MINUTES} minutes</strong>. Enter this code on the password reset page to set your new password.</p>
-                
-                <div class="warning-box">
-                    <strong>⚠️ Security Notice:</strong> If you did not request a password reset, please ignore this email. Your password will remain unchanged.
-                </div>
-                
-                <p style="color: #64748b; font-size: 14px; margin-top: 20px;">For security reasons, never share this OTP with anyone.</p>
-            </div>
-            <div class="footer">
-                <p><strong>NITC Exam Cell</strong></p>
-                <p>National Institute of Technology Calicut</p>
-                <p style="margin-top: 10px; opacity: 0.7;">This is an automated email. Please do not reply.</p>
-            </div>
-        </div>
-    </div>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px;">
+    <h2>NITC Exam Cell - Password Reset</h2>
+    
+    <p>Hello <strong>{full_name}</strong>,</p>
+    
+    <p>You have requested to reset your password for NITC Exam Cell.</p>
+    
+    <p>Your password reset OTP is: <strong style="font-size: 24px; letter-spacing: 3px;">{otp}</strong></p>
+    
+    <p>This OTP is valid for {OTP_EXPIRY_MINUTES} minutes.</p>
+    
+    <p><strong>Security Notice:</strong> If you did not request this, please ignore this email and your password will remain unchanged.</p>
+    
+    <p>Never share this OTP with anyone.</p>
+    
+    <hr>
+    <p><small>National Institute of Technology Calicut<br>
+    This is an automated email. Please do not reply.</small></p>
 </body>
 </html>
 """
