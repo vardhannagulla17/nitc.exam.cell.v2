@@ -1586,10 +1586,36 @@ def absentee_sheet():
             except:
                 flash('Error removing student.', 'error')
         
+        elif action == 'remove_selected':
+            # Remove multiple selected absentees
+            try:
+                selected_indices = request.form.getlist('selected_absentees')
+                if selected_indices:
+                    # Convert to integers and sort in reverse to avoid index shifting
+                    indices = sorted([int(idx) for idx in selected_indices], reverse=True)
+                    removed_count = 0
+                    for index in indices:
+                        if 0 <= index < len(session['absentees']):
+                            session['absentees'].pop(index)
+                            removed_count += 1
+                    session.modified = True
+                    flash(f'Removed {removed_count} student(s) from absentee list.', 'success')
+                else:
+                    flash('No students selected for removal.', 'warning')
+            except Exception as e:
+                print(f"Error removing selected: {e}")
+                flash('Error removing selected students.', 'error')
+        
         elif action == 'preview_absentees':
             if session['absentees']:
-                exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
-                html_content = generate_absentee_html(session['absentees'], exam_date)
+                # Get exam dates for each course from form
+                exam_dates = {}
+                for key in request.form.keys():
+                    if key.startswith('exam_date_'):
+                        course_code = key.replace('exam_date_', '')
+                        exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
+                
+                html_content = generate_absentee_html_by_course(session['absentees'], exam_dates)
                 response = make_response(html_content)
                 response.headers['Content-Type'] = 'text/html; charset=utf-8'
                 return response
@@ -1598,10 +1624,18 @@ def absentee_sheet():
         
         elif action == 'download_absentees':
             if session['absentees']:
-                exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
-                html_content = generate_absentee_html(session['absentees'], exam_date)
-                course_code = session['absentees'][0]['course_code']
-                filename = f"Absentees_{course_code}_{exam_date}.html"
+                # Get exam dates for each course from form
+                exam_dates = {}
+                for key in request.form.keys():
+                    if key.startswith('exam_date_'):
+                        course_code = key.replace('exam_date_', '')
+                        exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
+                
+                html_content = generate_absentee_html_by_course(session['absentees'], exam_dates)
+                
+                # Create filename with date
+                today = datetime.now().strftime('%Y-%m-%d')
+                filename = f"Absentees_Multiple_Courses_{today}.html"
                 
                 return send_file(
                     BytesIO(html_content.encode('utf-8')),
@@ -1615,8 +1649,14 @@ def absentee_sheet():
         elif action == 'upload_to_admin':
             # Staff uploads absentees to admin for consolidation
             if session['absentees']:
-                exam_date = request.form.get('exam_date', datetime.now().strftime('%Y-%m-%d'))
                 semester_id = request.form.get('semester_id')
+                
+                # Get exam dates for each course from form
+                exam_dates = {}
+                for key in request.form.keys():
+                    if key.startswith('exam_date_'):
+                        course_code = key.replace('exam_date_', '')
+                        exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
                 
                 if USE_SUPABASE_DB and supabase:
                     try:
@@ -1625,9 +1665,12 @@ def absentee_sheet():
                         # Generate a unique batch ID for this upload
                         batch_id = datetime.now().strftime('%Y%m%d%H%M%S')
                         
-                        # Insert each absentee into the absentees table
+                        # Insert each absentee into the absentees table with course-specific exam dates
                         absentees_data = []
                         for absentee in session['absentees']:
+                            course_code = absentee['course_code']
+                            exam_date = exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
+                            
                             absentees_data.append({
                                 'roll_no': absentee['roll_no'],
                                 'name': absentee['name'],
@@ -1645,19 +1688,23 @@ def absentee_sheet():
                         
                         if result.data:
                             # Also upload to pending_absentee bucket
-                            success, filename, msg = absentee_storage.upload_pending_absentees(
-                                session['absentees'],
-                                marked_by,
-                                exam_date
-                            )
-                            if success:
-                                print(f"[DEBUG] Also stored in pending_absentee bucket: {filename}")
-                            else:
-                                print(f"[DEBUG] Storage bucket upload failed: {msg}")
+                            # Group by course for storage
+                            for course_code in exam_dates.keys():
+                                course_absentees = [a for a in session['absentees'] if a['course_code'] == course_code]
+                                if course_absentees:
+                                    success, filename, msg = absentee_storage.upload_pending_absentees(
+                                        course_absentees,
+                                        marked_by,
+                                        exam_dates[course_code]
+                                    )
+                                    if success:
+                                        print(f"[DEBUG] Stored {course_code} in pending_absentee bucket: {filename}")
+                                    else:
+                                        print(f"[DEBUG] Storage bucket upload failed for {course_code}: {msg}")
                             
-                            course_code = session['absentees'][0]['course_code']
                             count = len(session['absentees'])
-                            flash(f'Successfully uploaded {count} absentees for {course_code} to admin!', 'success')
+                            courses_count = len(set(a['course_code'] for a in session['absentees']))
+                            flash(f'Successfully uploaded {count} absentees across {courses_count} course(s) to admin!', 'success')
                             # Clear the session list after successful upload
                             session['absentees'] = []
                             session.modified = True
@@ -1678,12 +1725,28 @@ def absentee_sheet():
     
     # Prepare course info for display
     course_info = None
+    absentees_by_course = {}
+    
     if session['absentees']:
         first_absentee = session['absentees'][0]
         course_info = {
             'course_code': first_absentee['course_code'],
             'course_title': first_absentee['course_title']
         }
+        
+        # Group absentees by course for easier display
+        for idx, absentee in enumerate(session['absentees']):
+            course_code = absentee['course_code']
+            if course_code not in absentees_by_course:
+                absentees_by_course[course_code] = {
+                    'course_title': absentee['course_title'],
+                    'students': []
+                }
+            absentees_by_course[course_code]['students'].append({
+                'roll_no': absentee['roll_no'],
+                'name': absentee['name'],
+                'index': idx  # Original index for removal
+            })
     
     # Get semesters for the upload form
     semesters = get_all_semesters()
@@ -1691,6 +1754,7 @@ def absentee_sheet():
     return render_template('absentee.html',
                          all_courses=all_courses,
                          absentees=session['absentees'],
+                         absentees_by_course=absentees_by_course,
                          course_info=course_info,
                          student_info=student_info,
                          course_students=course_students,
@@ -2494,6 +2558,193 @@ def generate_absentee_html(absentees, exam_date):
 </html>"""
     
     return html
+
+
+def generate_absentee_html_by_course(absentees, exam_dates):
+    """Generate HTML for absentee list grouped by course with individual exam dates"""
+    if not absentees:
+        return ""
+    
+    # Sort absentees by roll number
+    from helpers.utils import sort_by_roll_number
+    absentees_tuples = [(a['roll_no'], a['name'], a['course_code'], a['course_title']) for a in absentees]
+    sorted_absentees_tuples = sort_by_roll_number(absentees_tuples)
+    sorted_absentees = [
+        {'roll_no': t[0], 'name': t[1], 'course_code': t[2], 'course_title': t[3]}
+        for t in sorted_absentees_tuples
+    ]
+    
+    # Group by course
+    by_course = {}
+    for absentee in sorted_absentees:
+        course_code = absentee['course_code']
+        if course_code not in by_course:
+            by_course[course_code] = {
+                'course_title': absentee['course_title'],
+                'students': [],
+                'exam_date': exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
+            }
+        by_course[course_code]['students'].append(absentee)
+    
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Absentee List - Multiple Courses</title>
+    <style>
+        @page {{
+            size: A4 landscape;
+            margin: 15mm;
+        }}
+        body {{
+            font-family: 'Times New Roman', serif;
+            margin: 0;
+            padding: 20px;
+            font-size: 11pt;
+        }}
+        .header {{
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #333;
+            padding-bottom: 10px;
+        }}
+        .header h1 {{
+            font-size: 18pt;
+            margin: 5px 0;
+        }}
+        .header h2 {{
+            font-size: 14pt;
+            margin: 5px 0;
+            font-weight: normal;
+        }}
+        .course-section {{
+            margin-top: 30px;
+            page-break-inside: avoid;
+        }}
+        .course-header {{
+            background-color: #f0f0f0;
+            padding: 12px;
+            font-size: 13pt;
+            font-weight: bold;
+            border: 2px solid #333;
+            margin-bottom: 10px;
+        }}
+        .course-info {{
+            margin: 10px 0;
+            font-size: 11pt;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }}
+        th, td {{
+            border: 1px solid black;
+            padding: 6px;
+            text-align: left;
+        }}
+        th {{
+            background-color: #e5e5e5;
+            font-weight: bold;
+            font-size: 10pt;
+        }}
+        td {{
+            font-size: 10pt;
+        }}
+        .footer {{
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #999;
+            font-size: 10pt;
+        }}
+        .page-break {{
+            page-break-after: always;
+        }}
+        @media print {{
+            body {{ padding: 0; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>National Institute of Technology Calicut</h1>
+        <h2>Absentee List</h2>
+        <p style="font-size: 10pt; margin-top: 10px;">Generated on: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</p>
+    </div>
+    
+    <div style="margin-bottom: 20px; font-size: 11pt;">
+        <strong>Total Absentees:</strong> {len(sorted_absentees)} across {len(by_course)} course(s)
+    </div>
+"""
+    
+    course_num = 0
+    for course_code, course_data in sorted(by_course.items()):
+        course_num += 1
+        course_title = course_data['course_title']
+        students = course_data['students']
+        exam_date = course_data['exam_date']
+        
+        try:
+            formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
+        except:
+            formatted_exam_date = exam_date
+        
+        # Add page break before each course except the first
+        if course_num > 1:
+            html += '<div class="page-break"></div>'
+        
+        html += f"""
+    <div class="course-section">
+        <div class="course-header">
+            Course {course_num}: {course_code} - {course_title}
+        </div>
+        
+        <div class="course-info">
+            <strong>Exam Date:</strong> {formatted_exam_date}<br>
+            <strong>Number of Absentees:</strong> {len(students)}
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 50px;">S.No</th>
+                    <th style="width: 130px;">Roll Number</th>
+                    <th style="width: 250px;">Student Name</th>
+                    <th style="width: 110px;">Exam Date</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+        
+        for idx, student in enumerate(students, 1):
+            html += f"""                <tr>
+                    <td>{idx}</td>
+                    <td>{student['roll_no']}</td>
+                    <td>{student['name']}</td>
+                    <td>{formatted_exam_date}</td>
+                </tr>
+"""
+        
+        html += """            </tbody>
+        </table>
+        
+        <div class="footer">
+            <p>
+                <strong>Invigilator's Signature:</strong> _____________________
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <strong>Date:</strong> _____________________
+            </p>
+        </div>
+    </div>
+"""
+    
+    html += """
+</body>
+</html>"""
+    
+    return html
+
 
 # Initialize the application and run
 if __name__ == '__main__':

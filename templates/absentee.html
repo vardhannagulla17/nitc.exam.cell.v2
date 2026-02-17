@@ -156,50 +156,79 @@
                 {% if absentees %}
                 <div style="padding: 1.5rem;">
                     <div style="background: #fff7ed; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; border-left: 4px solid #f59e0b;">
-                        <strong>{{ absentees|length }}</strong> student(s) marked as absent
+                        <strong>{{ absentees|length }}</strong> student(s) marked as absent across {{ absentees_by_course|length if absentees_by_course else 1 }} course(s)
                     </div>
 
-                    <!-- Absentee List Table -->
-                    <div style="max-height: 400px; overflow-y: auto; margin-bottom: 1.5rem; border: 1px solid #e5e7eb; border-radius: 6px;">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <thead style="background: #f9fafb; position: sticky; top: 0;">
-                                <tr>
-                                    <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Roll No</th>
-                                    <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
-                                    <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #e5e7eb; width: 80px;">Remove</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for absentee in absentees %}
-                                <tr style="border-bottom: 1px solid #f3f4f6;">
-                                    <td style="padding: 0.75rem;">{{ absentee.roll_no }}</td>
-                                    <td style="padding: 0.75rem;">{{ absentee.name }}</td>
-                                    <td style="padding: 0.75rem; text-align: center;">
-                                        <form method="POST" action="/absentee" style="display: inline;">
-                                            <input type="hidden" name="action" value="remove_absentee">
-                                            <input type="hidden" name="index" value="{{ loop.index0 }}">
-                                            <button type="submit" class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">
-                                                <i class="fas fa-times"></i>
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                    <!-- Absentee List Table with Course Grouping -->
+                    <form method="POST" action="/absentee" id="absentee_list_form">
+                        <div style="max-height: 500px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e5e7eb; border-radius: 6px;">
+                            {% for course_code, course_data in absentees_by_course.items() %}
+                            <!-- Course Header -->
+                            <div style="background: #eff6ff; padding: 0.75rem; border-bottom: 2px solid #3b82f6; position: sticky; top: 0; z-index: 10;">
+                                <strong style="color: #1e40af;">
+                                    <i class="fas fa-book"></i> {{ course_code }} - {{ course_data.course_title }}
+                                </strong>
+                                <span style="color: #6b7280; font-size: 0.9rem; margin-left: 1rem;">
+                                    ({{ course_data.students|length }} student{{ 's' if course_data.students|length != 1 else '' }})
+                                </span>
+                            </div>
+                            
+                            <!-- Students Table for this Course -->
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead style="background: #f9fafb; position: sticky; top: 45px; z-index: 9;">
+                                    <tr>
+                                        <th style="padding: 0.5rem; text-align: center; border-bottom: 2px solid #e5e7eb; width: 50px;">
+                                            <input type="checkbox" class="select-course-all" data-course="{{ course_code }}" 
+                                                   onclick="toggleCourseStudents(this, '{{ course_code }}')" 
+                                                   style="width: 16px; height: 16px; cursor: pointer;">
+                                        </th>
+                                        <th style="padding: 0.5rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Roll No</th>
+                                        <th style="padding: 0.5rem; text-align: left; border-bottom: 2px solid #e5e7eb;">Name</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in course_data.students %}
+                                    <tr style="border-bottom: 1px solid #f3f4f6;" class="student-row-{{ course_code }}">
+                                        <td style="padding: 0.5rem; text-align: center;">
+                                            <input type="checkbox" name="selected_absentees" 
+                                                   value="{{ student.index }}" 
+                                                   class="absentee-checkbox absentee-checkbox-{{ course_code }}" 
+                                                   style="width: 16px; height: 16px; cursor: pointer;">
+                                        </td>
+                                        <td style="padding: 0.5rem;">{{ student.roll_no }}</td>
+                                        <td style="padding: 0.5rem;">{{ student.name }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            
+                            <!-- Exam Date for this Course -->
+                            <div style="padding: 1rem; background: #f9fafb; border-top: 1px solid #e5e7eb;">
+                                <label style="font-size: 0.9rem; font-weight: 600; color: #374151;">
+                                    <i class="fas fa-calendar-alt"></i> Exam Date for {{ course_code }}:
+                                </label>
+                                <input type="date" name="exam_date_{{ course_code }}" id="exam_date_{{ course_code }}" 
+                                       class="course-exam-date" data-course="{{ course_code }}"
+                                       style="margin-left: 0.5rem; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Bulk Actions -->
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                            <button type="submit" name="action" value="remove_selected" class="btn btn-danger" style="flex: 1;"
+                                    onclick="return confirm('Remove selected students from the absentee list?');">
+                                <i class="fas fa-trash-alt"></i> Remove Selected
+                            </button>
+                            <button type="button" onclick="clearAllAbsenteeSelections()" class="btn" style="flex: 1; background: #6b7280; color: white;">
+                                <i class="fas fa-eraser"></i> Clear Selections
+                            </button>
+                        </div>
+                    </form>
 
                     <!-- Actions -->
                     <form method="POST" action="/absentee" id="absenteeActionsForm">
                         <div class="form-field">
-                            <label for="exam_date">
-                                <i class="fas fa-calendar-alt"></i> Exam Date
-                            </label>
-                            <input type="date" name="exam_date" id="exam_date" required
-                                   style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px;">
-                        </div>
-
-                        <div class="form-field" style="margin-top: 1rem;">
                             <label for="semester_id">
                                 <i class="fas fa-graduation-cap"></i> Semester (for upload)
                             </label>
@@ -423,15 +452,31 @@ function clearAllSelections() {
     }
 }
 
-// Preview function - opens in new tab
+// Toggle all students for a specific course
+function toggleCourseStudents(checkbox, courseCode) {
+    const courseCheckboxes = document.querySelectorAll(`.absentee-checkbox-${courseCode}`);
+    courseCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+}
+
+// Clear all absentee selections
+function clearAllAbsenteeSelections() {
+    const absenteeCheckboxes = document.querySelectorAll('.absentee-checkbox');
+    absenteeCheckboxes.forEach(cb => {
+        cb.checked = false;
+    });
+    const selectCourseAll = document.querySelectorAll('.select-course-all');
+    selectCourseAll.forEach(cb => {
+        cb.checked = false;
+    });
+}
+
+// Preview function - opens in new tab with course data
 function previewAbsentees() {
-    const form = document.getElementById('absenteeActionsForm');
-    const examDate = document.getElementById('exam_date').value;
-    
-    if (!examDate) {
-        alert('Please select an exam date');
-        return;
-    }
+    // Get all course exam dates
+    const courseDates = document.querySelectorAll('.course-exam-date');
+    let hasAllDates = true;
     
     // Create a temporary form that submits to new tab
     const tempForm = document.createElement('form');
@@ -446,12 +491,23 @@ function previewAbsentees() {
     actionInput.value = 'preview_absentees';
     tempForm.appendChild(actionInput);
     
-    // Add exam_date field
-    const dateInput = document.createElement('input');
-    dateInput.type = 'hidden';
-    dateInput.name = 'exam_date';
-    dateInput.value = examDate;
-    tempForm.appendChild(dateInput);
+    // Add all course exam dates
+    courseDates.forEach(dateInput => {
+        if (!dateInput.value) {
+            hasAllDates = false;
+        }
+        const hiddenDate = document.createElement('input');
+        hiddenDate.type = 'hidden';
+        hiddenDate.name = dateInput.name;
+        hiddenDate.value = dateInput.value || new Date().toISOString().split('T')[0];
+        tempForm.appendChild(hiddenDate);
+    });
+    
+    if (!hasAllDates) {
+        if (!confirm('Some courses do not have exam dates set. Use today\'s date for those courses?')) {
+            return;
+        }
+    }
     
     // Submit the form
     document.body.appendChild(tempForm);
