@@ -5,7 +5,7 @@ from .models import (
     load_excel_to_db, get_user_by_credentials, register_user,
     get_all_semesters, get_courses_for_semester,
     get_semesters_for_program_level,
-    get_all_users, get_pending_users, approve_user, reject_user,
+    get_all_users, get_pending_users, get_pending_users_count, approve_user, reject_user,
     toggle_user_active, update_user_role, delete_user
 )
 from .attendance import (
@@ -13,7 +13,7 @@ from .attendance import (
     generate_all_attendance_sheets_zip
 )
 from helpers.file_utils import allowed_file, get_uploaded_files, delete_file_safely
-from helpers.database_utils import get_semester_stats, cleanup_semester_databases
+from helpers.database_utils import get_semester_stats, cleanup_semester_databases, invalidate_stats_cache
 
 bp = Blueprint('main', __name__)
 
@@ -170,6 +170,7 @@ def delete_file(filename):
             flash(f'File {filename} has been deleted successfully.', 'success')
             # Also clear semester data and remove semester databases
             cleanup_semester_databases()
+            # Note: cleanup_semester_databases() already invalidates cache
         else:
             flash(f'File {filename} not found.', 'error')
     except Exception as e:
@@ -183,8 +184,11 @@ def dashboard():
         return redirect(url_for('main.login'))
     
     stats = get_semester_stats()
+    # Optimize: Only load uploaded files for admin users who need them
+    # Set to empty list for non-admins to save query time
     uploaded_files = get_uploaded_files() if session.get('role') == 'admin' else []
-    pending_count = len(get_pending_users()) if session.get('role') == 'admin' else 0
+    # Optimize: Use count query instead of loading all pending users
+    pending_count = get_pending_users_count() if session.get('role') == 'admin' else 0
     
     return render_template('dashboard.html',
                          username=session.get('full_name', session.get('email', 'User')),
@@ -233,6 +237,8 @@ def upload_file():
             
             success, message = load_excel_to_db(filepath, academic_year, semester_type, sheet_type, exam_type)
             if success:
+                # Invalidate stats cache after successful upload
+                invalidate_stats_cache()
                 flash(message, 'success')
             else:
                 flash(message, 'error')

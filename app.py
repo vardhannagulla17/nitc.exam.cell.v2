@@ -164,15 +164,45 @@ from app.models import (
     init_db, load_excel_to_db, get_user_by_credentials, register_user,
     get_all_semesters, get_courses_for_semester,
     get_semesters_for_program_level,
-    get_all_users, get_pending_users, approve_user, reject_user,
+    get_all_users, get_pending_users, get_pending_users_count, approve_user, reject_user,
     toggle_user_active, update_user_role, delete_user,
     upload_exam_timetable, get_exam_date_for_course, get_timetable_for_semester,
     get_courses_with_exam_dates, has_timetable_for_semester,
     create_password_reset_request, verify_password_reset_otp
 )
 
-def get_semester_stats():
-    """Calculate actual statistics from the database"""
+# Simple in-memory cache for dashboard stats
+_stats_cache = {
+    'data': None,
+    'timestamp': 0,
+    'ttl': 600  # Cache for 10 minutes (600 seconds) - balance between freshness and performance
+}
+
+def invalidate_stats_cache():
+    """Invalidate the stats cache to force refresh on next request"""
+    global _stats_cache
+    _stats_cache['data'] = None
+    _stats_cache['timestamp'] = 0
+    print("Stats cache invalidated")
+
+def get_semester_stats(force_refresh=False):
+    """Calculate actual statistics from the database with caching
+    
+    Args:
+        force_refresh: If True, bypass cache and recalculate stats
+    """
+    global _stats_cache
+    
+    # Check if we have valid cached data
+    current_time = time.time()
+    cache_age = current_time - _stats_cache['timestamp']
+    
+    if not force_refresh and _stats_cache['data'] is not None and cache_age < _stats_cache['ttl']:
+        print(f"Using cached stats (age: {cache_age:.1f}s)")
+        return _stats_cache['data']
+    
+    # Cache miss or expired - recalculate
+    print("Recalculating stats (cache miss or expired)")
     try:
         from app.database import USE_SUPABASE_DB
         
@@ -205,13 +235,21 @@ def get_semester_stats():
                 total_courses = len(unique_courses)
                 print(f"DEBUG: Found {total_courses} unique courses")
                 
-                return {
+                stats = {
                     'total_students': total_students,
                     'total_courses': total_courses,
                     'total_semesters': total_semesters
                 }
+                
+                # Update cache for Supabase stats
+                _stats_cache['data'] = stats
+                _stats_cache['timestamp'] = time.time()
+                print(f"Stats cached: {stats}")
+                
+                return stats
             except Exception as e:
                 print(f"ERROR querying Supabase in get_semester_stats: {e}")
+                # Don't cache errors
                 return {'total_students': 0, 'total_courses': 0, 'total_semesters': 0}
         else:
             # SQLite for local development
@@ -268,13 +306,21 @@ def get_semester_stats():
 
             conn.close()
             
-            return {
+            stats = {
                 'total_students': total_students,
                 'total_courses': len(unique_courses),
                 'total_semesters': total_semesters
             }
+            
+            # Update cache
+            _stats_cache['data'] = stats
+            _stats_cache['timestamp'] = time.time()
+            print(f"Stats cached: {stats}")
+            
+            return stats
     except Exception as e:
         print(f"Error calculating semester stats: {str(e)}")
+        # Don't cache errors
         return {
             'total_students': 0,
             'total_courses': 0,
@@ -740,6 +786,9 @@ def delete_file(filename):
                         os.remove(db_path)
                 except Exception as remove_err:
                     print(f"Warning: could not remove semester db {db_path}: {remove_err}")
+            
+            # Invalidate stats cache after cleanup
+            invalidate_stats_cache()
         except Exception as cleanup_err:
             print(f"Warning: cleanup after file delete failed: {cleanup_err}")
     except Exception as e:
@@ -758,6 +807,7 @@ def dashboard():
         print(f"Error getting semester stats: {e}")
         stats = {'total_students': 0, 'total_courses': 0, 'total_semesters': 0}
     
+    # Optimize: Only load uploaded files for admin users who need them
     try:
         uploaded_files = get_uploaded_files() if session.get('role') == 'admin' else []
     except Exception as e:
@@ -774,7 +824,8 @@ def dashboard():
             print(f"Error getting database usage stats: {e}")
             db_usage = None
         try:
-            pending_users_count = len(get_pending_users())
+            # Optimize: Use count query instead of loading all pending users
+            pending_users_count = get_pending_users_count()
         except Exception as e:
             print(f"Error getting pending users: {e}")
             pending_users_count = 0
@@ -875,6 +926,8 @@ def upload_file():
                 return redirect(request.url)
             
             if success:
+                # Invalidate stats cache after successful upload
+                invalidate_stats_cache()
                 flash(message, 'success')
             else:
                 flash(message, 'error')

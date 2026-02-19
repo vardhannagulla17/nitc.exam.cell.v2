@@ -1160,6 +1160,25 @@ def get_pending_users():
         conn.close()
         return [{'id': u[0], 'email': u[1], 'full_name': u[2], 'role': u[3], 'created_at': u[4]} for u in users]
 
+def get_pending_users_count():
+    """Get count of users pending approval (optimized for dashboard)"""
+    if USE_SUPABASE_DB:
+        try:
+            if not supabase:
+                return 0
+            result = supabase.table('users').select('id', count='exact').eq('is_approved', False).execute()
+            return result.count if hasattr(result, 'count') else len(result.data)
+        except Exception as e:
+            print(f"Error getting pending users count: {e}")
+            return 0
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM users WHERE is_approved = 0')
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
+
 def approve_user(user_id, approved_by):
     """Approve a user registration"""
     if USE_SUPABASE_DB:

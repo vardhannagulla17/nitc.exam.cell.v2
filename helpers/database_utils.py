@@ -1,6 +1,14 @@
 import sqlite3
 import os
+import time
 from flask import current_app
+
+# Simple in-memory cache for dashboard stats
+_stats_cache = {
+    'data': None,
+    'timestamp': 0,
+    'ttl': 600  # Cache for 10 minutes (600 seconds) - balance between freshness and performance
+}
 
 def get_db_connection(db_path=None):
     """Get database connection"""
@@ -13,8 +21,32 @@ def get_db_connection(db_path=None):
     
     return sqlite3.connect(db_path)
 
-def get_semester_stats():
-    """Calculate actual statistics from the database"""
+def invalidate_stats_cache():
+    """Invalidate the stats cache to force refresh on next request"""
+    global _stats_cache
+    _stats_cache['data'] = None
+    _stats_cache['timestamp'] = 0
+    print("Stats cache invalidated")
+
+def get_semester_stats(force_refresh=False):
+    """Calculate actual statistics from the database with caching
+    
+    Args:
+        force_refresh: If True, bypass cache and recalculate stats
+    """
+    global _stats_cache
+    
+    # Check if we have valid cached data
+    current_time = time.time()
+    cache_age = current_time - _stats_cache['timestamp']
+    
+    if not force_refresh and _stats_cache['data'] is not None and cache_age < _stats_cache['ttl']:
+        print(f"Using cached stats (age: {cache_age:.1f}s)")
+        return _stats_cache['data']
+    
+    # Cache miss or expired - recalculate
+    print("Recalculating stats (cache miss or expired)")
+    
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -69,13 +101,21 @@ def get_semester_stats():
 
         conn.close()
         
-        return {
+        stats = {
             'total_students': total_students,
             'total_courses': len(unique_courses),
             'total_semesters': total_semesters
         }
+        
+        # Update cache
+        _stats_cache['data'] = stats
+        _stats_cache['timestamp'] = time.time()
+        print(f"Stats cached: {stats}")
+        
+        return stats
     except Exception as e:
         print(f"Error calculating semester stats: {str(e)}")
+        # Don't cache errors
         return {
             'total_students': 0,
             'total_courses': 0,
@@ -100,6 +140,9 @@ def cleanup_semester_databases():
                     os.remove(db_path)
             except Exception as remove_err:
                 print(f"Warning: could not remove semester db {db_path}: {remove_err}")
+        
+        # Invalidate cache after cleanup
+        invalidate_stats_cache()
     except Exception as cleanup_err:
         print(f"Warning: cleanup after file delete failed: {cleanup_err}")
 
