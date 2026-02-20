@@ -2415,7 +2415,14 @@ def admin_absentees():
                             absentee['instructor'] = 'N/A'
                     
                     # Generate consolidated HTML
-                    html_content = generate_consolidated_absentee_html(result.data)
+                    try:
+                        html_content = generate_consolidated_absentee_html(result.data)
+                    except Exception as html_err:
+                        print(f"Error in generate_consolidated_absentee_html: {html_err}")
+                        import traceback
+                        traceback.print_exc()
+                        flash(f'Error generating HTML: {str(html_err)}', 'error')
+                        return redirect(url_for('view_absentees'))
                     
                     # Convert to PDF
                     pdf_bytes = html_to_pdf(html_content)
@@ -2455,7 +2462,14 @@ def admin_absentees():
                             absentee['instructor'] = 'N/A'
                     
                     # Generate HTML for approved absentees 
-                    html_content = generate_consolidated_absentee_html(result.data)
+                    try:
+                        html_content = generate_consolidated_absentee_html(result.data)
+                    except Exception as html_err:
+                        print(f"Error in generate_consolidated_absentee_html: {html_err}")
+                        import traceback
+                        traceback.print_exc()
+                        flash(f'Error generating HTML: {str(html_err)}', 'error')
+                        return redirect(url_for('view_absentees'))
                     
                     # Convert to PDF
                     pdf_bytes = html_to_pdf(html_content)
@@ -2475,6 +2489,8 @@ def admin_absentees():
                     flash('No approved absentees found.', 'warning')
             except Exception as e:
                 print(f"Error downloading approved absentees: {e}")
+                import traceback
+                traceback.print_exc()
                 flash('Error generating approved absentees report.', 'error')
         
         elif action == 'download_from_storage':
@@ -2498,7 +2514,14 @@ def admin_absentees():
                             absentee['instructor'] = 'N/A'
                     
                     # Generate HTML for storage absentees
-                    html_content = generate_consolidated_absentee_html(absentees_from_storage)
+                    try:
+                        html_content = generate_consolidated_absentee_html(absentees_from_storage)
+                    except Exception as html_err:
+                        print(f"Error in generate_consolidated_absentee_html: {html_err}")
+                        import traceback
+                        traceback.print_exc()
+                        flash(f'Error generating HTML: {str(html_err)}', 'error')
+                        return redirect(url_for('view_absentees'))
                     
                     # Convert to PDF
                     pdf_bytes = html_to_pdf(html_content)
@@ -2711,29 +2734,46 @@ def clear_bucket_page():
 
 def generate_consolidated_absentee_html(absentees):
     """Generate consolidated HTML for all approved absentees grouped by course (attendance sheet format)"""
-    from helpers.utils import sort_by_roll_number
+    from helpers.utils import sort_by_roll_number, extract_semester_from_roll_no
     from collections import defaultdict
     
-    # Enrich absentees with timetable_batch from students table
+    if not absentees:
+        return """<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>No Absentees</title></head>
+<body><p>No absentees found.</p></body></html>"""
+    
+    # Enrich absentees with timetable_batch and course_title from students table
     for absentee in absentees:
         roll_no = absentee.get('roll_no', '')
+        course_code = absentee.get('course_code', '')
+        
         if roll_no and USE_SUPABASE_DB and supabase:
             try:
-                # Get timetable_batch from students table
+                # Get timetable_batch and course_title from students table
                 student_query = supabase.table('students')\
-                    .select('timetable_batch')\
+                    .select('timetable_batch, course_title')\
                     .eq('roll_no', roll_no)\
+                    .eq('course_code', course_code)\
                     .limit(1)\
                     .execute()
                 if student_query.data:
                     absentee['timetable_batch'] = student_query.data[0].get('timetable_batch', '')
+                    # Only override course_title if not already present
+                    if not absentee.get('course_title'):
+                        absentee['course_title'] = student_query.data[0].get('course_title', 'N/A')
                 else:
                     absentee['timetable_batch'] = ''
+                    if not absentee.get('course_title'):
+                        absentee['course_title'] = 'N/A'
             except Exception as e:
-                print(f"Error getting timetable_batch for {roll_no}: {e}")
+                print(f"Error getting data for {roll_no}: {e}")
                 absentee['timetable_batch'] = ''
+                if not absentee.get('course_title'):
+                    absentee['course_title'] = 'N/A'
         else:
             absentee['timetable_batch'] = ''
+            if not absentee.get('course_title'):
+                absentee['course_title'] = 'N/A'
     
     # Group absentees by (course_code, exam_date, instructor)
     grouped = defaultdict(list)
@@ -2827,14 +2867,20 @@ def generate_consolidated_absentee_html(absentees):
         course_code, exam_date, course_title, instructor = course_key
         
         # Sort absentees by roll number for this course
-        sorted_absentees = sort_by_roll_number(course_absentees, key_func=lambda x: x.get('roll_no', ''))
+        try:
+            sorted_absentees = sort_by_roll_number(course_absentees, key_func=lambda x: x.get('roll_no', ''))
+        except Exception as e:
+            print(f"Error sorting absentees for {course_code}: {e}")
+            sorted_absentees = course_absentees
+        
         total_absentees += len(sorted_absentees)
         
         # Format exam date
         try:
             formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
-        except:
-            formatted_exam_date = exam_date
+        except Exception as e:
+            print(f"Error formatting date {exam_date}: {e}")
+            formatted_exam_date = exam_date if exam_date != 'N/A' else 'N/A'
         
         html += f"""
     <div class="page">
@@ -2876,9 +2922,12 @@ def generate_consolidated_absentee_html(absentees):
             timetable_batch = absentee.get('timetable_batch', '')
             
             # Calculate semester for display
-            from helpers.utils import extract_semester_from_roll_no
-            semester = extract_semester_from_roll_no(roll_no)
-            semester_display = str(semester) if semester < 99 else '-'
+            try:
+                semester = extract_semester_from_roll_no(roll_no)
+                semester_display = str(semester) if semester < 99 else '-'
+            except Exception as e:
+                print(f"Error calculating semester for {roll_no}: {e}")
+                semester_display = '-'
             
             html += f"""
                 <tr>
