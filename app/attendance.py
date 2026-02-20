@@ -575,18 +575,53 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
             </tbody>
         </table>
 
-        <!-- Invigilator Signature Section -->
+        <!-- Answer Books, Invigilators and Absentees Section -->
         <div style="margin-top: 20px;">
-            <strong>Signature of invigilators with Date</strong>
-            <table style="margin-top: 10px;">
+            <table>
                 <tr>
-                    <th style="width: 10%;">Sl. No.</th>
-                    <th style="width: 40%;">Name</th>
-                    <th style="width: 25%;">Date</th>
-                    <th style="width: 25%;">Signature</th>
+                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the answer Books</th>
+                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the Invigilators</th>
                 </tr>
-                <tr><td>1</td><td></td><td></td><td></td></tr>
-                <tr><td>2</td><td></td><td></td><td></td></tr>
+                <tr>
+                    <td style="width: 12%;"></td>
+                    <th style="width: 8%; text-align: center;">Main</th>
+                    <th style="width: 13%; text-align: center;">Additional</th>
+                    <th style="width: 10%; text-align: center;">Sl. No.</th>
+                    <th style="width: 35%; text-align: center;">Name</th>
+                    <th style="width: 22%; text-align: center;">Signature</th>
+                </tr>
+                <tr>
+                    <td><strong>Received</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">1</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><strong>Used</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">2</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><strong>Balance</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">3</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <th colspan="6" style="background-color: #d3d3d3; text-align: center;">Details of Absentees</th>
+                </tr>
+                <tr>
+                    <th style="text-align: center;">No. of Absentees</th>
+                    <td></td>
+                    <th colspan="4" style="text-align: center;">Roll no. of Absentees</th>
+                </tr>
             </table>
         </div>
     </div>
