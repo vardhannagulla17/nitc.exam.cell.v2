@@ -427,7 +427,7 @@ def get_courses(db_name_or_semester_id, program_level=None):
 def generate_html_content(course_code, exam_date, academic_year, semester_type, degree_level, exam_type, course_title, instructor_name, students_sorted):
     """Generate HTML content for attendance sheet"""
     # Calculate pagination
-    rows_per_page = 60
+    rows_per_page = 70
     total_students = len(students_sorted)
     total_pages = max(1, (total_students + rows_per_page - 1) // rows_per_page)
     
