@@ -2710,8 +2710,9 @@ def clear_bucket_page():
 
 
 def generate_consolidated_absentee_html(absentees):
-    """Generate consolidated HTML for all approved absentees as a single flat list"""
-    from helpers.utils import sort_absentees_by_semester_batch_name
+    """Generate consolidated HTML for all approved absentees grouped by course (attendance sheet format)"""
+    from helpers.utils import sort_by_roll_number
+    from collections import defaultdict
     
     # Enrich absentees with timetable_batch from students table
     for absentee in absentees:
@@ -2734,108 +2735,185 @@ def generate_consolidated_absentee_html(absentees):
         else:
             absentee['timetable_batch'] = ''
     
-    # Sort absentees by semester, batch, and name
-    sorted_absentees = sort_absentees_by_semester_batch_name(absentees)
+    # Group absentees by (course_code, exam_date, instructor)
+    grouped = defaultdict(list)
+    for absentee in absentees:
+        key = (
+            absentee.get('course_code', 'N/A'),
+            absentee.get('exam_date', 'N/A'),
+            absentee.get('course_title', 'N/A'),
+            absentee.get('instructor', 'N/A')
+        )
+        grouped[key].append(absentee)
     
-    # Collect unique exam dates from absentees
-    unique_dates = sorted(set(a.get('exam_date', 'N/A') for a in sorted_absentees))
-    if len(unique_dates) == 1:
-        formatted_date = datetime.strptime(unique_dates[0], '%Y-%m-%d').strftime('%d-%m-%Y') if unique_dates[0] != 'N/A' else 'N/A'
-    else:
-        formatted_date = f"{len(unique_dates)} dates"
+    # Sort courses by exam date, then course code
+    sorted_courses = sorted(grouped.items(), key=lambda x: (x[0][1], x[0][0]))
     
     # Generate HTML
     html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Consolidated Absentee List - {formatted_date}</title>
+    <title>Consolidated Absentee List</title>
     <style>
         @page {{ size: A4; margin: 15mm; }}
-        body {{ font-family: 'Times New Roman', serif; margin: 0; padding: 20px; font-size: 11pt; }}
-        .header {{ text-align: center; margin-bottom: 20px; }}
-        .header h1 {{ font-size: 16pt; margin: 5px 0; }}
-        .header h2 {{ font-size: 13pt; margin: 5px 0; font-weight: normal; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-        th, td {{ border: 1px solid black; padding: 6px; text-align: left; }}
-        th {{ background-color: #e0e0e0; font-weight: bold; }}
-        .summary {{ margin-top: 30px; padding: 15px; background: #f9f9f9; border: 1px solid #333; }}
-        .footer {{ margin-top: 40px; text-align: center; }}
-        @media print {{ .no-print {{ display: none; }} }}
+        body {{ 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+        }}
+        .header {{ 
+            text-align: center; 
+            margin-bottom: 10px; 
+        }}
+        .institute-name {{ 
+            font-weight: bold; 
+            font-size: 14px; 
+        }}
+        .form-title {{ 
+            font-weight: bold; 
+            font-size: 12px; 
+            margin-top: 6px; 
+        }}
+        .info-section {{
+            margin: 10px 0;
+            font-size: 10px;
+        }}
+        .info-section div {{
+            margin: 3px 0;
+        }}
+        table {{ 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 8px 0; 
+        }}
+        th, td {{ 
+            border: 1px solid black; 
+            padding: 4px; 
+            text-align: left; 
+            font-size: 10px; 
+        }}
+        th {{ 
+            background-color: #f0f0f0; 
+            font-weight: bold; 
+        }}
+        .summary-box {{
+            border: 1px solid black;
+            padding: 10px;
+            margin: 15px 0;
+            font-size: 10px;
+        }}
+        .footer {{
+            margin-top: 20px;
+            font-size: 10px;
+        }}
+        .page {{ 
+            page-break-after: always; 
+        }}
+        .page:last-child {{ 
+            page-break-after: auto; 
+        }}
+        @media print {{
+            body {{ margin: 10mm; }}
+        }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>National Institute of Technology Calicut</h1>
-        <h2>Consolidated Absentee List</h2>
-        <p><strong>Exam Date:</strong> {formatted_date}</p>
-    </div>
-    
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 50px;">S.No</th>
-                <th style="width: 70px;">Semester</th>
-                <th style="width: 120px;">Roll Number</th>
-                <th style="width: 180px;">Student Name</th>
-                <th style="width: 70px;">Batch</th>
-                <th style="width: 200px;">Course (Code - Title)</th>
-                <th style="width: 95px;">Exam Date</th>
-                <th>Instructor</th>
-            </tr>
-        </thead>
-        <tbody>
 """
     
-    # Add all students in sorted order
-    for idx, absentee in enumerate(sorted_absentees, 1):
-        roll_no = absentee.get('roll_no', '')
-        name = absentee.get('name', '')
-        course_code = absentee.get('course_code', '')
-        course_title = absentee.get('course_title', '')
-        exam_date = absentee.get('exam_date', 'N/A')
-        instructor = absentee.get('instructor', 'N/A')
-        timetable_batch = absentee.get('timetable_batch', '')
+    total_absentees = 0
+    
+    # Generate a page for each course
+    for course_key, course_absentees in sorted_courses:
+        course_code, exam_date, course_title, instructor = course_key
         
-        # Calculate semester for display
-        from helpers.utils import extract_semester_from_roll_no
-        semester = extract_semester_from_roll_no(roll_no)
-        semester_display = str(semester) if semester < 99 else '-'
+        # Sort absentees by roll number for this course
+        sorted_absentees = sort_by_roll_number(course_absentees, key_func=lambda x: x.get('roll_no', ''))
+        total_absentees += len(sorted_absentees)
         
         # Format exam date
         try:
             formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
         except:
             formatted_exam_date = exam_date
+        
+        html += f"""
+    <div class="page">
+        <!-- Header Section -->
+        <div class="header">
+            <div class="institute-name">National Institute of Technology Calicut</div>
+            <div class="form-title">Consolidated Absentee List</div>
+        </div>
+
+        <!-- Course Information Section -->
+        <div class="info-section">
+            <div><strong>Exam Date:</strong> {formatted_exam_date}</div>
+            <div>
+                <strong>Course Code:</strong> {course_code} &nbsp;&nbsp;
+                <strong>Course Name:</strong> {course_title} &nbsp;&nbsp;
+                <strong>Instructor:</strong> {instructor if instructor != 'N/A' else '1166-IlaveM'}
+            </div>
+        </div>
+
+        <!-- Students Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 8%;">S.No</th>
+                    <th style="width: 12%;">Semester</th>
+                    <th style="width: 15%;">Roll Number</th>
+                    <th style="width: 30%;">Student Name</th>
+                    <th style="width: 10%;">Batch</th>
+                    <th style="width: 25%;">Course (Code - Title)</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+        
+        # Add student rows
+        for idx, absentee in enumerate(sorted_absentees, 1):
+            roll_no = absentee.get('roll_no', '')
+            name = absentee.get('name', '')
+            timetable_batch = absentee.get('timetable_batch', '')
             
-        html += f"""            <tr>
-                <td>{idx}</td>
-                <td style="text-align: center;">{semester_display}</td>
-                <td>{roll_no}</td>
-                <td>{name}</td>
-                <td>{timetable_batch if timetable_batch else '-'}</td>
-                <td>{course_code} - {course_title}</td>
-                <td>{formatted_exam_date}</td>
-                <td>{instructor}</td>
-            </tr>
+            # Calculate semester for display
+            from helpers.utils import extract_semester_from_roll_no
+            semester = extract_semester_from_roll_no(roll_no)
+            semester_display = str(semester) if semester < 99 else '-'
+            
+            html += f"""
+                <tr>
+                    <td>{idx}</td>
+                    <td style="text-align: center;">{semester_display}</td>
+                    <td>{roll_no}</td>
+                    <td>{name}</td>
+                    <td>{timetable_batch if timetable_batch else '-'}</td>
+                    <td>{course_code} - {course_title}</td>
+                </tr>
+"""
+        
+        html += f"""
+            </tbody>
+        </table>
+        
+        <!-- Summary Section -->
+        <div class="summary-box">
+            <strong>Summary</strong>
+            <br><br>
+            <strong>Total Absentees:</strong> {len(sorted_absentees)}
+            <br><br>
+            <strong>Generated on:</strong> {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}
+        </div>
+        
+        <!-- Footer Section -->
+        <div class="footer">
+            <strong>Verified by:</strong> _____________________
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <strong>Date:</strong> _____________________
+        </div>
+    </div>
 """
     
-    html += f"""        </tbody>
-    </table>
-    
-    <div class="summary">
-        <h3>Summary</h3>
-        <p><strong>Total Absentees:</strong> {len(sorted_absentees)}</p>
-        <p><strong>Generated on:</strong> {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</p>
-    </div>
-    
-    <div class="footer">
-        <p>
-            <strong>Verified by:</strong> _____________________
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            <strong>Date:</strong> _____________________
-        </p>
-    </div>
+    html += """
 </body>
 </html>"""
     
