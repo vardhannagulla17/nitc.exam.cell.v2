@@ -427,7 +427,7 @@ def get_courses(db_name_or_semester_id, program_level=None):
 def generate_html_content(course_code, exam_date, academic_year, semester_type, degree_level, exam_type, course_title, instructor_name, students_sorted):
     """Generate HTML content for attendance sheet"""
     # Calculate pagination
-    rows_per_page = 70
+    rows_per_page = 60
     total_students = len(students_sorted)
     total_pages = max(1, (total_students + rows_per_page - 1) // rows_per_page)
     
@@ -554,32 +554,18 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
 """
         
         # Add student rows for this page
-        for i in range(rows_per_page):
+        for i, student in enumerate(page_students):
             serial_no = start_idx + i + 1
-            if i < len(page_students):
-                student = page_students[i]
-                roll_no = student[0] if student[0] else ''
-                name = student[1] if student[1] else ''
-                batch = student[5] if len(student) > 5 and student[5] else ''
-                
-                html_content += f"""
+            roll_no = student[0] if student[0] else ''
+            name = student[1] if student[1] else ''
+            batch = student[5] if len(student) > 5 and student[5] else ''
+            
+            html_content += f"""
                 <tr>
                     <td>{serial_no}</td>
                     <td>{roll_no}</td>
                     <td>{batch if batch else '-'}</td>
                     <td>{name}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                </tr>"""
-            else:
-                # Empty rows to fill the page
-                html_content += f"""
-                <tr>
-                    <td>{serial_no}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
                     <td></td>
                     <td></td>
                     <td></td>
