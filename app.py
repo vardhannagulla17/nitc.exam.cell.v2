@@ -185,15 +185,24 @@ from app.models import (
 _stats_cache = {
     'data': None,
     'timestamp': 0,
-    'ttl': 600  # Cache for 10 minutes (600 seconds) - balance between freshness and performance
+    'ttl': 604800  # Cache for 7 days (effectively infinite - only invalidated on data changes)
+}
+
+# Cache for database usage stats (admin only)
+_db_usage_cache = {
+    'data': None,
+    'timestamp': 0,
+    'ttl': 604800  # Cache for 7 days (effectively infinite - only invalidated on data changes)
 }
 
 def invalidate_stats_cache():
     """Invalidate the stats cache to force refresh on next request"""
-    global _stats_cache
+    global _stats_cache, _db_usage_cache
     _stats_cache['data'] = None
     _stats_cache['timestamp'] = 0
-    print("Stats cache invalidated")
+    _db_usage_cache['data'] = None
+    _db_usage_cache['timestamp'] = 0
+    print("Stats cache and DB usage cache invalidated")
 
 def get_semester_stats(force_refresh=False):
     """Calculate actual statistics from the database with caching
@@ -338,7 +347,20 @@ def get_semester_stats(force_refresh=False):
         }
 
 def get_database_usage_stats():
-    """Get detailed database usage statistics for admin dashboard"""
+    """Get detailed database usage statistics for admin dashboard with caching"""
+    global _db_usage_cache
+    
+    # Check if we have valid cached data
+    current_time = time.time()
+    cache_age = current_time - _db_usage_cache['timestamp']
+    
+    if _db_usage_cache['data'] is not None and cache_age < _db_usage_cache['ttl']:
+        print(f"Using cached DB usage stats (age: {cache_age:.1f}s)")
+        return _db_usage_cache['data']
+    
+    # Cache miss or expired - recalculate
+    print("Recalculating DB usage stats (cache miss or expired)")
+    
     try:
         from app.database import USE_SUPABASE_DB
         
@@ -375,7 +397,7 @@ def get_database_usage_stats():
             # Average row size: ~500 bytes (including indexes)
             estimated_db_size_mb = (total_students.count * 500 / 1024 / 1024) if hasattr(total_students, 'count') else 0
             
-            return {
+            result = {
                 'semester_breakdown': semester_breakdown,
                 'total_records': total_students.count if hasattr(total_students, 'count') else 0,
                 'total_semesters': total_semesters,
@@ -389,13 +411,20 @@ def get_database_usage_stats():
             if os.path.exists('exam_cell.db'):
                 db_size = os.path.getsize('exam_cell.db') / 1024 / 1024  # MB
             
-            return {
+            result = {
                 'semester_breakdown': [],
                 'total_records': 0,
                 'total_semesters': 0,
                 'estimated_size_mb': round(db_size, 2),
                 'free_tier_limit_mb': 500
             }
+        
+        # Cache the result
+        _db_usage_cache['data'] = result
+        _db_usage_cache['timestamp'] = time.time()
+        print(f"DB usage stats cached at {_db_usage_cache['timestamp']}")
+        
+        return result
     except Exception as e:
         print(f"Error getting database usage stats: {e}")
         return None
@@ -1127,6 +1156,48 @@ def api_get_sections(semester_id, course_code):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/instructors/<course_code>', methods=['GET'])
+def api_get_instructors(course_code):
+    """Get unique instructors for a specific course via JSON API"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        if USE_SUPABASE_DB and supabase:
+            # Get unique instructors for the course
+            all_records = []
+            page_size = 1000
+            offset = 0
+            
+            while True:
+                result = supabase.table('students')\
+                    .select('main_instructor')\
+                    .eq('course_code', course_code)\
+                    .range(offset, offset + page_size - 1)\
+                    .execute()
+                if not result.data:
+                    break
+                all_records.extend(result.data)
+                if len(result.data) < page_size:
+                    break
+                offset += page_size
+            
+            # Get unique instructors
+            instructors_set = set()
+            for record in all_records:
+                instructor = record.get('main_instructor', '').strip()
+                if instructor:
+                    instructors_set.add(instructor)
+            
+            # Convert to sorted list
+            instructors = sorted(list(instructors_set))
+            
+            return jsonify({'instructors': instructors}), 200
+        else:
+            return jsonify({'instructors': []}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # ============================================
 # ABSENTEE MANAGEMENT API ENDPOINTS
@@ -1574,19 +1645,24 @@ def absentee_sheet():
             # Load all students for a selected course
             course_code = request.form.get('course_code', '').strip()
             section = request.form.get('section', '').strip().upper()
+            instructor = request.form.get('instructor', '').strip()
             
             if not course_code:
                 flash('Please select a course.', 'error')
             elif USE_SUPABASE_DB and supabase:
                 try:
-                    # Build query with optional section filter (timetable_batch column)
+                    # Build query with optional filters
                     query = supabase.table('students')\
-                        .select('roll_no, name, course_code, course_title, timetable_batch')\
+                        .select('roll_no, name, course_code, course_title, timetable_batch, main_instructor')\
                         .eq('course_code', course_code)
                     
                     # Add section filter if specified
                     if section:
                         query = query.eq('timetable_batch', section)
+                    
+                    # Add instructor filter if specified
+                    if instructor:
+                        query = query.eq('main_instructor', instructor)
                     
                     response = query.order('roll_no').execute()
                     
@@ -1594,11 +1670,16 @@ def absentee_sheet():
                         course_students = response.data
                         selected_course_code = course_code
                         selected_section = section if section else None
-                        flash(f'Loaded {len(course_students)} students from {course_code}' + 
-                              (f' (Section: {section})' if section else ''), 'success')
+                        filter_msg = f'Loaded {len(course_students)} students from {course_code}'
+                        if section:
+                            filter_msg += f' (Section: {section})'
+                        if instructor:
+                            filter_msg += f' (Instructor: {instructor})'
+                        flash(filter_msg, 'success')
                     else:
                         flash(f'No students found in course {course_code}' + 
-                              (f' section {section}' if section else ''), 'error')
+                              (f' section {section}' if section else '') +
+                              (f' instructor {instructor}' if instructor else ''), 'error')
                 except Exception as e:
                     print(f"Error loading students: {e}")
                     flash('Error loading students from database.', 'error')

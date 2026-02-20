@@ -57,6 +57,16 @@
                                style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; text-transform: uppercase;">
                     </div>
 
+                    <div class="form-field" id="instructor_field" style="{% if not selected_course_code %}display: none;{% endif %}">
+                        <label for="instructor">
+                            <i class="fas fa-chalkboard-teacher"></i> Instructor (Optional - filter by instructor)
+                        </label>
+                        <select name="instructor" id="instructor" 
+                                style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
+                            <option value="">All Instructors</option>
+                        </select>
+                    </div>
+
                     <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
                         <i class="fas fa-users"></i> Load All Students
                     </button>
@@ -444,14 +454,49 @@ function selectCourse(code, title) {
     const courseCodeInput = document.getElementById('course_code');
     const dropdown = document.getElementById('course_dropdown');
     const sectionField = document.getElementById('section_field');
+    const instructorField = document.getElementById('instructor_field');
     
     searchInput.value = code + ' - ' + title;
     courseCodeInput.value = code;
     dropdown.style.display = 'none';
     if (sectionField) sectionField.style.display = 'block';
+    if (instructorField) instructorField.style.display = 'block';
+    
+    // Load instructors for this course
+    loadInstructorsForCourse(code);
     
     // Save to cookie
     setCookie('last_course_code', code, 30);
+}
+
+// Load instructors for selected course
+async function loadInstructorsForCourse(courseCode) {
+    const instructorSelect = document.getElementById('instructor');
+    if (!instructorSelect) return;
+    
+    try {
+        // Show loading state
+        instructorSelect.innerHTML = '<option value="">Loading...</option>';
+        instructorSelect.disabled = true;
+        
+        const response = await fetch(`/api/instructors/${courseCode}`);
+        const data = await response.json();
+        
+        // Populate instructor dropdown
+        let html = '<option value="">All Instructors</option>';
+        if (data.instructors && data.instructors.length > 0) {
+            data.instructors.forEach(instructor => {
+                html += `<option value="${instructor}">${instructor}</option>`;
+            });
+        }
+        
+        instructorSelect.innerHTML = html;
+        instructorSelect.disabled = false;
+    } catch (error) {
+        console.error('Error loading instructors:', error);
+        instructorSelect.innerHTML = '<option value="">All Instructors</option>';
+        instructorSelect.disabled = false;
+    }
 }
 
 // Toggle all students checkbox
