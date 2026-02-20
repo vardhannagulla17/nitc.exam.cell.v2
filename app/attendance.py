@@ -21,12 +21,13 @@ def html_to_pdf(source_html):
         return None
     return result.getvalue()
 
-def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None, section=None):
+def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None, section=None, instructor=None):
     """Generate HTML attendance sheet for a specific course and date using NITC format
     
     Args:
         section: Optional timetable_batch value (e.g., 'ME01', 'ME02') to filter students by section
                 If None or 'all', includes all sections
+        instructor: Optional instructor name to filter students by instructor
     """
     # For Vercel deployment, always use in_memory=True
     IS_VERCEL = os.environ.get('VERCEL') in ('1', 'true', 'True', True)
@@ -68,9 +69,14 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             academic_year, semester_type, degree_level, exam_type, db_name = semester_info
         
         # Get students from database
-        students_sorted = get_sorted_students(semester_id, course_code, program_level, section) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code, program_level, section)
+        students_sorted = get_sorted_students(semester_id, course_code, program_level, section, instructor) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code, program_level, section)
         if not students_sorted:
-            return None, "No students found for this course" + (f" and section {section}" if section and section != 'all' else "")
+            filter_desc = ""
+            if section and section != 'all':
+                filter_desc += f" section {section}"
+            if instructor:
+                filter_desc += f" instructor {instructor}"
+            return None, f"No students found for this course{filter_desc}"
         
         # Get course details
         course_title = students_sorted[0][2] if students_sorted else "Unknown Course"
@@ -310,7 +316,13 @@ Each course folder contains:
         return None, f"Error generating bulk attendance sheets: {str(e)}"
 
 # Helper functions
-def get_sorted_students(db_name_or_semester_id, course_code, program_level=None, section=None):
+def get_sorted_students(db_name_or_semester_id, course_code, program_level=None, section=None, instructor=None):
+    """Get sorted list of students for a course with optional filters
+    
+    Args:
+        section: Optional timetable_batch filter
+        instructor: Optional main_instructor filter
+    """
     """Get sorted list of students for a course
     
     Args:
@@ -340,6 +352,10 @@ def get_sorted_students(db_name_or_semester_id, course_code, program_level=None,
                 # Filter by section if specified
                 if section and section != 'all':
                     query = query.eq('timetable_batch', section)
+                
+                # Filter by instructor if specified
+                if instructor:
+                    query = query.eq('main_instructor', instructor)
                 
                 result = query.range(offset, offset + page_size - 1).execute()
                 if not result.data:

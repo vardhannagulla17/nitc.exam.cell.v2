@@ -69,10 +69,20 @@
                     <!-- Section/Batch -->
                     <div class="form-field" id="section-field" style="display:none;">
                         <label for="section">
-                            <i class="fas fa-users"></i> Section/Batch
+                            <i class="fas fa-users"></i> Section/Batch (Optional)
                         </label>
                         <select name="section" id="section">
                             <option value="all">All Sections</option>
+                        </select>
+                    </div>
+
+                    <!-- Instructor Filter -->
+                    <div class="form-field" id="instructor-field" style="display:none;">
+                        <label for="instructor">
+                            <i class="fas fa-chalkboard-teacher"></i> Instructor (Optional)
+                        </label>
+                        <select name="instructor" id="instructor">
+                            <option value="">All Instructors</option>
                         </select>
                     </div>
 
@@ -143,10 +153,13 @@ const programSelect = $('program_level');
 const semesterSelect = $('semester_id');
 const courseSelect = $('course_code');
 const sectionSelect = $('section');
+const instructorSelect = $('instructor');
 const dateInput = $('exam_date');
 const previewBtn = $('preview-btn');
 const downloadBtn = $('download-btn');
 const downloadAllBtn = $('download-all-btn');
+
+let isDownloading = false;
 
 // Set today's date
 if (dateInput) {
@@ -161,7 +174,9 @@ function updateVisibility() {
     
     $('semester-field').style.display = hasProgram ? 'block' : 'none';
     $('course-field').style.display = hasSemester ? 'block' : 'none';
+    // Show both section and instructor filters when course is selected
     $('section-field').style.display = hasCourse ? 'block' : 'none';
+    $('instructor-field').style.display = hasCourse ? 'block' : 'none';
     $('date-field').style.display = hasSemester ? 'block' : 'none';
     $('action-buttons').style.display = hasSemester ? 'flex' : 'none';
 }
@@ -172,12 +187,12 @@ function updateButtons() {
     const hasSemester = semesterSelect.value;
     const hasCourse = courseSelect.value;
     
-    const canDownload = hasCourse && hasDate && hasSemester;
-    const canDownloadAll = hasDate && hasSemester;
+    const canDownload = hasCourse && hasDate && hasSemester && !isDownloading;
+    const canDownloadAll = hasDate && hasSemester && !isDownloading;
     
-    previewBtn.disabled = !canDownload;
-    downloadBtn.disabled = !canDownload;
-    downloadAllBtn.disabled = !canDownloadAll;
+    previewBtn.disabled = !canDownload || isDownloading;
+    downloadBtn.disabled = !canDownload || isDownloading;
+    downloadAllBtn.disabled = !canDownloadAll || isDownloading;
 }
 
 // Program change - fetch semesters via AJAX
@@ -327,10 +342,11 @@ courseSelect.addEventListener('change', async () => {
     // Hide badge initially
     if (autoFillBadge) autoFillBadge.style.display = 'none';
     
-    // Reset section dropdown
+    // Reset section and instructor dropdowns
     sectionSelect.innerHTML = '<option value="all">All Sections</option>';
+    instructorSelect.innerHTML = '<option value="">All Instructors</option>';
     
-    // Fetch sections and exam date if both semester and course are selected
+    // Fetch sections, instructors and exam date if both semester and course are selected
     if (semester && courseCode) {
         // Fetch sections for this course
         try {
@@ -347,6 +363,23 @@ courseSelect.addEventListener('change', async () => {
             }
         } catch (error) {
             console.error('Error fetching sections:', error);
+        }
+        
+        // Fetch instructors for this course
+        try {
+            const instructorsResponse = await fetch(`/api/instructors/${encodeURIComponent(courseCode)}`);
+            const instructorsData = await instructorsResponse.json();
+            
+            if (instructorsData.instructors && instructorsData.instructors.length > 0) {
+                instructorsData.instructors.forEach(instructor => {
+                    const option = document.createElement('option');
+                    option.value = instructor;
+                    option.textContent = instructor;
+                    instructorSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching instructors:', error);
         }
         
         // Try to auto-fill exam date from timetable
@@ -403,6 +436,44 @@ previewBtn.addEventListener('click', () => {
         form.target = originalTarget;
         actionInput.remove();
     }, 100);
+});
+
+// Download button loading state
+downloadBtn.addEventListener('click', (e) => {
+    if (isDownloading) {
+        e.preventDefault();
+        return;
+    }
+    isDownloading = true;
+    const originalHTML = downloadBtn.innerHTML;
+    downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
+    updateButtons();
+    
+    // Reset after download completes (generous timeout for large files)
+    setTimeout(() => {
+        isDownloading = false;
+        downloadBtn.innerHTML = originalHTML;
+        updateButtons();
+    }, 3000);
+});
+
+// Download All button loading state
+downloadAllBtn.addEventListener('click', (e) => {
+    if (isDownloading) {
+        e.preventDefault();
+        return;
+    }
+    isDownloading = true;
+    const originalHTML = downloadAllBtn.innerHTML;
+    downloadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating ZIP...';
+    updateButtons();
+    
+    // Reset after download completes (generous timeout for ZIP generation)
+    setTimeout(() => {
+        isDownloading = false;
+        downloadAllBtn.innerHTML = originalHTML;
+        updateButtons();
+    }, 5000);
 });
 
 // Initialize

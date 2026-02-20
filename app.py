@@ -1441,10 +1441,11 @@ def download_attendance():
         course_code = request.form.get('course_code')
         exam_date = request.form.get('exam_date')
         section = request.form.get('section', 'all')  # Default to 'all' sections
+        instructor = request.form.get('instructor', '').strip()  # NEW: Instructor filter
         
         print(f"DEBUG: POST request received with action={action}")
         print(f"program_level={program_level}, semester_id={semester_id}")
-        print(f"course_code={course_code}, exam_date={exam_date}, section={section}")
+        print(f"course_code={course_code},exam_date={exam_date}, section={section}, instructor={instructor}")
         
         if not semester_id:
             flash('Please select a semester!', 'error')
@@ -1503,8 +1504,8 @@ def download_attendance():
                         flash(f'Error generating ZIP: {message}', 'error')
                     
             elif action == 'preview' and course_code:
-                print(f"DEBUG: Generating preview for {course_code}, section={section}")
-                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, program_level=program_level, section=section)
+                print(f"DEBUG: Generating preview for {course_code}, section={section}, instructor={instructor}")
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, program_level=program_level, section=section, instructor=instructor)
                     
                 if html_content:
                     return html_content
@@ -1512,31 +1513,33 @@ def download_attendance():
                     flash(f'Error generating preview: {message}', 'error')
                     
             elif action == 'download' and course_code:
-                print(f"DEBUG: Generating download for {course_code}, section={section}")
-                if IS_VERCEL:
-                    # For Vercel, generate in memory and send directly
-                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level, section=section)
-                    if html_content:
+                print(f"DEBUG: Generating download for {course_code}, section={section}, instructor={instructor}")
+                # Generate HTML content first
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level, section=section, instructor=instructor)
+                
+                if html_content:
+                    # Convert HTML to PDF
+                    from app.attendance import html_to_pdf
+                    pdf_bytes = html_to_pdf(html_content)
+                    
+                    if pdf_bytes:
                         # Create a proper filename for download
                         safe_course = secure_filename(str(course_code))
                         safe_date = secure_filename(str(exam_date))
-                        section_suffix = f"_{section}" if section != 'all' else ""
-                        filename = f"Attendance_{safe_course}{section_suffix}_{safe_date}.html"
+                        section_suffix = f"_{section}" if section and section != 'all' else ""
+                        instructor_suffix = f"_{secure_filename(instructor[:20])}" if instructor else ""
+                        filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.pdf"
+                        
                         return send_file(
-                            BytesIO(html_content.encode('utf-8')),
-                            mimetype='text/html',
+                            BytesIO(pdf_bytes),
+                            mimetype='application/pdf',
                             as_attachment=True,
                             download_name=filename
                         )
                     else:
-                        flash(f'Error generating download: {message}', 'error')
+                        flash('Error converting HTML to PDF', 'error')
                 else:
-                    # For local, generate file and send
-                    filepath, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, program_level=program_level, section=section)
-                    if filepath and os.path.exists(filepath):
-                        return send_file(filepath, as_attachment=True)
-                    else:
-                        flash(f'Error generating download: {message}', 'error')
+                    flash(f'Error generating download: {message}', 'error')
             else:
                 if not course_code:
                     flash('Please select a course!', 'error')
