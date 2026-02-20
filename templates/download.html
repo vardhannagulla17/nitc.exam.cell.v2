@@ -55,7 +55,8 @@
                         <label for="course_code">
                             <i class="fas fa-book-open"></i> Course (optional for single sheet)
                         </label>
-                        <select name="course_code" id="course_code">
+                        <input type="text" id="course_search" placeholder="Search courses..." autocomplete="off">
+                        <select name="course_code" id="course_code" size="8">
                             <option value="">Select Course</option>
                             {% if courses %}
                             {% for course in courses %}
@@ -250,6 +251,37 @@ semesterSelect.addEventListener('change', async () => {
     updateVisibility();
     updateButtons();
 });
+
+// Course search functionality
+const courseSearch = $('course_search');
+let allCourseOptions = [];
+
+if (courseSearch) {
+    courseSearch.addEventListener('input', () => {
+        const searchTerm = courseSearch.value.toLowerCase();
+        const options = courseSelect.querySelectorAll('option');
+        
+        options.forEach(option => {
+            if (option.value === '') {
+                option.style.display = 'block';
+                return;
+            }
+            const text = option.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+                option.style.display = 'block';
+            } else {
+                option.style.display = 'none';
+            }
+        });
+    });
+    
+    // Clear search when a course is selected
+    courseSelect.addEventListener('change', () => {
+        courseSearch.value = '';
+        const options = courseSelect.querySelectorAll('option');
+        options.forEach(option => option.style.display = 'block');
+    });
+}
 
 // Course/date change - update buttons and fetch sections
 courseSelect.addEventListener('change', async () => {
@@ -458,7 +490,26 @@ form {
     font-size: 1rem;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
+#course_search {
+    width: 100%;
+    padding: 0.8rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
 
+#course_search:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+#course_code {
+    max-height: 300px;
+    overflow-y: auto;
+}
 .form-field select:focus,
 .form-field input:focus {
     outline: none;

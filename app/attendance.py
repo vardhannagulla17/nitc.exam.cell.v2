@@ -566,12 +566,12 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
                 # Calculate semester for display
                 from helpers.utils import extract_semester_from_roll_no
                 semester = extract_semester_from_roll_no(roll_no)
-                semester_display = str(semester) if semester < 99 else '-'
+                student_sem_display = str(semester) if semester < 99 else '-'
                 
                 html_content += f"""
                 <tr>
                     <td>{serial_no}</td>
-                    <td style="text-align: center;">{semester_display}</td>
+                    <td style="text-align: center;">{student_sem_display}</td>
                     <td>{roll_no}</td>
                     <td>{batch if batch else '-'}</td>
                     <td>{name}</td>
