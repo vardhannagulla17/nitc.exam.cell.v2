@@ -6,6 +6,7 @@ import time
 from io import BytesIO
 import uuid
 from datetime import datetime
+from xhtml2pdf import pisa
 
 # Load environment variables
 try:
@@ -46,6 +47,15 @@ def format_datetime(timestamp):
     from datetime import datetime
     dt = datetime.fromtimestamp(timestamp)
     return dt.strftime('%Y-%m-%d %H:%M:%S')
+
+# Helper function to convert HTML to PDF
+def html_to_pdf(source_html):
+    """Convert HTML string to PDF bytes"""
+    result = BytesIO()
+    pdf = pisa.pisaDocument(BytesIO(source_html.encode("utf-8")), result)
+    if pdf.err:
+        return None
+    return result.getvalue()
 
 # File upload configurations
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -1818,13 +1828,19 @@ def absentee_sheet():
                 
                 html_content = generate_absentee_html_by_course(session['absentees'], exam_dates)
                 
+                # Convert to PDF
+                pdf_bytes = html_to_pdf(html_content)
+                if not pdf_bytes:
+                    flash('Error converting to PDF.', 'error')
+                    return redirect(url_for('mark_absentees'))
+                
                 # Create filename with date
                 today = datetime.now().strftime('%Y-%m-%d')
-                filename = f"Absentees_Multiple_Courses_{today}.html"
+                filename = f"Absentees_Multiple_Courses_{today}.pdf"
                 
                 return send_file(
-                    BytesIO(html_content.encode('utf-8')),
-                    mimetype='text/html',
+                    BytesIO(pdf_bytes),
+                    mimetype='application/pdf',
                     as_attachment=True,
                     download_name=filename
                 )
@@ -2251,11 +2267,18 @@ def admin_absentees():
                     
                     # Generate consolidated HTML
                     html_content = generate_consolidated_absentee_html(result.data)
-                    filename = f"Consolidated_Absentees_{datetime.now().strftime('%Y-%m-%d')}.html"
+                    
+                    # Convert to PDF
+                    pdf_bytes = html_to_pdf(html_content)
+                    if not pdf_bytes:
+                        flash('Error converting to PDF.', 'error')
+                        return redirect(url_for('view_absentees'))
+                    
+                    filename = f"Consolidated_Absentees_{datetime.now().strftime('%Y-%m-%d')}.pdf"
                     
                     return send_file(
-                        BytesIO(html_content.encode('utf-8')),
-                        mimetype='text/html',
+                        BytesIO(pdf_bytes),
+                        mimetype='application/pdf',
                         as_attachment=True,
                         download_name=filename
                     )
@@ -2284,11 +2307,18 @@ def admin_absentees():
                     
                     # Generate HTML for approved absentees 
                     html_content = generate_consolidated_absentee_html(result.data)
-                    filename = f"Approved_Absentees_{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.html"
+                    
+                    # Convert to PDF
+                    pdf_bytes = html_to_pdf(html_content)
+                    if not pdf_bytes:
+                        flash('Error converting to PDF.', 'error')
+                        return redirect(url_for('view_absentees'))
+                    
+                    filename = f"Approved_Absentees_{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.pdf"
                     
                     return send_file(
-                        BytesIO(html_content.encode('utf-8')),
-                        mimetype='text/html',
+                        BytesIO(pdf_bytes),
+                        mimetype='application/pdf',
                         as_attachment=True,
                         download_name=filename
                     )
@@ -2320,11 +2350,18 @@ def admin_absentees():
                     
                     # Generate HTML for storage absentees
                     html_content = generate_consolidated_absentee_html(absentees_from_storage)
-                    filename = f"Storage_Absentees_{exam_date or 'all'}.html"
+                    
+                    # Convert to PDF
+                    pdf_bytes = html_to_pdf(html_content)
+                    if not pdf_bytes:
+                        flash('Error converting to PDF.', 'error')
+                        return redirect(url_for('view_absentees'))
+                    
+                    filename = f"Storage_Absentees_{exam_date or 'all'}.pdf"
                     
                     return send_file(
-                        BytesIO(html_content.encode('utf-8')),
-                        mimetype='text/html',
+                        BytesIO(pdf_bytes),
+                        mimetype='application/pdf',
                         as_attachment=True,
                         download_name=filename
                     )

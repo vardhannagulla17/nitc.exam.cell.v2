@@ -9,8 +9,17 @@ from flask import current_app
 from werkzeug.utils import secure_filename
 from supabase_client import supabase
 from app.database import USE_SUPABASE_DB
+from xhtml2pdf import pisa
 
 # Get download folder path
+
+def html_to_pdf(source_html):
+    """Convert HTML string to PDF bytes"""
+    result = BytesIO()
+    pdf = pisa.pisaDocument(BytesIO(source_html.encode("utf-8")), result)
+    if pdf.err:
+        return None
+    return result.getvalue()
 
 def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None, section=None):
     """Generate HTML attendance sheet for a specific course and date using NITC format
@@ -74,21 +83,33 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             students_sorted
         )
         
-        if preview or in_memory:
+        if preview:
+            # Return HTML for preview
+            return html_content, "Generated successfully"
+        
+        if in_memory:
+            # Return HTML for in-memory processing (ZIP generation)
             return html_content, "Generated successfully"
             
-        # Save to file only if not in memory mode
+        # For download: Convert to PDF and save to file
         safe_course = secure_filename(str(course_code))
         safe_date = secure_filename(str(exam_date))
-        filename = f"Attendance_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{safe_course}_{safe_date}.html"
+        filename = f"Attendance_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{safe_course}_{safe_date}.pdf"
         filepath = os.path.join(download_folder, filename)
+        
         try:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(html_content)
+            # Convert HTML to PDF
+            pdf_bytes = html_to_pdf(html_content)
+            if not pdf_bytes:
+                return None, "Failed to convert HTML to PDF"
+            
+            # Write PDF to file
+            with open(filepath, 'wb') as f:
+                f.write(pdf_bytes)
         except Exception as write_err:
-            return None, f"Failed to write attendance file: {write_err}"
+            return None, f"Failed to write PDF file: {write_err}"
 
-        return filepath, "Attendance sheet generated successfully"
+        return filepath, "Attendance sheet PDF generated successfully"
         
     except Exception as e:
         return None, f"Error generating attendance sheet: {str(e)}"
@@ -217,12 +238,18 @@ Each course folder contains:
             html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, in_memory=True, program_level=program_level)
             if html_content:
                 safe_course = secure_filename(str(course_code))
-                filename = f"Detailed_Attendance_{academic_year}_{semester_type}_{course_code}_{exam_date}.html"
+                filename = f"Detailed_Attendance_{academic_year}_{semester_type}_{course_code}_{exam_date}.pdf"
                 rel_path = os.path.join(detected_program_level, safe_course, filename)
                 
+                # Convert HTML to PDF
+                pdf_bytes = html_to_pdf(html_content)
+                if not pdf_bytes:
+                    print(f"Warning: Failed to convert {course_code} to PDF, skipping...")
+                    continue
+                
                 if in_memory:
-                    # Add directly to ZIP
-                    zipf.writestr(rel_path, html_content)
+                    # Add PDF directly to ZIP
+                    zipf.writestr(rel_path, pdf_bytes)
                 else:
                     # Create course directory and write to temp dir
                     temp_program_dir = os.path.join(temp_dir, detected_program_level)
@@ -236,8 +263,8 @@ Each course folder contains:
                     dest_path = os.path.join(course_dir, filename)
                     try:
                         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                        with open(dest_path, 'w', encoding='utf-8') as f:
-                            f.write(html_content)
+                        with open(dest_path, 'wb') as f:
+                            f.write(pdf_bytes)
                         generated_files.append((dest_path, rel_path))
                     except Exception as e:
                         print(f"Warning: Could not write file {dest_path}: {str(e)}")
