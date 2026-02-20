@@ -2796,7 +2796,6 @@ def generate_consolidated_absentee_html(absentees):
     <meta charset="UTF-8">
     <title>Consolidated Absentee List</title>
     <style>
-        @page {{ size: A4; margin: 15mm; }}
         body {{ 
             font-family: Arial, sans-serif; 
             margin: 20px; 
@@ -2808,6 +2807,11 @@ def generate_consolidated_absentee_html(absentees):
         .institute-name {{ 
             font-weight: bold; 
             font-size: 14px; 
+        }}
+        .department {{ 
+            font-weight: bold; 
+            font-size: 12px; 
+            margin-top: 3px; 
         }}
         .form-title {{ 
             font-weight: bold; 
@@ -2836,24 +2840,16 @@ def generate_consolidated_absentee_html(absentees):
             background-color: #f0f0f0; 
             font-weight: bold; 
         }}
-        .summary-box {{
-            border: 1px solid black;
-            padding: 10px;
-            margin: 15px 0;
-            font-size: 10px;
-        }}
-        .footer {{
-            margin-top: 20px;
-            font-size: 10px;
-        }}
-        .page {{ 
-            page-break-after: always; 
-        }}
-        .page:last-child {{ 
-            page-break-after: auto; 
-        }}
         @media print {{
-            body {{ margin: 10mm; }}
+            body {{ 
+                margin: 10mm; 
+            }}
+            .page {{ 
+                page-break-after: always; 
+            }}
+            .page:last-child {{ 
+                page-break-after: auto; 
+            }}
         }}
     </style>
 </head>
@@ -2886,17 +2882,24 @@ def generate_consolidated_absentee_html(absentees):
     <div class="page">
         <!-- Header Section -->
         <div class="header">
-            <div class="institute-name">National Institute of Technology Calicut</div>
+            <div class="institute-name">NATIONAL INSTITUTE OF TECHNOLOGY CALICUT</div>
+            <div class="department">DEPARTMENT OF MECHANICAL ENGINEERING</div>
             <div class="form-title">Consolidated Absentee List</div>
         </div>
 
         <!-- Course Information Section -->
         <div class="info-section">
-            <div><strong>Exam Date:</strong> {formatted_exam_date}</div>
+            <div><strong>Name of the Examination:</strong> Mid Semester Examination</div>
+            <div>
+                <strong>Semester:</strong> Monsoon &nbsp;&nbsp;
+                <strong>Academic Year:</strong> 2025-26 &nbsp;&nbsp;
+                <strong>Date:</strong> {formatted_exam_date} &nbsp;&nbsp;
+                <strong>Time:</strong> ____________
+            </div>
             <div>
                 <strong>Course Code:</strong> {course_code} &nbsp;&nbsp;
                 <strong>Course Name:</strong> {course_title} &nbsp;&nbsp;
-                <strong>Instructor:</strong> {instructor if instructor != 'N/A' else '1166-IlaveM'}
+                <strong>Instructor:</strong> {instructor if instructor != 'N/A' else 'N/A'}
             </div>
         </div>
 
@@ -2904,12 +2907,10 @@ def generate_consolidated_absentee_html(absentees):
         <table>
             <thead>
                 <tr>
-                    <th style="width: 8%;">S.No</th>
-                    <th style="width: 12%;">Semester</th>
-                    <th style="width: 15%;">Roll Number</th>
-                    <th style="width: 30%;">Student Name</th>
-                    <th style="width: 10%;">Batch</th>
-                    <th style="width: 25%;">Course (Code - Title)</th>
+                    <th style="width: 5%;">Sl. No.</th>
+                    <th style="width: 12%;">Roll No.</th>
+                    <th style="width: 7%;">Batch</th>
+                    <th style="width: 76%;">Student Name</th>
                 </tr>
             </thead>
             <tbody>
@@ -2921,22 +2922,12 @@ def generate_consolidated_absentee_html(absentees):
             name = absentee.get('name', '')
             timetable_batch = absentee.get('timetable_batch', '')
             
-            # Calculate semester for display
-            try:
-                semester = extract_semester_from_roll_no(roll_no)
-                semester_display = str(semester) if semester < 99 else '-'
-            except Exception as e:
-                print(f"Error calculating semester for {roll_no}: {e}")
-                semester_display = '-'
-            
             html += f"""
                 <tr>
                     <td>{idx}</td>
-                    <td style="text-align: center;">{semester_display}</td>
                     <td>{roll_no}</td>
-                    <td>{name}</td>
                     <td>{timetable_batch if timetable_batch else '-'}</td>
-                    <td>{course_code} - {course_title}</td>
+                    <td>{name}</td>
                 </tr>
 """
         
@@ -2945,16 +2936,24 @@ def generate_consolidated_absentee_html(absentees):
         </table>
         
         <!-- Summary Section -->
-        <div class="summary-box">
-            <strong>Summary</strong>
-            <br><br>
-            <strong>Total Absentees:</strong> {len(sorted_absentees)}
-            <br><br>
-            <strong>Generated on:</strong> {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}
+        <div style="margin-top: 20px;">
+            <table>
+                <tr>
+                    <th colspan="2" style="background-color: #d3d3d3; text-align: center;">Summary</th>
+                </tr>
+                <tr>
+                    <td style="width: 30%;"><strong>Total Absentees:</strong></td>
+                    <td>{len(sorted_absentees)}</td>
+                </tr>
+                <tr>
+                    <td><strong>Generated on:</strong></td>
+                    <td>{datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</td>
+                </tr>
+            </table>
         </div>
         
-        <!-- Footer Section -->
-        <div class="footer">
+        <!-- Verification Section -->
+        <div style="margin-top: 20px; font-size: 10px;">
             <strong>Verified by:</strong> _____________________
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             <strong>Date:</strong> _____________________
