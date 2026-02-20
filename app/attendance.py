@@ -541,13 +541,12 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
         <table>
             <thead>
                 <tr>
-                    <th style="width: 4%;">Sl. No.</th>
-                    <th style="width: 5%;">Sem</th>
-                    <th style="width: 11%;">Roll No.</th>
-                    <th style="width: 6%;">Batch</th>
-                    <th style="width: 30%;">Student Name</th>
-                    <th style="width: 12%;">No. of Additional Sheets</th>
-                    <th style="width: 17%;">Details of Bio Break</th>
+                    <th style="width: 5%;">Sl. No.</th>
+                    <th style="width: 12%;">Roll No.</th>
+                    <th style="width: 7%;">Batch</th>
+                    <th style="width: 32%;">Student Name</th>
+                    <th style="width: 13%;">No. of Additional Sheets</th>
+                    <th style="width: 16%;">Details of Bio Break</th>
                     <th style="width: 15%;">Signature</th>
                 </tr>
             </thead>
@@ -563,15 +562,9 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
                 name = student[1] if student[1] else ''
                 batch = student[5] if len(student) > 5 and student[5] else ''
                 
-                # Calculate semester for display
-                from helpers.utils import extract_semester_from_roll_no
-                semester = extract_semester_from_roll_no(roll_no)
-                student_sem_display = str(semester) if semester < 99 else '-'
-                
                 html_content += f"""
                 <tr>
                     <td>{serial_no}</td>
-                    <td style="text-align: center;">{student_sem_display}</td>
                     <td>{roll_no}</td>
                     <td>{batch if batch else '-'}</td>
                     <td>{name}</td>
@@ -584,7 +577,6 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
                 html_content += f"""
                 <tr>
                     <td>{serial_no}</td>
-                    <td></td>
                     <td></td>
                     <td></td>
                     <td></td>
