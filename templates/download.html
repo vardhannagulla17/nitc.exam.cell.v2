@@ -55,7 +55,7 @@
                         <label for="course_code">
                             <i class="fas fa-book-open"></i> Course (optional for single sheet)
                         </label>
-                        <input type="text" id="course_search" placeholder="Search courses..." autocomplete="off">
+                        <input type="text" id="course_search" placeholder="Type to search courses or click to select..." autocomplete="off">
                         <select name="course_code" id="course_code" size="8">
                             <option value="">Select Course</option>
                             {% if courses %}
@@ -187,6 +187,11 @@ programSelect.addEventListener('change', async () => {
     // Clear dependent fields
     semesterSelect.innerHTML = '<option value="">Select Semester</option>';
     courseSelect.innerHTML = '<option value="">Select Course</option>';
+    if (courseSearch) {
+        courseSearch.value = '';
+        courseSearch.style.fontWeight = 'normal';
+        courseSearch.style.color = '';
+    }
     
     if (program) {
         // Show loading state
@@ -221,8 +226,13 @@ semesterSelect.addEventListener('change', async () => {
     const program = programSelect.value;
     const semester = semesterSelect.value;
     
-    // Clear courses
+    // Clear courses and search
     courseSelect.innerHTML = '<option value="">Select Course</option>';
+    if (courseSearch) {
+        courseSearch.value = '';
+        courseSearch.style.fontWeight = 'normal';
+        courseSearch.style.color = '';
+    }
     
     if (program && semester) {
         // Show loading state
@@ -261,6 +271,14 @@ if (courseSearch) {
         const searchTerm = courseSearch.value.toLowerCase();
         const options = courseSelect.querySelectorAll('option');
         
+        // Reset selection if user is typing
+        if (courseSelect.value) {
+            courseSelect.value = '';
+            courseSearch.style.fontWeight = 'normal';
+            courseSearch.style.color = '';
+            updateButtons();
+        }
+        
         options.forEach(option => {
             if (option.value === '') {
                 option.style.display = 'block';
@@ -275,11 +293,28 @@ if (courseSearch) {
         });
     });
     
-    // Clear search when a course is selected
+    // Show selected course in search box
     courseSelect.addEventListener('change', () => {
-        courseSearch.value = '';
+        const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            courseSearch.value = selectedOption.textContent;
+            courseSearch.style.fontWeight = 'bold';
+            courseSearch.style.color = '#059669';
+        } else {
+            courseSearch.value = '';
+            courseSearch.style.fontWeight = 'normal';
+            courseSearch.style.color = '';
+        }
+        // Show all options for next search
         const options = courseSelect.querySelectorAll('option');
         options.forEach(option => option.style.display = 'block');
+    });
+    
+    // Clear selection when user starts typing again
+    courseSearch.addEventListener('focus', () => {
+        if (courseSelect.value) {
+            courseSearch.select(); // Select all text for easy replacement
+        }
     });
 }
 
