@@ -1903,6 +1903,12 @@ def absentee_sheet():
         
         elif action == 'download_absentees':
             if session['absentees']:
+                semester_id = request.form.get('semester_id')
+                
+                if not semester_id:
+                    flash('Please select a semester before downloading.', 'error')
+                    return redirect(url_for('mark_absentees'))
+                
                 # Get exam dates for each course from form
                 exam_dates = {}
                 for key in request.form.keys():
@@ -1910,24 +1916,83 @@ def absentee_sheet():
                         course_code = key.replace('exam_date_', '')
                         exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
                 
-                html_content = generate_absentee_html_by_course(session['absentees'], exam_dates)
+                # Group absentees by course code
+                absentees_by_course = {}
+                for absentee in session['absentees']:
+                    course_code = absentee['course_code']
+                    if course_code not in absentees_by_course:
+                        absentees_by_course[course_code] = []
+                    absentees_by_course[course_code].append(absentee['roll_no'])
                 
-                # Convert to PDF
-                pdf_bytes = html_to_pdf(html_content)
-                if not pdf_bytes:
-                    flash('Error converting to PDF.', 'error')
+                # Generate attendance sheets for each course with only absentees
+                from app.attendance import generate_attendance_sheet
+                all_pdfs = []
+                
+                for course_code, roll_numbers in absentees_by_course.items():
+                    exam_date = exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
+                    
+                    # Generate attendance sheet with only these specific students
+                    html_content, message = generate_attendance_sheet(
+                        course_code=course_code,
+                        exam_date=exam_date,
+                        semester_id=semester_id,
+                        preview=True,
+                        in_memory=True,
+                        program_level=None,
+                        section=None,
+                        instructor=None,
+                        roll_numbers=roll_numbers
+                    )
+                    
+                    if html_content:
+                        # Convert to PDF
+                        pdf_bytes = html_to_pdf(html_content)
+                        if pdf_bytes:
+                            all_pdfs.append({
+                                'course_code': course_code,
+                                'exam_date': exam_date,
+                                'pdf': pdf_bytes
+                            })
+                        else:
+                            print(f"Failed to convert {course_code} to PDF")
+                    else:
+                        print(f"Failed to generate attendance sheet for {course_code}: {message}")
+                
+                if not all_pdfs:
+                    flash('Error generating attendance sheets for absentees.', 'error')
                     return redirect(url_for('mark_absentees'))
                 
-                # Create filename with date
-                today = datetime.now().strftime('%Y-%m-%d')
-                filename = f"Absentees_Multiple_Courses_{today}.pdf"
-                
-                return send_file(
-                    BytesIO(pdf_bytes),
-                    mimetype='application/pdf',
-                    as_attachment=True,
-                    download_name=filename
-                )
+                # If only one course, send single PDF
+                if len(all_pdfs) == 1:
+                    pdf_data = all_pdfs[0]
+                    filename = f"Absentee_Sheet_{pdf_data['course_code']}_{pdf_data['exam_date']}.pdf"
+                    
+                    return send_file(
+                        BytesIO(pdf_data['pdf']),
+                        mimetype='application/pdf',
+                        as_attachment=True,
+                        download_name=filename
+                    )
+                else:
+                    # Multiple courses - create a ZIP file
+                    import zipfile
+                    zip_buffer = BytesIO()
+                    
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        for pdf_data in all_pdfs:
+                            filename = f"Absentee_Sheet_{pdf_data['course_code']}_{pdf_data['exam_date']}.pdf"
+                            zip_file.writestr(filename, pdf_data['pdf'])
+                    
+                    zip_buffer.seek(0)
+                    today = datetime.now().strftime('%Y-%m-%d')
+                    zip_filename = f"Absentee_Sheets_{today}.zip"
+                    
+                    return send_file(
+                        zip_buffer,
+                        mimetype='application/zip',
+                        as_attachment=True,
+                        download_name=zip_filename
+                    )
             else:
                 flash('No absentees to download.', 'error')
         

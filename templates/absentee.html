@@ -372,6 +372,77 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize searchable course dropdown
     initCourseSearch();
+    
+    // Add loading states to action buttons
+    const absenteeForm = document.getElementById('absenteeActionsForm');
+    if (absenteeForm) {
+        const downloadBtn = absenteeForm.querySelector('button[value="download_absentees"]');
+        const uploadBtn = absenteeForm.querySelector('button[value="upload_to_admin"]');
+        
+        let isProcessing = false;
+        
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', function(e) {
+                if (isProcessing) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                const semesterSelect = document.getElementById('semester_id');
+                if (!semesterSelect || !semesterSelect.value) {
+                    e.preventDefault();
+                    alert('⚠️ Please select a semester before downloading!');
+                    if (semesterSelect) {
+                        semesterSelect.focus();
+                        semesterSelect.style.border = '2px solid #ef4444';
+                        setTimeout(() => {
+                            semesterSelect.style.border = '1px solid #cbd5e1';
+                        }, 2000);
+                    }
+                    return;
+                }
+                
+                isProcessing = true;
+                const originalHTML = downloadBtn.innerHTML;
+                downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Sheets...';
+                downloadBtn.disabled = true;
+                
+                // Reset after download completes (generous timeout)
+                setTimeout(() => {
+                    isProcessing = false;
+                    downloadBtn.innerHTML = originalHTML;
+                    downloadBtn.disabled = false;
+                }, 5000);
+            });
+        }
+        
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', function(e) {
+                if (isProcessing) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // Don't proceed if validateSemesterAndConfirmUpload returns false
+                // That function is called via onclick attribute
+                setTimeout(() => {
+                    if (isProcessing) return; // Already triggered
+                    
+                    isProcessing = true;
+                    const originalHTML = uploadBtn.innerHTML;
+                    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                    uploadBtn.disabled = true;
+                    
+                    // Reset after upload completes
+                    setTimeout(() => {
+                        isProcessing = false;
+                        uploadBtn.innerHTML = originalHTML;
+                        uploadBtn.disabled = false;
+                    }, 3000);
+                }, 100);
+            });
+        }
+    }
 });
 
 // Searchable course dropdown

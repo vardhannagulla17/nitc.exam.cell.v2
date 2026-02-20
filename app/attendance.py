@@ -21,13 +21,14 @@ def html_to_pdf(source_html):
         return None
     return result.getvalue()
 
-def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None, section=None, instructor=None):
+def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None, section=None, instructor=None, roll_numbers=None):
     """Generate HTML attendance sheet for a specific course and date using NITC format
     
     Args:
         section: Optional timetable_batch value (e.g., 'ME01', 'ME02') to filter students by section
                 If None or 'all', includes all sections
         instructor: Optional instructor name to filter students by instructor
+        roll_numbers: Optional list of specific roll numbers to include (for absentee sheets)
     """
     # For Vercel deployment, always use in_memory=True
     IS_VERCEL = os.environ.get('VERCEL') in ('1', 'true', 'True', True)
@@ -68,14 +69,16 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             
             academic_year, semester_type, degree_level, exam_type, db_name = semester_info
         
-        # Get students from database
-        students_sorted = get_sorted_students(semester_id, course_code, program_level, section, instructor) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code, program_level, section)
+        # Get students from database (with optional roll number filtering for absentees)
+        students_sorted = get_sorted_students(semester_id, course_code, program_level, section, instructor, roll_numbers) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code, program_level, section, None, roll_numbers)
         if not students_sorted:
             filter_desc = ""
             if section and section != 'all':
                 filter_desc += f" section {section}"
             if instructor:
                 filter_desc += f" instructor {instructor}"
+            if roll_numbers:
+                filter_desc += f" (absentees only)"
             return None, f"No students found for this course{filter_desc}"
         
         # Get course details
@@ -316,18 +319,13 @@ Each course folder contains:
         return None, f"Error generating bulk attendance sheets: {str(e)}"
 
 # Helper functions
-def get_sorted_students(db_name_or_semester_id, course_code, program_level=None, section=None, instructor=None):
+def get_sorted_students(db_name_or_semester_id, course_code, program_level=None, section=None, instructor=None, roll_numbers=None):
     """Get sorted list of students for a course with optional filters
     
     Args:
         section: Optional timetable_batch filter
         instructor: Optional main_instructor filter
-    """
-    """Get sorted list of students for a course
-    
-    Args:
-        section: Optional timetable_batch value to filter by section (e.g., 'ME01')
-                If None or 'all', returns all sections
+        roll_numbers: Optional list of specific roll numbers to filter (for absentees)
     """
     import sqlite3
     try:
@@ -357,6 +355,10 @@ def get_sorted_students(db_name_or_semester_id, course_code, program_level=None,
                 if instructor:
                     query = query.eq('main_instructor', instructor)
                 
+                # Filter by specific roll numbers if specified (for absentees)
+                if roll_numbers:
+                    query = query.in_('roll_no', roll_numbers)
+                
                 result = query.range(offset, offset + page_size - 1).execute()
                 if not result.data:
                     break
@@ -375,12 +377,23 @@ def get_sorted_students(db_name_or_semester_id, course_code, program_level=None,
                 db_name = os.path.join(current_app.config['BASE_DIR'], db_name)
             sem_conn = sqlite3.connect(db_name)
             cursor = sem_conn.cursor()
-            cursor.execute('''
-                SELECT roll_no, name, course_title, main_instructor, program_name, timetable_batch 
-                FROM students 
-                WHERE course_code = ? 
-                ORDER BY roll_no
-            ''', (course_code,))
+            
+            if roll_numbers:
+                # Filter by specific roll numbers
+                placeholders = ','.join('?' * len(roll_numbers))
+                cursor.execute(f'''
+                    SELECT roll_no, name, course_title, main_instructor, program_name, timetable_batch 
+                    FROM students 
+                    WHERE course_code = ? AND roll_no IN ({placeholders})
+                    ORDER BY roll_no
+                ''', (course_code, *roll_numbers))
+            else:
+                cursor.execute('''
+                    SELECT roll_no, name, course_title, main_instructor, program_name, timetable_batch 
+                    FROM students 
+                    WHERE course_code = ? 
+                    ORDER BY roll_no
+                ''', (course_code,))
             students = cursor.fetchall()
             sem_conn.close()
             
