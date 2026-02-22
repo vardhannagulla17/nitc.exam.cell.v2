@@ -2585,29 +2585,7 @@ def admin_absentees():
                     
                     # Generate HTML for approved absentees 
                     try:
-                        # Debug: Print first absentee data
-                        if result.data:
-                            print(f"\n[DEBUG] First absentee data before HTML generation:")
-                            sample = result.data[0]
-                            print(f"  - roll_no: {sample.get('roll_no')}")
-                            print(f"  - name: {sample.get('name')}")
-                            print(f"  - course_code: {sample.get('course_code')}")
-                            print(f"  - course_title: {sample.get('course_title')}")
-                            print(f"  - exam_date: {sample.get('exam_date')}")
-                            print(f"  - instructor: {sample.get('instructor')}")
-                            print(f"  - academic_year: {sample.get('academic_year')}")
-                            print(f"  - semester_type: {sample.get('semester_type')}")
-                            print(f"  - exam_type: {sample.get('exam_type')}")
-                        
                         html_content = generate_consolidated_absentee_html(result.data)
-                        
-                        # Debug: Save HTML to file
-                        try:
-                            with open('debug_generated_absentee.html', 'w', encoding='utf-8') as f:
-                                f.write(html_content)
-                            print(f"[DEBUG] HTML saved to debug_generated_absentee.html")
-                        except Exception as save_err:
-                            print(f"[DEBUG] Could not save HTML: {save_err}")
                     except Exception as html_err:
                         print(f"Error in generate_consolidated_absentee_html: {html_err}")
                         import traceback
@@ -2900,177 +2878,157 @@ def clear_bucket_page():
 
 
 def generate_consolidated_absentee_html(absentees):
-    """Generate consolidated HTML for all approved absentees grouped by course (exact attendance sheet format)"""
-    from helpers.utils import sort_by_roll_number, extract_semester_from_roll_no
+    """Generate HTML for approved absentees - rebuilt from scratch using attendance sheet format"""
+    from helpers.utils import sort_by_roll_number
     from collections import defaultdict
     
-    if not absentees:
+    if not absentees or len(absentees) == 0:
         return """<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>No Absentees</title></head>
 <body><p>No absentees found.</p></body></html>"""
     
-    # Enrich absentees with timetable_batch and course_title from students table
+    # Enrich each absentee with timetable_batch from students table
     for absentee in absentees:
         roll_no = absentee.get('roll_no', '')
         course_code = absentee.get('course_code', '')
         
-        if roll_no and USE_SUPABASE_DB and supabase:
+        if roll_no and course_code and USE_SUPABASE_DB and supabase:
             try:
-                # Get timetable_batch and course_title from students table
                 student_query = supabase.table('students')\
-                    .select('timetable_batch, course_title')\
+                    .select('timetable_batch')\
                     .eq('roll_no', roll_no)\
                     .eq('course_code', course_code)\
                     .limit(1)\
                     .execute()
-                if student_query.data:
+                if student_query.data and len(student_query.data) > 0:
                     absentee['timetable_batch'] = student_query.data[0].get('timetable_batch', '')
-                    # Only override course_title if not already present
-                    if not absentee.get('course_title'):
-                        absentee['course_title'] = student_query.data[0].get('course_title', 'N/A')
                 else:
                     absentee['timetable_batch'] = ''
-                    if not absentee.get('course_title'):
-                        absentee['course_title'] = 'N/A'
-            except Exception as e:
-                print(f"Error getting data for {roll_no}: {e}")
+            except:
                 absentee['timetable_batch'] = ''
-                if not absentee.get('course_title'):
-                    absentee['course_title'] = 'N/A'
         else:
             absentee['timetable_batch'] = ''
-            if not absentee.get('course_title'):
-                absentee['course_title'] = 'N/A'
     
-    # Group absentees by (course_code, exam_date, instructor, course_title, academic_year, semester_type, exam_type)
+    # Group by course/exam date/instructor
     grouped = defaultdict(list)
     for absentee in absentees:
         key = (
-            absentee.get('course_code', 'N/A'),
-            absentee.get('exam_date', 'N/A'),
-            absentee.get('instructor', 'N/A'),
-            absentee.get('course_title', 'N/A'),
+            absentee.get('course_code', ''),
+            absentee.get('exam_date', ''),
+            absentee.get('instructor', ''),
+            absentee.get('course_title', ''),
             absentee.get('academic_year', ''),
             absentee.get('semester_type', ''),
             absentee.get('exam_type', '')
         )
         grouped[key].append(absentee)
     
-    # Sort courses by exam date, then course code
+    # Sort by exam date then course code
     sorted_courses = sorted(grouped.items(), key=lambda x: (x[0][1], x[0][0]))
     
-    # Display mappings (same as attendance sheet)
-    exam_type_display = {
-        'midsem': 'Mid Semester Examination',
-        'endsem': 'End Semester Examination'
-    }
-    
-    semester_display = {
-        'monsoon': 'Monsoon',
-        'winter': 'Winter'
-    }
-    
-    # Generate HTML with exact same styling as attendance sheet
-    html = f"""<!DOCTYPE html>
+    # Start HTML - copy exact structure from attendance.py
+    html_content = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <title>Consolidated Absentee List</title>
     <style>
-        body {{ 
+        body { 
             font-family: Arial, sans-serif; 
             margin: 20px; 
-        }}
-        .header {{ 
+        }
+        .header { 
             text-align: center; 
             margin-bottom: 10px; 
-        }}
-        .institute-name {{ 
+        }
+        .institute-name { 
             font-weight: bold; 
             font-size: 14px; 
-        }}
-        .department {{ 
+        }
+        .department { 
             font-weight: bold; 
             font-size: 12px; 
             margin-top: 3px; 
-        }}
-        .form-title {{ 
+        }
+        .form-title { 
             font-weight: bold; 
             font-size: 12px; 
             margin-top: 6px; 
-        }}
-        .page-no {{ 
+        }
+        .page-no { 
             font-size: 10px; 
             margin-top: 4px; 
-        }}
-        .info-section {{
+        }
+        .info-section {
             margin: 10px 0;
             font-size: 10px;
-        }}
-        .info-section div {{
+        }
+        .info-section div {
             margin: 3px 0;
-        }}
-        table {{ 
+        }
+        table { 
             border-collapse: collapse; 
             width: 100%; 
             margin: 8px 0; 
-        }}
-        th, td {{ 
+        }
+        th, td { 
             border: 1px solid black; 
             padding: 4px; 
             text-align: left; 
             font-size: 10px; 
-        }}
-        th {{ 
+        }
+        th { 
             background-color: #f0f0f0; 
             font-weight: bold; 
-        }}
-        @media print {{
-            body {{ 
+        }
+        @media print {
+            body { 
                 margin: 10mm; 
-            }}
-            .page {{ 
+            }
+            .page { 
                 page-break-after: always; 
-            }}
-            .page:last-child {{ 
+            }
+            .page:last-child { 
                 page-break-after: auto; 
-            }}
-        }}
+            }
+        }
     </style>
 </head>
 <body>
 """
     
-    # Generate a page for each course (matching attendance sheet structure exactly)
+    # Generate pages for each course
     for course_key, course_absentees in sorted_courses:
         course_code, exam_date, instructor, course_title, academic_year, semester_type, exam_type = course_key
         
-        # Sort absentees by roll number for this course
+        # Sort students by roll number
         try:
             sorted_absentees = sort_by_roll_number(course_absentees, key_func=lambda x: x.get('roll_no', ''))
-        except Exception as e:
-            print(f"Error sorting absentees for {course_code}: {e}")
+        except:
             sorted_absentees = course_absentees
         
-        # Pagination (60 rows per page, same as attendance sheet)
+        # Pagination - 60 rows per page
         rows_per_page = 60
         total_students = len(sorted_absentees)
         total_pages = max(1, (total_students + rows_per_page - 1) // rows_per_page)
         
-        # Format exam date
+        # Format date
         try:
-            formatted_exam_date = datetime.strptime(exam_date, '%Y-%m-%d').strftime('%d-%m-%Y')
-        except Exception as e:
-            print(f"Error formatting date {exam_date}: {e}")
-            formatted_exam_date = exam_date if exam_date != 'N/A' else 'N/A'
+            formatted_exam_date = datetime.strptime(str(exam_date), '%Y-%m-%d').strftime('%d-%m-%Y')
+        except:
+            formatted_exam_date = str(exam_date)
         
-        # Generate pages for this course
+        # Display values
+        exam_type_text = 'Mid Semester Examination' if exam_type == 'midsem' else ('End Semester Examination' if exam_type == 'endsem' else 'Mid Semester Examination')
+        semester_text = 'Monsoon' if semester_type == 'monsoon' else ('Winter' if semester_type == 'winter' else 'Monsoon')
+        
+        # Generate each page
         for page_num in range(total_pages):
             start_idx = page_num * rows_per_page
             end_idx = min(start_idx + rows_per_page, total_students)
-            page_absentees = sorted_absentees[start_idx:end_idx]
+            page_students = sorted_absentees[start_idx:end_idx]
             
-            html += f"""
+            html_content += f"""
     <div class="page">
         <!-- Header Section -->
         <div class="header">
@@ -3082,9 +3040,9 @@ def generate_consolidated_absentee_html(absentees):
 
         <!-- Course Information Section -->
         <div class="info-section">
-            <div><strong>Name of the Examination:</strong> {exam_type_display.get(exam_type, exam_type) if exam_type else 'Mid Semester Examination'}</div>
+            <div><strong>Name of the Examination:</strong> {exam_type_text}</div>
             <div>
-                <strong>Semester:</strong> {semester_display.get(semester_type, semester_type) if semester_type else 'Monsoon'} &nbsp;&nbsp;
+                <strong>Semester:</strong> {semester_text} &nbsp;&nbsp;
                 <strong>Academic Year:</strong> {academic_year if academic_year else '2025-26'} &nbsp;&nbsp;
                 <strong>Date:</strong> {formatted_exam_date} &nbsp;&nbsp;
                 <strong>Time:</strong> ____________
@@ -3092,7 +3050,7 @@ def generate_consolidated_absentee_html(absentees):
             <div>
                 <strong>Course Code:</strong> {course_code} &nbsp;&nbsp;
                 <strong>Course Name:</strong> {course_title} &nbsp;&nbsp;
-                <strong>Instructor:</strong> {instructor if instructor != 'N/A' else 'N/A'}
+                <strong>Instructor:</strong> {instructor}
             </div>
         </div>
 
@@ -3112,14 +3070,14 @@ def generate_consolidated_absentee_html(absentees):
             <tbody>
 """
             
-            # Add student rows for this page
-            for i, absentee in enumerate(page_absentees):
+            # Add rows
+            for i, student in enumerate(page_students):
                 serial_no = start_idx + i + 1
-                roll_no = absentee.get('roll_no', '')
-                name = absentee.get('name', '')
-                batch = absentee.get('timetable_batch', '')
+                roll_no = student.get('roll_no', '')
+                name = student.get('name', '')
+                batch = student.get('timetable_batch', '')
                 
-                html += f"""
+                html_content += f"""
                 <tr>
                     <td>{serial_no}</td>
                     <td>{roll_no}</td>
@@ -3130,7 +3088,7 @@ def generate_consolidated_absentee_html(absentees):
                     <td></td>
                 </tr>"""
             
-            html += """
+            html_content += """
             </tbody>
         </table>
 
@@ -3186,12 +3144,12 @@ def generate_consolidated_absentee_html(absentees):
     </div>
 """
     
-    html += """
+    html_content += """
 </body>
 </html>
 """
     
-    return html
+    return html_content
 
 def generate_absentee_html(absentees, exam_date):
     """Generate HTML for absentee list"""
