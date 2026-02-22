@@ -2480,11 +2480,6 @@ def admin_absentees():
                 
                 # Enrich with instructor data and flatten semester info
                 if result.data:
-                    print(f"[DEBUG CONSOLIDATED] Retrieved {len(result.data)} approved absentees from database")
-                    # Log first few records
-                    for i, absentee in enumerate(result.data[:3]):
-                        print(f"[DEBUG CONSOLIDATED] Sample {i+1}: roll_no={absentee.get('roll_no')}, exam_date={absentee.get('exam_date')}, type={type(absentee.get('exam_date'))}")
-                    
                     for absentee in result.data:
                         # Ensure exam_date is properly formatted as string
                         exam_date = absentee.get('exam_date')
@@ -2549,11 +2544,6 @@ def admin_absentees():
                     .eq('status', 'approved')\
                     .execute()
                 if result.data:
-                    print(f"[DEBUG] Retrieved {len(result.data)} approved absentees from database")
-                    # Log first few records
-                    for i, absentee in enumerate(result.data[:3]):
-                        print(f"[DEBUG] Sample {i+1}: roll_no={absentee.get('roll_no')}, exam_date={absentee.get('exam_date')}, type={type(absentee.get('exam_date'))}")
-                    
                     # Enrich with instructor data and flatten semester info
                     for absentee in result.data:
                         # Ensure exam_date is properly formatted as string
@@ -3011,16 +3001,10 @@ def generate_consolidated_absentee_html(absentees):
         exam_date = student.get('exam_date', '')
         instructor = student.get('instructor', 'N/A')
         
-        # Debug: Log exam_date value
-        if idx <= 5:  # Only log first 5 for debugging
-            print(f"[DEBUG] Row {idx}: roll_no={roll_no}, exam_date={exam_date}, type={type(exam_date)}")
-        
         # Format exam date
         try:
             formatted_exam_date = datetime.strptime(str(exam_date), '%Y-%m-%d').strftime('%d-%m-%Y')
         except Exception as e:
-            if idx <= 5:
-                print(f"[DEBUG] Date parsing failed for '{exam_date}': {e}")
             formatted_exam_date = str(exam_date) if exam_date else ''
         
         html_content += f"""

@@ -256,7 +256,8 @@
                             <button type="button" onclick="previewAbsentees()" class="btn btn-secondary">
                                 <i class="fas fa-eye"></i> Preview
                             </button>
-                            <button type="submit" name="action" value="download_absentees" class="btn btn-primary">
+                            <button type="submit" name="action" value="download_absentees" class="btn btn-primary"
+                                    onclick="return prepareExamDatesForSubmit()">
                                 <i class="fas fa-download"></i> Download
                             </button>
                         </div>
@@ -286,6 +287,27 @@
 </div>
 
 <script>
+// Prepare exam dates for form submission (download button)
+function prepareExamDatesForSubmit() {
+    const courseDates = document.querySelectorAll('.course-exam-date');
+    const form = document.getElementById('absenteeActionsForm');
+    
+    // Remove any existing hidden date fields first
+    const existingDateFields = form.querySelectorAll('input[name^="exam_date_"]');
+    existingDateFields.forEach(field => field.remove());
+    
+    // Add exam date fields to the form
+    courseDates.forEach(dateInput => {
+        const hiddenDate = document.createElement('input');
+        hiddenDate.type = 'hidden';
+        hiddenDate.name = dateInput.name;
+        hiddenDate.value = dateInput.value || new Date().toISOString().split('T')[0];
+        form.appendChild(hiddenDate);
+    });
+    
+    return true; // Allow form submission
+}
+
 // Validate semester selection before upload
 function validateSemesterAndConfirmUpload() {
     const semesterSelect = document.getElementById('semester_id');
@@ -298,6 +320,34 @@ function validateSemesterAndConfirmUpload() {
         }, 2000);
         return false;
     }
+    
+    // Get all course exam dates and copy them to the form
+    const courseDates = document.querySelectorAll('.course-exam-date');
+    const form = document.getElementById('absenteeActionsForm');
+    let hasAllDates = true;
+    
+    // Remove any existing hidden date fields first
+    const existingDateFields = form.querySelectorAll('input[name^="exam_date_"]');
+    existingDateFields.forEach(field => field.remove());
+    
+    // Add exam date fields to the form
+    courseDates.forEach(dateInput => {
+        if (!dateInput.value) {
+            hasAllDates = false;
+        }
+        const hiddenDate = document.createElement('input');
+        hiddenDate.type = 'hidden';
+        hiddenDate.name = dateInput.name;
+        hiddenDate.value = dateInput.value || new Date().toISOString().split('T')[0];
+        form.appendChild(hiddenDate);
+    });
+    
+    if (!hasAllDates) {
+        if (!confirm('Some courses do not have exam dates set. Use today\'s date for those courses?')) {
+            return false;
+        }
+    }
+    
     return confirm('Upload absentees to admin for consolidation?');
 }
 
