@@ -2323,13 +2323,25 @@ def admin_absentees():
         elif action == 'preview_consolidated':
             # Show ALL approved absentees (no date filter)
             try:
-                # Get all approved absentees with instructor info from students table
-                # Using a subquery approach since Supabase doesn't support joins directly
-                result = supabase.table('absentees').select('*').eq('status', 'approved').execute()
+                # Get all approved absentees with semester info joined
+                result = supabase.table('absentees')\
+                    .select('*, semesters(academic_year, semester_type, exam_type)')\
+                    .eq('status', 'approved')\
+                    .execute()
                 
-                # Enrich with instructor data
+                # Enrich with instructor data and flatten semester info
                 if result.data:
                     for absentee in result.data:
+                        # Flatten semester data
+                        if absentee.get('semesters'):
+                            absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
+                            absentee['semester_type'] = absentee['semesters'].get('semester_type', '')
+                            absentee['exam_type'] = absentee['semesters'].get('exam_type', '')
+                        else:
+                            absentee['academic_year'] = ''
+                            absentee['semester_type'] = ''
+                            absentee['exam_type'] = ''
+                        
                         # Get instructor from students table
                         student_query = supabase.table('students')\
                             .select('main_instructor')\
@@ -2397,12 +2409,25 @@ def admin_absentees():
         elif action == 'download_consolidated':
             # Download ALL approved absentees (no date filter)
             try:
-                # Get all approved absentees with instructor info
-                result = supabase.table('absentees').select('*').eq('status', 'approved').execute()
+                # Get all approved absentees with semester info joined
+                result = supabase.table('absentees')\
+                    .select('*, semesters(academic_year, semester_type, exam_type)')\
+                    .eq('status', 'approved')\
+                    .execute()
                 
-                # Enrich with instructor data
+                # Enrich with instructor data and flatten semester info
                 if result.data:
                     for absentee in result.data:
+                        # Flatten semester data
+                        if absentee.get('semesters'):
+                            absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
+                            absentee['semester_type'] = absentee['semesters'].get('semester_type', '')
+                            absentee['exam_type'] = absentee['semesters'].get('exam_type', '')
+                        else:
+                            absentee['academic_year'] = ''
+                            absentee['semester_type'] = ''
+                            absentee['exam_type'] = ''
+                        
                         # Get instructor from students table
                         student_query = supabase.table('students')\
                             .select('main_instructor')\
@@ -2447,10 +2472,25 @@ def admin_absentees():
         elif action == 'download_approved_only':
             # Download only approved absentees from database
             try:
-                result = supabase.table('absentees').select('*').eq('status', 'approved').execute()
+                # Join with semesters table to get full semester info
+                result = supabase.table('absentees')\
+                    .select('*, semesters(academic_year, semester_type, exam_type)')\
+                    .eq('status', 'approved')\
+                    .execute()
                 if result.data:
-                    # Enrich with instructor data
+                    # Enrich with instructor data and flatten semester info
                     for absentee in result.data:
+                        # Flatten semester data
+                        if absentee.get('semesters'):
+                            absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
+                            absentee['semester_type'] = absentee['semesters'].get('semester_type', '')
+                            absentee['exam_type'] = absentee['semesters'].get('exam_type', '')
+                        else:
+                            absentee['academic_year'] = ''
+                            absentee['semester_type'] = ''
+                            absentee['exam_type'] = ''
+                        
+                        # Get instructor data
                         student_query = supabase.table('students')\
                             .select('main_instructor')\
                             .eq('course_code', absentee.get('course_code', ''))\
@@ -2500,18 +2540,41 @@ def admin_absentees():
                 absentees_from_storage = absentee_storage.get_approved_absentees_data(exam_date if exam_date else None)
                 
                 if absentees_from_storage:
-                    # Enrich with instructor data
+                    # Enrich with instructor data and semester info from students table
                     for absentee in absentees_from_storage:
-                        # Get instructor from students table
-                        student_query = supabase.table('students')\
-                            .select('main_instructor')\
-                            .eq('course_code', absentee.get('course_code', ''))\
-                            .limit(1)\
-                            .execute()
-                        if student_query.data:
-                            absentee['instructor'] = student_query.data[0].get('main_instructor', 'N/A')
+                        course_code = absentee.get('course_code', '')
+                        roll_no = absentee.get('roll_no', '')
+                        
+                        # Get instructor and semester info from students table
+                        if roll_no and course_code:
+                            student_query = supabase.table('students')\
+                                .select('main_instructor, semester_id, semesters(academic_year, semester_type, exam_type)')\
+                                .eq('roll_no', roll_no)\
+                                .eq('course_code', course_code)\
+                                .limit(1)\
+                                .execute()
+                            if student_query.data and len(student_query.data) > 0:
+                                student_data = student_query.data[0]
+                                absentee['instructor'] = student_data.get('main_instructor', 'N/A')
+                                # Flatten semester data
+                                if student_data.get('semesters'):
+                                    absentee['academic_year'] = student_data['semesters'].get('academic_year', '')
+                                    absentee['semester_type'] = student_data['semesters'].get('semester_type', '')
+                                    absentee['exam_type'] = student_data['semesters'].get('exam_type', '')
+                                else:
+                                    absentee['academic_year'] = ''
+                                    absentee['semester_type'] = ''
+                                    absentee['exam_type'] = ''
+                            else:
+                                absentee['instructor'] = 'N/A'
+                                absentee['academic_year'] = ''
+                                absentee['semester_type'] = ''
+                                absentee['exam_type'] = ''
                         else:
                             absentee['instructor'] = 'N/A'
+                            absentee['academic_year'] = ''
+                            absentee['semester_type'] = ''
+                            absentee['exam_type'] = ''
                     
                     # Generate HTML for storage absentees
                     try:
@@ -2733,7 +2796,7 @@ def clear_bucket_page():
 
 
 def generate_consolidated_absentee_html(absentees):
-    """Generate consolidated HTML for all approved absentees grouped by course (attendance sheet format)"""
+    """Generate consolidated HTML for all approved absentees grouped by course (exact attendance sheet format)"""
     from helpers.utils import sort_by_roll_number, extract_semester_from_roll_no
     from collections import defaultdict
     
@@ -2775,21 +2838,35 @@ def generate_consolidated_absentee_html(absentees):
             if not absentee.get('course_title'):
                 absentee['course_title'] = 'N/A'
     
-    # Group absentees by (course_code, exam_date, instructor)
+    # Group absentees by (course_code, exam_date, instructor, course_title, academic_year, semester_type, exam_type)
     grouped = defaultdict(list)
     for absentee in absentees:
         key = (
             absentee.get('course_code', 'N/A'),
             absentee.get('exam_date', 'N/A'),
+            absentee.get('instructor', 'N/A'),
             absentee.get('course_title', 'N/A'),
-            absentee.get('instructor', 'N/A')
+            absentee.get('academic_year', ''),
+            absentee.get('semester_type', ''),
+            absentee.get('exam_type', '')
         )
         grouped[key].append(absentee)
     
     # Sort courses by exam date, then course code
     sorted_courses = sorted(grouped.items(), key=lambda x: (x[0][1], x[0][0]))
     
-    # Generate HTML
+    # Display mappings (same as attendance sheet)
+    exam_type_display = {
+        'midsem': 'Mid Semester Examination',
+        'endsem': 'End Semester Examination'
+    }
+    
+    semester_display = {
+        'monsoon': 'Monsoon',
+        'winter': 'Winter'
+    }
+    
+    # Generate HTML with exact same styling as attendance sheet
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -2817,6 +2894,10 @@ def generate_consolidated_absentee_html(absentees):
             font-weight: bold; 
             font-size: 12px; 
             margin-top: 6px; 
+        }}
+        .page-no {{ 
+            font-size: 10px; 
+            margin-top: 4px; 
         }}
         .info-section {{
             margin: 10px 0;
@@ -2856,11 +2937,9 @@ def generate_consolidated_absentee_html(absentees):
 <body>
 """
     
-    total_absentees = 0
-    
-    # Generate a page for each course
+    # Generate a page for each course (matching attendance sheet structure exactly)
     for course_key, course_absentees in sorted_courses:
-        course_code, exam_date, course_title, instructor = course_key
+        course_code, exam_date, instructor, course_title, academic_year, semester_type, exam_type = course_key
         
         # Sort absentees by roll number for this course
         try:
@@ -2869,7 +2948,10 @@ def generate_consolidated_absentee_html(absentees):
             print(f"Error sorting absentees for {course_code}: {e}")
             sorted_absentees = course_absentees
         
-        total_absentees += len(sorted_absentees)
+        # Pagination (60 rows per page, same as attendance sheet)
+        rows_per_page = 60
+        total_students = len(sorted_absentees)
+        total_pages = max(1, (total_students + rows_per_page - 1) // rows_per_page)
         
         # Format exam date
         try:
@@ -2878,21 +2960,28 @@ def generate_consolidated_absentee_html(absentees):
             print(f"Error formatting date {exam_date}: {e}")
             formatted_exam_date = exam_date if exam_date != 'N/A' else 'N/A'
         
-        html += f"""
+        # Generate pages for this course
+        for page_num in range(total_pages):
+            start_idx = page_num * rows_per_page
+            end_idx = min(start_idx + rows_per_page, total_students)
+            page_absentees = sorted_absentees[start_idx:end_idx]
+            
+            html += f"""
     <div class="page">
         <!-- Header Section -->
         <div class="header">
             <div class="institute-name">NATIONAL INSTITUTE OF TECHNOLOGY CALICUT</div>
             <div class="department">DEPARTMENT OF MECHANICAL ENGINEERING</div>
-            <div class="form-title">Consolidated Absentee List</div>
+            <div class="form-title">Statement of Answer Books and Bio breaks Details</div>
+            <div class="page-no">Page {page_num + 1} of {total_pages}</div>
         </div>
 
         <!-- Course Information Section -->
         <div class="info-section">
-            <div><strong>Name of the Examination:</strong> Mid Semester Examination</div>
+            <div><strong>Name of the Examination:</strong> {exam_type_display.get(exam_type, exam_type) if exam_type else 'Mid Semester Examination'}</div>
             <div>
-                <strong>Semester:</strong> Monsoon &nbsp;&nbsp;
-                <strong>Academic Year:</strong> 2025-26 &nbsp;&nbsp;
+                <strong>Semester:</strong> {semester_display.get(semester_type, semester_type) if semester_type else 'Monsoon'} &nbsp;&nbsp;
+                <strong>Academic Year:</strong> {academic_year if academic_year else '2025-26'} &nbsp;&nbsp;
                 <strong>Date:</strong> {formatted_exam_date} &nbsp;&nbsp;
                 <strong>Time:</strong> ____________
             </div>
@@ -2910,60 +2999,93 @@ def generate_consolidated_absentee_html(absentees):
                     <th style="width: 5%;">Sl. No.</th>
                     <th style="width: 12%;">Roll No.</th>
                     <th style="width: 7%;">Batch</th>
-                    <th style="width: 76%;">Student Name</th>
+                    <th style="width: 32%;">Student Name</th>
+                    <th style="width: 13%;">No. of Additional Sheets</th>
+                    <th style="width: 16%;">Details of Bio Break</th>
+                    <th style="width: 15%;">Signature</th>
                 </tr>
             </thead>
             <tbody>
 """
-        
-        # Add student rows
-        for idx, absentee in enumerate(sorted_absentees, 1):
-            roll_no = absentee.get('roll_no', '')
-            name = absentee.get('name', '')
-            timetable_batch = absentee.get('timetable_batch', '')
             
-            html += f"""
+            # Add student rows for this page
+            for i, absentee in enumerate(page_absentees):
+                serial_no = start_idx + i + 1
+                roll_no = absentee.get('roll_no', '')
+                name = absentee.get('name', '')
+                batch = absentee.get('timetable_batch', '')
+                
+                html += f"""
                 <tr>
-                    <td>{idx}</td>
+                    <td>{serial_no}</td>
                     <td>{roll_no}</td>
-                    <td>{timetable_batch if timetable_batch else '-'}</td>
+                    <td>{batch if batch else '-'}</td>
                     <td>{name}</td>
-                </tr>
-"""
-        
-        html += f"""
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>"""
+            
+            html += """
             </tbody>
         </table>
-        
-        <!-- Summary Section -->
+
+        <!-- Answer Books, Invigilators and Absentees Section -->
         <div style="margin-top: 20px;">
             <table>
                 <tr>
-                    <th colspan="2" style="background-color: #d3d3d3; text-align: center;">Summary</th>
+                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the answer Books</th>
+                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the Invigilators</th>
                 </tr>
                 <tr>
-                    <td style="width: 30%;"><strong>Total Absentees:</strong></td>
-                    <td>{len(sorted_absentees)}</td>
+                    <td style="width: 12%;"></td>
+                    <th style="width: 8%; text-align: center;">Main</th>
+                    <th style="width: 13%; text-align: center;">Additional</th>
+                    <th style="width: 10%; text-align: center;">Sl. No.</th>
+                    <th style="width: 35%; text-align: center;">Name</th>
+                    <th style="width: 22%; text-align: center;">Signature</th>
                 </tr>
                 <tr>
-                    <td><strong>Generated on:</strong></td>
-                    <td>{datetime.now().strftime('%d-%m-%Y %H:%M:%S')}</td>
+                    <td><strong>Received</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">1</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><strong>Used</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">2</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><strong>Balance</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">3</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <th colspan="6" style="background-color: #d3d3d3; text-align: center;">Details of Absentees</th>
+                </tr>
+                <tr>
+                    <th style="text-align: center;">No. of Absentees</th>
+                    <td></td>
+                    <th colspan="4" style="text-align: center;">Roll no. of Absentees</th>
                 </tr>
             </table>
-        </div>
-        
-        <!-- Verification Section -->
-        <div style="margin-top: 20px; font-size: 10px;">
-            <strong>Verified by:</strong> _____________________
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            <strong>Date:</strong> _____________________
         </div>
     </div>
 """
     
     html += """
 </body>
-</html>"""
+</html>
+"""
     
     return html
 
