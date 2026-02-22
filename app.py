@@ -2585,7 +2585,29 @@ def admin_absentees():
                     
                     # Generate HTML for approved absentees 
                     try:
+                        # Debug: Print first absentee data
+                        if result.data:
+                            print(f"\n[DEBUG] First absentee data before HTML generation:")
+                            sample = result.data[0]
+                            print(f"  - roll_no: {sample.get('roll_no')}")
+                            print(f"  - name: {sample.get('name')}")
+                            print(f"  - course_code: {sample.get('course_code')}")
+                            print(f"  - course_title: {sample.get('course_title')}")
+                            print(f"  - exam_date: {sample.get('exam_date')}")
+                            print(f"  - instructor: {sample.get('instructor')}")
+                            print(f"  - academic_year: {sample.get('academic_year')}")
+                            print(f"  - semester_type: {sample.get('semester_type')}")
+                            print(f"  - exam_type: {sample.get('exam_type')}")
+                        
                         html_content = generate_consolidated_absentee_html(result.data)
+                        
+                        # Debug: Save HTML to file
+                        try:
+                            with open('debug_generated_absentee.html', 'w', encoding='utf-8') as f:
+                                f.write(html_content)
+                            print(f"[DEBUG] HTML saved to debug_generated_absentee.html")
+                        except Exception as save_err:
+                            print(f"[DEBUG] Could not save HTML: {save_err}")
                     except Exception as html_err:
                         print(f"Error in generate_consolidated_absentee_html: {html_err}")
                         import traceback
