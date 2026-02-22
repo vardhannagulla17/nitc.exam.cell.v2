@@ -2977,13 +2977,15 @@ def generate_consolidated_absentee_html(absentees):
         table { 
             border-collapse: collapse; 
             width: 100%; 
-            margin: 8px 0; 
+            margin: 8px 0;
+            table-layout: fixed;
         }
         th, td { 
             border: 1px solid black; 
             padding: 4px; 
             text-align: left; 
-            font-size: 10px; 
+            font-size: 10px;
+            word-wrap: break-word;
         }
         th { 
             background-color: #f0f0f0; 
@@ -3064,15 +3066,24 @@ def generate_consolidated_absentee_html(absentees):
 
         <!-- Students Table -->
         <table>
+            <colgroup>
+                <col style="width: 5%;" />
+                <col style="width: 12%;" />
+                <col style="width: 7%;" />
+                <col style="width: 32%;" />
+                <col style="width: 13%;" />
+                <col style="width: 16%;" />
+                <col style="width: 15%;" />
+            </colgroup>
             <thead>
                 <tr>
-                    <th style="width: 5%;">Sl. No.</th>
-                    <th style="width: 12%;">Roll No.</th>
-                    <th style="width: 7%;">Batch</th>
-                    <th style="width: 32%;">Student Name</th>
-                    <th style="width: 13%;">No. of Additional Sheets</th>
-                    <th style="width: 16%;">Details of Bio Break</th>
-                    <th style="width: 15%;">Signature</th>
+                    <th>Sl. No.</th>
+                    <th>Roll No.</th>
+                    <th>Batch</th>
+                    <th>Student Name</th>
+                    <th>No. of Additional Sheets</th>
+                    <th>Details of Bio Break</th>
+                    <th>Signature</th>
                 </tr>
             </thead>
             <tbody>
@@ -3103,17 +3114,25 @@ def generate_consolidated_absentee_html(absentees):
         <!-- Answer Books, Invigilators and Absentees Section -->
         <div style="margin-top: 20px;">
             <table>
+                <colgroup>
+                    <col style="width: 12%;" />
+                    <col style="width: 8%;" />
+                    <col style="width: 13%;" />
+                    <col style="width: 10%;" />
+                    <col style="width: 35%;" />
+                    <col style="width: 22%;" />
+                </colgroup>
                 <tr>
                     <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the answer Books</th>
                     <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the Invigilators</th>
                 </tr>
                 <tr>
-                    <td style="width: 12%;"></td>
-                    <th style="width: 8%; text-align: center;">Main</th>
-                    <th style="width: 13%; text-align: center;">Additional</th>
-                    <th style="width: 10%; text-align: center;">Sl. No.</th>
-                    <th style="width: 35%; text-align: center;">Name</th>
-                    <th style="width: 22%; text-align: center;">Signature</th>
+                    <td></td>
+                    <th style="text-align: center;">Main</th>
+                    <th style="text-align: center;">Additional</th>
+                    <th style="text-align: center;">Sl. No.</th>
+                    <th style="text-align: center;">Name</th>
+                    <th style="text-align: center;">Signature</th>
                 </tr>
                 <tr>
                     <td><strong>Received</strong></td>
