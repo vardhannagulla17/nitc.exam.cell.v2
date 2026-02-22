@@ -289,11 +289,12 @@
 <script>
 // Prepare exam dates for form submission (download button)
 function prepareExamDatesForSubmit() {
-    console.log('[DEBUG] prepareExamDatesForSubmit called');
+    console.log('[DOWNLOAD] prepareExamDatesForSubmit() called');
     const semesterSelect = document.getElementById('semester_id');
     
     // Check semester selection
     if (!semesterSelect || !semesterSelect.value) {
+        console.log('[DOWNLOAD] ERROR: Semester not selected');
         alert('⚠️ Please select a semester before downloading!');
         if (semesterSelect) {
             semesterSelect.focus();
@@ -302,30 +303,34 @@ function prepareExamDatesForSubmit() {
                 semesterSelect.style.border = '1px solid #cbd5e1';
             }, 2000);
         }
-        console.log('[DEBUG] Semester not selected, returning false');
         return false;
     }
     
     const courseDates = document.querySelectorAll('.course-exam-date');
     const form = document.getElementById('absenteeActionsForm');
     
-    console.log('[DEBUG] Found', courseDates.length, 'course dates');
+    console.log(`[DOWNLOAD] Found ${courseDates.length} course exam date inputs`);
+    console.log(`[DOWNLOAD] Semester selected: ${semesterSelect.value}`);
     
     // Remove any existing hidden date fields first
     const existingDateFields = form.querySelectorAll('input[name^="exam_date_"]');
+    console.log(`[DOWNLOAD] Removing ${existingDateFields.length} existing hidden date fields`);
     existingDateFields.forEach(field => field.remove());
     
     // Add exam date fields to the form
+    let dateCount = 0;
     courseDates.forEach(dateInput => {
         const hiddenDate = document.createElement('input');
         hiddenDate.type = 'hidden';
         hiddenDate.name = dateInput.name;
         hiddenDate.value = dateInput.value || new Date().toISOString().split('T')[0];
         form.appendChild(hiddenDate);
-        console.log('[DEBUG] Added date field:', dateInput.name, '=', hiddenDate.value);
+        console.log(`[DOWNLOAD] Added hidden field: ${dateInput.name} = ${hiddenDate.value}`);
+        dateCount++;
     });
     
-    console.log('[DEBUG] Form will submit with semester:', semesterSelect.value);
+    console.log(`[DOWNLOAD] Added ${dateCount} exam date fields to form`);
+    console.log('[DOWNLOAD] Returning true to allow form submission');
     return true; // Allow form submission
 }
 
