@@ -2934,21 +2934,16 @@ def generate_consolidated_absentee_html(absentees):
     # Sort by exam date then course code
     sorted_courses = sorted(grouped.items(), key=lambda x: (x[0][1], x[0][0]))
     
-    # Start HTML - match attendance.py format exactly
+    # Start HTML - match attendance.py format exactly  
     html_content = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <title>Consolidated Absentee List</title>
     <style>
-        @page {
-            size: a4;
-            margin: 15mm;
-        }
         body { 
             font-family: Arial, sans-serif; 
-            margin: 0;
-            padding: 0;
+            margin: 20px; 
         }
         .header { 
             text-align: center; 
@@ -2982,23 +2977,28 @@ def generate_consolidated_absentee_html(absentees):
         table { 
             border-collapse: collapse; 
             width: 100%; 
-            margin: 8px 0;
+            margin: 8px 0; 
         }
         th, td { 
             border: 1px solid black; 
-            padding: 3px; 
+            padding: 4px; 
             text-align: left; 
-            font-size: 9px;
+            font-size: 10px; 
         }
         th { 
             background-color: #f0f0f0; 
             font-weight: bold; 
         }
-        .page { 
-            page-break-after: always; 
-        }
-        .page:last-child { 
-            page-break-after: auto; 
+        @media print {
+            body { 
+                margin: 10mm; 
+            }
+            .page { 
+                page-break-after: always; 
+            }
+            .page:last-child { 
+                page-break-after: auto; 
+            }
         }
     </style>
 </head>
@@ -3066,13 +3066,13 @@ def generate_consolidated_absentee_html(absentees):
         <table>
             <thead>
                 <tr>
-                    <th style="width: 30px; font-size: 9px;">Sl. No.</th>
-                    <th style="width: 80px; font-size: 9px;">Roll No.</th>
-                    <th style="width: 45px; font-size: 9px;">Batch</th>
-                    <th style="width: 180px; font-size: 9px;">Student Name</th>
-                    <th style="width: 80px; font-size: 9px;">No. of Additional Sheets</th>
-                    <th style="width: 90px; font-size: 9px;">Details of Bio Break</th>
-                    <th style="width: 85px; font-size: 9px;">Signature</th>
+                    <th style="width: 5%;">Sl. No.</th>
+                    <th style="width: 12%;">Roll No.</th>
+                    <th style="width: 7%;">Batch</th>
+                    <th style="width: 32%;">Student Name</th>
+                    <th style="width: 13%;">No. of Additional Sheets</th>
+                    <th style="width: 16%;">Details of Bio Break</th>
+                    <th style="width: 15%;">Signature</th>
                 </tr>
             </thead>
             <tbody>
@@ -3087,13 +3087,13 @@ def generate_consolidated_absentee_html(absentees):
                 
                 html_content += f"""
                 <tr>
-                    <td style="font-size: 9px;">{serial_no}</td>
-                    <td style="font-size: 9px;">{roll_no}</td>
-                    <td style="font-size: 9px;">{batch if batch else '-'}</td>
-                    <td style="font-size: 9px;">{name}</td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="font-size: 9px;"></td>
+                    <td>{serial_no}</td>
+                    <td>{roll_no}</td>
+                    <td>{batch if batch else '-'}</td>
+                    <td>{name}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
                 </tr>"""
             
             html_content += """
@@ -3101,51 +3101,51 @@ def generate_consolidated_absentee_html(absentees):
         </table>
 
         <!-- Answer Books, Invigilators and Absentees Section -->
-        <div style="margin-top: 15px;">
+        <div style="margin-top: 20px;">
             <table>
                 <tr>
-                    <th colspan="3" style="background-color: #d3d3d3; text-align: center; font-size: 9px;">Details of the answer Books</th>
-                    <th colspan="3" style="background-color: #d3d3d3; text-align: center; font-size: 9px;">Details of the Invigilators</th>
+                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the answer Books</th>
+                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the Invigilators</th>
                 </tr>
                 <tr>
-                    <td style="width: 70px; font-size: 9px;"></td>
-                    <th style="width: 50px; text-align: center; font-size: 9px;">Main</th>
-                    <th style="width: 75px; text-align: center; font-size: 9px;">Additional</th>
-                    <th style="width: 55px; text-align: center; font-size: 9px;">Sl. No.</th>
-                    <th style="width: 195px; text-align: center; font-size: 9px;">Name</th>
-                    <th style="width: 125px; text-align: center; font-size: 9px;">Signature</th>
+                    <td style="width: 12%;"></td>
+                    <th style="width: 8%; text-align: center;">Main</th>
+                    <th style="width: 13%; text-align: center;">Additional</th>
+                    <th style="width: 10%; text-align: center;">Sl. No.</th>
+                    <th style="width: 35%; text-align: center;">Name</th>
+                    <th style="width: 22%; text-align: center;">Signature</th>
                 </tr>
                 <tr>
-                    <td style="font-size: 9px;"><strong>Received</strong></td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="text-align: center; font-size: 9px;">1</td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="font-size: 9px;"></td>
+                    <td><strong>Received</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">1</td>
+                    <td></td>
+                    <td></td>
                 </tr>
                 <tr>
-                    <td style="font-size: 9px;"><strong>Used</strong></td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="text-align: center; font-size: 9px;">2</td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="font-size: 9px;"></td>
+                    <td><strong>Used</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">2</td>
+                    <td></td>
+                    <td></td>
                 </tr>
                 <tr>
-                    <td style="font-size: 9px;"><strong>Balance</strong></td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="text-align: center; font-size: 9px;">3</td>
-                    <td style="font-size: 9px;"></td>
-                    <td style="font-size: 9px;"></td>
+                    <td><strong>Balance</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: center;">3</td>
+                    <td></td>
+                    <td></td>
                 </tr>
                 <tr>
-                    <th colspan="6" style="background-color: #d3d3d3; text-align: center; font-size: 9px;">Details of Absentees</th>
+                    <th colspan="6" style="background-color: #d3d3d3; text-align: center;">Details of Absentees</th>
                 </tr>
                 <tr>
-                    <th style="text-align: center; font-size: 9px;">No. of Absentees</th>
-                    <td style="font-size: 9px;"></td>
-                    <th colspan="4" style="text-align: center; font-size: 9px;">Roll no. of Absentees</th>
+                    <th style="text-align: center;">No. of Absentees</th>
+                    <td></td>
+                    <th colspan="4" style="text-align: center;">Roll no. of Absentees</th>
                 </tr>
             </table>
         </div>
