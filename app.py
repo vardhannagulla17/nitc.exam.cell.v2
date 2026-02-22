@@ -2520,17 +2520,12 @@ def admin_absentees():
                         flash(f'Error generating HTML: {str(html_err)}', 'error')
                         return redirect(url_for('view_absentees'))
                     
-                    # Convert to PDF
-                    pdf_bytes = html_to_pdf(html_content)
-                    if not pdf_bytes:
-                        flash('Error converting to PDF.', 'error')
-                        return redirect(url_for('view_absentees'))
-                    
-                    filename = f"Consolidated_Absentees_{datetime.now().strftime('%Y-%m-%d')}.pdf"
+                    # Return as HTML (no PDF conversion)
+                    filename = f"Consolidated_Absentees_{datetime.now().strftime('%Y-%m-%d')}.html"
                     
                     return send_file(
-                        BytesIO(pdf_bytes),
-                        mimetype='application/pdf',
+                        BytesIO(html_content.encode('utf-8')),
+                        mimetype='text/html',
                         as_attachment=True,
                         download_name=filename
                     )
@@ -2601,17 +2596,12 @@ def admin_absentees():
                         flash(f'Error generating HTML: {str(html_err)}', 'error')
                         return redirect(url_for('view_absentees'))
                     
-                    # Convert to PDF
-                    pdf_bytes = html_to_pdf(html_content)
-                    if not pdf_bytes:
-                        flash('Error converting to PDF.', 'error')
-                        return redirect(url_for('view_absentees'))
-                    
-                    filename = f"Approved_Absentees_{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.pdf"
+                    # Return as HTML (no PDF conversion)
+                    filename = f"Approved_Absentees_{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.html"
                     
                     return send_file(
-                        BytesIO(pdf_bytes),
-                        mimetype='application/pdf',
+                        BytesIO(html_content.encode('utf-8')),
+                        mimetype='text/html',
                         as_attachment=True,
                         download_name=filename
                     )
@@ -2676,17 +2666,12 @@ def admin_absentees():
                         flash(f'Error generating HTML: {str(html_err)}', 'error')
                         return redirect(url_for('view_absentees'))
                     
-                    # Convert to PDF
-                    pdf_bytes = html_to_pdf(html_content)
-                    if not pdf_bytes:
-                        flash('Error converting to PDF.', 'error')
-                        return redirect(url_for('view_absentees'))
-                    
-                    filename = f"Storage_Absentees_{exam_date or 'all'}.pdf"
+                    # Return as HTML (no PDF conversion)
+                    filename = f"Storage_Absentees_{exam_date or 'all'}.html"
                     
                     return send_file(
-                        BytesIO(pdf_bytes),
-                        mimetype='application/pdf',
+                        BytesIO(html_content.encode('utf-8')),
+                        mimetype='text/html',
                         as_attachment=True,
                         download_name=filename
                     )
@@ -2886,7 +2871,7 @@ def clear_bucket_page():
 
 
 def generate_consolidated_absentee_html(absentees):
-    """Generate HTML for approved absentees - rebuilt from scratch using attendance sheet format"""
+    """Generate HTML for consolidated absentee sheet with new format"""
     from helpers.utils import sort_by_roll_number
     from collections import defaultdict
     
@@ -2895,264 +2880,152 @@ def generate_consolidated_absentee_html(absentees):
 <html><head><meta charset="UTF-8"><title>No Absentees</title></head>
 <body><p>No absentees found.</p></body></html>"""
     
-    # Enrich each absentee with timetable_batch from students table
-    for absentee in absentees:
-        roll_no = absentee.get('roll_no', '')
-        course_code = absentee.get('course_code', '')
-        
-        if roll_no and course_code and USE_SUPABASE_DB and supabase:
-            try:
-                student_query = supabase.table('students')\
-                    .select('timetable_batch')\
-                    .eq('roll_no', roll_no)\
-                    .eq('course_code', course_code)\
-                    .limit(1)\
-                    .execute()
-                if student_query.data and len(student_query.data) > 0:
-                    absentee['timetable_batch'] = student_query.data[0].get('timetable_batch', '')
-                else:
-                    absentee['timetable_batch'] = ''
-            except:
-                absentee['timetable_batch'] = ''
-        else:
-            absentee['timetable_batch'] = ''
-    
-    # Group by course/exam date/instructor
+    # Group by course code and course name
     grouped = defaultdict(list)
     for absentee in absentees:
         key = (
             absentee.get('course_code', ''),
-            absentee.get('exam_date', ''),
-            absentee.get('instructor', ''),
-            absentee.get('course_title', ''),
-            absentee.get('academic_year', ''),
-            absentee.get('semester_type', ''),
-            absentee.get('exam_type', '')
+            absentee.get('course_title', '')
         )
         grouped[key].append(absentee)
     
-    # Sort by exam date then course code
-    sorted_courses = sorted(grouped.items(), key=lambda x: (x[0][1], x[0][0]))
+    # Sort courses by course code
+    sorted_courses = sorted(grouped.items(), key=lambda x: x[0][0])
     
-    # Start HTML - match attendance.py format exactly  
+    # Flatten all absentees and sort them: first by course, then alphabetically by student name
+    all_sorted_absentees = []
+    for (course_code, course_title), course_absentees in sorted_courses:
+        # Sort students alphabetically by name within each course
+        sorted_students = sorted(course_absentees, key=lambda x: x.get('name', '').strip().upper())
+        all_sorted_absentees.extend([(course_code, course_title, student) for student in sorted_students])
+    
+    # Start HTML with new format
     html_content = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Consolidated Absentee List</title>
+    <title>Consolidated Absentee Sheet</title>
     <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
         body { 
             font-family: Arial, sans-serif; 
-            margin: 20px; 
+            margin: 20px;
+            padding: 0;
         }
         .header { 
             text-align: center; 
-            margin-bottom: 10px; 
+            margin-bottom: 20px; 
         }
-        .institute-name { 
+        .college-name { 
             font-weight: bold; 
-            font-size: 14px; 
+            font-size: 16px;
+            margin-bottom: 5px;
         }
         .department { 
             font-weight: bold; 
-            font-size: 12px; 
-            margin-top: 3px; 
+            font-size: 14px;
+            margin-bottom: 5px;
         }
-        .form-title { 
+        .sheet-title { 
             font-weight: bold; 
-            font-size: 12px; 
-            margin-top: 6px; 
-        }
-        .page-no { 
-            font-size: 10px; 
-            margin-top: 4px; 
-        }
-        .info-section {
-            margin: 10px 0;
-            font-size: 10px;
-        }
-        .info-section div {
-            margin: 3px 0;
+            font-size: 14px;
+            margin-top: 10px;
+            text-decoration: underline;
         }
         table { 
             border-collapse: collapse; 
             width: 100%; 
-            margin: 8px 0; 
+            margin: 20px 0;
         }
         th, td { 
             border: 1px solid black; 
-            padding: 4px; 
+            padding: 8px; 
             text-align: left; 
-            font-size: 10px; 
+            font-size: 11px;
         }
         th { 
             background-color: #f0f0f0; 
-            font-weight: bold; 
+            font-weight: bold;
+            text-align: center;
+        }
+        .signature-line {
+            margin-top: 60px;
+            margin-bottom: 20px;
+            border-top: 1px solid black;
+            width: 250px;
+            text-align: center;
+            padding-top: 5px;
+            font-size: 12px;
         }
         @media print {
             body { 
                 margin: 10mm; 
             }
-            .page { 
-                page-break-after: always; 
-            }
-            .page:last-child { 
-                page-break-after: auto; 
+            .page-break {
+                page-break-after: always;
             }
         }
     </style>
 </head>
 <body>
+    <!-- Header -->
+    <div class="header">
+        <div class="college-name">NATIONAL INSTITUTE OF TECHNOLOGY CALICUT</div>
+        <div class="department">DEPARTMENT OF MECHANICAL ENGINEERING</div>
+        <div class="sheet-title">Consolidated Absentee Sheet</div>
+    </div>
+
+    <!-- Absentees Table -->
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 5%;">Si.No</th>
+                <th style="width: 12%;">Roll No</th>
+                <th style="width: 20%;">Student Name</th>
+                <th style="width: 10%;">Course Code</th>
+                <th style="width: 25%;">Course Name</th>
+                <th style="width: 12%;">Exam Date</th>
+                <th style="width: 16%;">Instructor</th>
+            </tr>
+        </thead>
+        <tbody>
 """
     
-    # Generate pages for each course
-    for course_key, course_absentees in sorted_courses:
-        course_code, exam_date, instructor, course_title, academic_year, semester_type, exam_type = course_key
+    # Add all absentee rows
+    for idx, (course_code, course_title, student) in enumerate(all_sorted_absentees, 1):
+        roll_no = student.get('roll_no', '')
+        name = student.get('name', '')
+        exam_date = student.get('exam_date', '')\n        instructor = student.get('instructor', 'N/A')
         
-        # Sort students by roll number
-        try:
-            sorted_absentees = sort_by_roll_number(course_absentees, key_func=lambda x: x.get('roll_no', ''))
-        except:
-            sorted_absentees = course_absentees
-        
-        # Pagination - 60 rows per page
-        rows_per_page = 60
-        total_students = len(sorted_absentees)
-        total_pages = max(1, (total_students + rows_per_page - 1) // rows_per_page)
-        
-        # Format date
+        # Format exam date
         try:
             formatted_exam_date = datetime.strptime(str(exam_date), '%Y-%m-%d').strftime('%d-%m-%Y')
         except:
-            formatted_exam_date = str(exam_date)
+            formatted_exam_date = str(exam_date) if exam_date else ''
         
-        # Display values
-        exam_type_text = 'Mid Semester Examination' if exam_type == 'midsem' else ('End Semester Examination' if exam_type == 'endsem' else 'Mid Semester Examination')
-        semester_text = 'Monsoon' if semester_type == 'monsoon' else ('Winter' if semester_type == 'winter' else 'Monsoon')
-        
-        # Generate each page
-        for page_num in range(total_pages):
-            start_idx = page_num * rows_per_page
-            end_idx = min(start_idx + rows_per_page, total_students)
-            page_students = sorted_absentees[start_idx:end_idx]
-            
-            html_content += f"""
-    <div class="page">
-        <!-- Header Section -->
-        <div class="header">
-            <div class="institute-name">NATIONAL INSTITUTE OF TECHNOLOGY CALICUT</div>
-            <div class="department">DEPARTMENT OF MECHANICAL ENGINEERING</div>
-            <div class="form-title">Statement of Answer Books and Bio breaks Details</div>
-            <div class="page-no">Page {page_num + 1} of {total_pages}</div>
-        </div>
-
-        <!-- Course Information Section -->
-        <div class="info-section">
-            <div><strong>Name of the Examination:</strong> {exam_type_text}</div>
-            <div>
-                <strong>Semester:</strong> {semester_text} &nbsp;&nbsp;
-                <strong>Academic Year:</strong> {academic_year if academic_year else '2025-26'} &nbsp;&nbsp;
-                <strong>Date:</strong> {formatted_exam_date} &nbsp;&nbsp;
-                <strong>Time:</strong> ____________
-            </div>
-            <div>
-                <strong>Course Code:</strong> {course_code} &nbsp;&nbsp;
-                <strong>Course Name:</strong> {course_title} &nbsp;&nbsp;
-                <strong>Instructor:</strong> {instructor}
-            </div>
-        </div>
-
-        <!-- Students Table -->
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 5%;">Sl. No.</th>
-                    <th style="width: 12%;">Roll No.</th>
-                    <th style="width: 7%;">Batch</th>
-                    <th style="width: 32%;">Student Name</th>
-                    <th style="width: 13%;">No. of Additional Sheets</th>
-                    <th style="width: 16%;">Details of Bio Break</th>
-                    <th style="width: 15%;">Signature</th>
-                </tr>
-            </thead>
-            <tbody>
-"""
-            
-            # Add rows
-            for i, student in enumerate(page_students):
-                serial_no = start_idx + i + 1
-                roll_no = student.get('roll_no', '')
-                name = student.get('name', '')
-                batch = student.get('timetable_batch', '')
-                
-                html_content += f"""
-                <tr>
-                    <td>{serial_no}</td>
-                    <td>{roll_no}</td>
-                    <td>{batch if batch else '-'}</td>
-                    <td>{name}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                </tr>"""
-            
-            html_content += """
-            </tbody>
-        </table>
-
-        <!-- Answer Books, Invigilators and Absentees Section -->
-        <div style="margin-top: 20px;">
-            <table>
-                <tr>
-                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the answer Books</th>
-                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the Invigilators</th>
-                </tr>
-                <tr>
-                    <td style="width: 12%;"></td>
-                    <th style="width: 8%; text-align: center;">Main</th>
-                    <th style="width: 13%; text-align: center;">Additional</th>
-                    <th style="width: 10%; text-align: center;">Sl. No.</th>
-                    <th style="width: 35%; text-align: center;">Name</th>
-                    <th style="width: 22%; text-align: center;">Signature</th>
-                </tr>
-                <tr>
-                    <td><strong>Received</strong></td>
-                    <td></td>
-                    <td></td>
-                    <td style="text-align: center;">1</td>
-                    <td></td>
-                    <td></td>
-                </tr>
-                <tr>
-                    <td><strong>Used</strong></td>
-                    <td></td>
-                    <td></td>
-                    <td style="text-align: center;">2</td>
-                    <td></td>
-                    <td></td>
-                </tr>
-                <tr>
-                    <td><strong>Balance</strong></td>
-                    <td></td>
-                    <td></td>
-                    <td style="text-align: center;">3</td>
-                    <td></td>
-                    <td></td>
-                </tr>
-                <tr>
-                    <th colspan="6" style="background-color: #d3d3d3; text-align: center;">Details of Absentees</th>
-                </tr>
-                <tr>
-                    <th style="text-align: center;">No. of Absentees</th>
-                    <td></td>
-                    <th colspan="4" style="text-align: center;">Roll no. of Absentees</th>
-                </tr>
-            </table>
-        </div>
-    </div>
+        html_content += f"""
+            <tr>
+                <td style="text-align: center;">{idx}</td>
+                <td>{roll_no}</td>
+                <td>{name}</td>
+                <td>{course_code}</td>
+                <td>{course_title}</td>
+                <td style="text-align: center;">{formatted_exam_date}</td>
+                <td>{instructor}</td>
+            </tr>
 """
     
     html_content += """
+        </tbody>
+    </table>
+
+    <!-- HOD Signature -->
+    <div class="signature-line">
+        Signature of HOD
+    </div>
 </body>
 </html>
 """

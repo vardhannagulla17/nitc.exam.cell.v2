@@ -323,6 +323,9 @@ if (courseSearch) {
         // Show all options for next search
         const options = courseSelect.querySelectorAll('option');
         options.forEach(option => option.style.display = 'block');
+        
+        // Update button states
+        updateButtons();
     });
     
     // Clear selection when user starts typing again
