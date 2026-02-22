@@ -292,6 +292,14 @@
 function prepareExamDatesForSubmit() {
     console.log('[DOWNLOAD] prepareExamDatesForSubmit() called');
     const semesterSelect = document.getElementById('semester_id');
+    const form = document.getElementById('absenteeActionsForm');
+    
+    // Validate form exists
+    if (!form) {
+        console.log('[DOWNLOAD] ERROR: Form not found!');
+        alert('❌ Form error - please refresh the page');
+        return false;
+    }
     
     // Check semester selection
     if (!semesterSelect || !semesterSelect.value) {
@@ -308,10 +316,11 @@ function prepareExamDatesForSubmit() {
     }
     
     const courseDates = document.querySelectorAll('.course-exam-date');
-    const form = document.getElementById('absenteeActionsForm');
     
     console.log(`[DOWNLOAD] Found ${courseDates.length} course exam date inputs`);
     console.log(`[DOWNLOAD] Semester selected: ${semesterSelect.value}`);
+    console.log(`[DOWNLOAD] Form action: ${form.action}`);
+    console.log(`[DOWNLOAD] Form method: ${form.method}`);
     
     // Remove any existing hidden date fields first
     const existingDateFields = form.querySelectorAll('input[name^="exam_date_"]');
@@ -331,7 +340,17 @@ function prepareExamDatesForSubmit() {
     });
     
     console.log(`[DOWNLOAD] Added ${dateCount} exam date fields to form`);
-    console.log('[DOWNLOAD] Returning true to allow form submission');
+    
+    // Validate we have at least the required fields
+    const formData = new FormData(form);
+    console.log('[DOWNLOAD] Final form data:');
+    for (let [key, value] of formData.entries()) {
+        if (key.startsWith('exam_date_') || key === 'semester_id' || key === 'action') {
+            console.log(`  ${key} = ${value}`);
+        }
+    }
+    
+    console.log('[DOWNLOAD] Returning true - form will submit');
     return true; // Allow form submission
 }
 

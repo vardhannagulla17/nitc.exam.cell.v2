@@ -1961,9 +1961,11 @@ def absentee_sheet():
                 print(f"\n{'='*60}")
                 print(f"[DOWNLOAD ABSENTEES] Request received")
                 print(f"Session absentees count: {len(session.get('absentees', []))}")
+                print(f"Session keys: {list(session.keys())}")
                 print(f"{'='*60}")
                 
-                if session['absentees']:
+                absentees = session.get('absentees', [])
+                if absentees:
                     semester_id = request.form.get('semester_id')
                     print(f"[DOWNLOAD ABSENTEES] Semester ID: {semester_id}")
                     
@@ -1985,7 +1987,7 @@ def absentee_sheet():
                     
                     # Group absentees by course code
                     absentees_by_course = {}
-                    for absentee in session['absentees']:
+                    for absentee in absentees:
                         course_code = absentee['course_code']
                         if course_code not in absentees_by_course:
                             absentees_by_course[course_code] = []
@@ -2098,7 +2100,8 @@ def absentee_sheet():
         
         elif action == 'upload_to_admin':
             # Staff uploads absentees to admin for consolidation
-            if session['absentees']:
+            absentees = session.get('absentees', [])
+            if absentees:
                 semester_id = request.form.get('semester_id')
                 
                 # Get exam dates for each course from form
@@ -2117,7 +2120,7 @@ def absentee_sheet():
                         
                         # Insert each absentee into the absentees table with course-specific exam dates
                         absentees_data = []
-                        for absentee in session['absentees']:
+                        for absentee in absentees:
                             course_code = absentee['course_code']
                             exam_date = exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
                             
@@ -3358,6 +3361,24 @@ def generate_absentee_html_by_course(absentees, exam_dates):
 </html>"""
     
     return html
+
+
+@app.route('/debug/session-info')
+def debug_session_info():
+    """Debug endpoint to check session state"""
+    if not session.get('logged_in'):
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    absentees = session.get('absentees', [])
+    
+    return jsonify({
+        'session_has_absentees_key': 'absentees' in session,
+        'absentees_count': len(absentees),
+        'absentees_sample': absentees[:3] if absentees else [],
+        'username': session.get('username', 'unknown'),
+        'role': session.get('role', 'unknown'),
+        'session_keys': list(session.keys())
+    })
 
 
 # Initialize the application and run
