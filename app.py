@@ -2941,65 +2941,65 @@ def generate_consolidated_absentee_html(absentees):
     <meta charset="UTF-8">
     <title>Consolidated Absentee List</title>
     <style>
-        body {{ 
+        body { 
             font-family: Arial, sans-serif; 
             margin: 20px; 
-        }}
-        .header {{ 
+        }
+        .header { 
             text-align: center; 
             margin-bottom: 10px; 
-        }}
-        .institute-name {{ 
+        }
+        .institute-name { 
             font-weight: bold; 
             font-size: 14px; 
-        }}
-        .department {{ 
+        }
+        .department { 
             font-weight: bold; 
             font-size: 12px; 
             margin-top: 3px; 
-        }}
-        .form-title {{ 
+        }
+        .form-title { 
             font-weight: bold; 
             font-size: 12px; 
             margin-top: 6px; 
-        }}
-        .page-no {{ 
+        }
+        .page-no { 
             font-size: 10px; 
             margin-top: 4px; 
-        }}
-        .info-section {{
+        }
+        .info-section {
             margin: 10px 0;
             font-size: 10px;
-        }}
-        .info-section div {{
+        }
+        .info-section div {
             margin: 3px 0;
-        }}
-        table {{ 
+        }
+        table { 
             border-collapse: collapse; 
             width: 100%; 
             margin: 8px 0; 
-        }}
-        th, td {{ 
+        }
+        th, td { 
             border: 1px solid black; 
             padding: 4px; 
             text-align: left; 
             font-size: 10px; 
-        }}
-        th {{ 
+        }
+        th { 
             background-color: #f0f0f0; 
             font-weight: bold; 
-        }}
-        @media print {{
-            body {{ 
+        }
+        @media print {
+            body { 
                 margin: 10mm; 
-            }}
-            .page {{ 
+            }
+            .page { 
                 page-break-after: always; 
-            }}
-            .page:last-child {{ 
+            }
+            .page:last-child { 
                 page-break-after: auto; 
-            }}
-        }}
+            }
+        }
     </style>
 </head>
 <body>
