@@ -2892,11 +2892,42 @@ def generate_consolidated_absentee_html(absentees):
     # Sort courses by course code
     sorted_courses = sorted(grouped.items(), key=lambda x: x[0][0])
     
-    # Flatten all absentees and sort them: first by course, then alphabetically by student name
+    # Enrich absentees with semester and batch info from students table, then sort
     all_sorted_absentees = []
     for (course_code, course_title), course_absentees in sorted_courses:
-        # Sort students alphabetically by name within each course
-        sorted_students = sorted(course_absentees, key=lambda x: x.get('name', '').strip().upper())
+        # Enrich each absentee with semester_id and timetable_batch from students table
+        for absentee in course_absentees:
+            roll_no = absentee.get('roll_no', '')
+            if roll_no and course_code and USE_SUPABASE_DB and supabase:
+                try:
+                    student_query = supabase.table('students')\
+                        .select('semester_id, timetable_batch')\
+                        .eq('roll_no', roll_no)\
+                        .eq('course_code', course_code)\
+                        .limit(1)\
+                        .execute()
+                    if student_query.data and len(student_query.data) > 0:
+                        absentee['semester_id'] = student_query.data[0].get('semester_id', '')
+                        absentee['batch'] = student_query.data[0].get('timetable_batch', '')
+                    else:
+                        absentee['semester_id'] = ''
+                        absentee['batch'] = ''
+                except:
+                    absentee['semester_id'] = ''
+                    absentee['batch'] = ''
+            else:
+                absentee['semester_id'] = ''
+                absentee['batch'] = ''
+        
+        # Sort students by: 1) semester_id, 2) batch, 3) alphabetically by name
+        sorted_students = sorted(
+            course_absentees, 
+            key=lambda x: (
+                x.get('semester_id', '') or '',
+                x.get('batch', '') or '',
+                x.get('name', '').strip().upper()
+            )
+        )
         all_sorted_absentees.extend([(course_code, course_title, student) for student in sorted_students])
     
     # Start HTML with new format
@@ -2982,13 +3013,15 @@ def generate_consolidated_absentee_html(absentees):
     <table>
         <thead>
             <tr>
-                <th style="width: 5%;">Si.No</th>
-                <th style="width: 12%;">Roll No</th>
-                <th style="width: 20%;">Student Name</th>
+                <th style="width: 4%;">Si.No</th>
+                <th style="width: 10%;">Roll No</th>
+                <th style="width: 18%;">Student Name</th>
+                <th style="width: 6%;">Sem</th>
+                <th style="width: 6%;">Batch</th>
                 <th style="width: 10%;">Course Code</th>
-                <th style="width: 25%;">Course Name</th>
-                <th style="width: 12%;">Exam Date</th>
-                <th style="width: 16%;">Instructor</th>
+                <th style="width: 22%;">Course Name</th>
+                <th style="width: 10%;">Exam Date</th>
+                <th style="width: 14%;">Instructor</th>
             </tr>
         </thead>
         <tbody>
@@ -3000,6 +3033,8 @@ def generate_consolidated_absentee_html(absentees):
         name = student.get('name', '')
         exam_date = student.get('exam_date', '')
         instructor = student.get('instructor', 'N/A')
+        semester_id = student.get('semester_id', '')
+        batch = student.get('batch', '')
         
         # Format exam date
         try:
@@ -3012,6 +3047,8 @@ def generate_consolidated_absentee_html(absentees):
                 <td style="text-align: center;">{idx}</td>
                 <td>{roll_no}</td>
                 <td>{name}</td>
+                <td style="text-align: center;">{semester_id if semester_id else '-'}</td>
+                <td style="text-align: center;">{batch if batch else '-'}</td>
                 <td>{course_code}</td>
                 <td>{course_title}</td>
                 <td style="text-align: center;">{formatted_exam_date}</td>
