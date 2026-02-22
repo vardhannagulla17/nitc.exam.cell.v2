@@ -289,6 +289,7 @@
 <script>
 // Prepare exam dates for form submission (download button)
 function prepareExamDatesForSubmit() {
+    console.log('[DEBUG] prepareExamDatesForSubmit called');
     const semesterSelect = document.getElementById('semester_id');
     
     // Check semester selection
@@ -301,11 +302,14 @@ function prepareExamDatesForSubmit() {
                 semesterSelect.style.border = '1px solid #cbd5e1';
             }, 2000);
         }
+        console.log('[DEBUG] Semester not selected, returning false');
         return false;
     }
     
     const courseDates = document.querySelectorAll('.course-exam-date');
     const form = document.getElementById('absenteeActionsForm');
+    
+    console.log('[DEBUG] Found', courseDates.length, 'course dates');
     
     // Remove any existing hidden date fields first
     const existingDateFields = form.querySelectorAll('input[name^="exam_date_"]');
@@ -318,8 +322,10 @@ function prepareExamDatesForSubmit() {
         hiddenDate.name = dateInput.name;
         hiddenDate.value = dateInput.value || new Date().toISOString().split('T')[0];
         form.appendChild(hiddenDate);
+        console.log('[DEBUG] Added date field:', dateInput.name, '=', hiddenDate.value);
     });
     
+    console.log('[DEBUG] Form will submit with semester:', semesterSelect.value);
     return true; // Allow form submission
 }
 
@@ -445,6 +451,48 @@ document.addEventListener('DOMContentLoaded', function() {
         const uploadBtn = absenteeForm.querySelector('button[value="upload_to_admin"]');
         
         let isProcessing = false;
+        
+        // Download button loading state
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', function(e) {
+                console.log('[DOWNLOAD BTN] Click event fired');
+                if (isProcessing) {
+                    console.log('[DOWNLOAD BTN] Already processing, preventing second request');
+                    e.preventDefault();
+                    return;
+                }
+                
+                // Set loading state after brief delay to allow onclick handler to complete
+                setTimeout(() => {
+                    if (isProcessing) return; // Already triggered
+                    
+                    console.log('[DOWNLOAD BTN] Setting loading state');
+                    isProcessing = true;
+                    const originalHTML = downloadBtn.innerHTML;
+                    downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Sheets...';
+                    downloadBtn.disabled = true;
+                    
+                    // Reset after download completes (usually within 5 seconds)
+                    const timeout = setTimeout(() => {
+                        console.log('[DOWNLOAD BTN] Timeout - resetting button state');
+                        isProcessing = false;
+                        downloadBtn.innerHTML = originalHTML;
+                        downloadBtn.disabled = false;
+                    }, 30000); // 30 second timeout
+                    
+                    // Also reset when the window or document gains focus (download completed)
+                    const resetOnFocus = () => {
+                        console.log('[DOWNLOAD BTN] Focus detected - resetting button');
+                        clearTimeout(timeout);
+                        isProcessing = false;
+                        downloadBtn.innerHTML = originalHTML;
+                        downloadBtn.disabled = false;
+                        window.removeEventListener('focus', resetOnFocus);
+                    };
+                    window.addEventListener('focus', resetOnFocus);
+                }, 50);
+            });
+        }
         
         if (uploadBtn) {
             uploadBtn.addEventListener('click', function(e) {
