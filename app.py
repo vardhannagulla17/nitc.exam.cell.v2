@@ -2387,6 +2387,14 @@ def admin_absentees():
                 # Enrich with instructor data and flatten semester info
                 if result.data:
                     for absentee in result.data:
+                        # Ensure exam_date is properly formatted as string
+                        exam_date = absentee.get('exam_date')
+                        if exam_date:
+                            if hasattr(exam_date, 'strftime'):
+                                absentee['exam_date'] = exam_date.strftime('%Y-%m-%d')
+                            elif isinstance(exam_date, str):
+                                absentee['exam_date'] = str(exam_date).split('T')[0] if 'T' in str(exam_date) else str(exam_date)
+                        
                         # Flatten semester data
                         if absentee.get('semesters'):
                             absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
@@ -2473,6 +2481,14 @@ def admin_absentees():
                 # Enrich with instructor data and flatten semester info
                 if result.data:
                     for absentee in result.data:
+                        # Ensure exam_date is properly formatted as string
+                        exam_date = absentee.get('exam_date')
+                        if exam_date:
+                            if hasattr(exam_date, 'strftime'):
+                                absentee['exam_date'] = exam_date.strftime('%Y-%m-%d')
+                            elif isinstance(exam_date, str):
+                                absentee['exam_date'] = str(exam_date).split('T')[0] if 'T' in str(exam_date) else str(exam_date)
+                        
                         # Flatten semester data
                         if absentee.get('semesters'):
                             absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
@@ -2535,6 +2551,17 @@ def admin_absentees():
                 if result.data:
                     # Enrich with instructor data and flatten semester info
                     for absentee in result.data:
+                        # Ensure exam_date is properly formatted as string
+                        exam_date = absentee.get('exam_date')
+                        if exam_date:
+                            # Convert to string if it's not already (handles date objects)
+                            if hasattr(exam_date, 'strftime'):
+                                absentee['exam_date'] = exam_date.strftime('%Y-%m-%d')
+                            elif isinstance(exam_date, str):
+                                # If it's already a string, ensure it's in the right format
+                                # PostgreSQL DATE fields come as ISO format strings (YYYY-MM-DD)
+                                absentee['exam_date'] = str(exam_date).split('T')[0] if 'T' in str(exam_date) else str(exam_date)
+                        
                         # Flatten semester data
                         if absentee.get('semesters'):
                             absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
