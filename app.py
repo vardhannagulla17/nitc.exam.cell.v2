@@ -3001,10 +3001,16 @@ def generate_consolidated_absentee_html(absentees):
         exam_date = student.get('exam_date', '')
         instructor = student.get('instructor', 'N/A')
         
+        # Debug: Log exam_date value
+        if idx <= 5:  # Only log first 5 for debugging
+            print(f"[DEBUG] Row {idx}: roll_no={roll_no}, exam_date={exam_date}, type={type(exam_date)}")
+        
         # Format exam date
         try:
             formatted_exam_date = datetime.strptime(str(exam_date), '%Y-%m-%d').strftime('%d-%m-%Y')
-        except:
+        except Exception as e:
+            if idx <= 5:
+                print(f"[DEBUG] Date parsing failed for '{exam_date}': {e}")
             formatted_exam_date = str(exam_date) if exam_date else ''
         
         html_content += f"""
