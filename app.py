@@ -1887,6 +1887,12 @@ def absentee_sheet():
         
         elif action == 'preview_absentees':
             if session['absentees']:
+                semester_id = request.form.get('semester_id')
+                
+                if not semester_id:
+                    flash('Please select a semester before previewing.', 'error')
+                    return redirect(url_for('mark_absentees'))
+                
                 # Get exam dates for each course from form
                 exam_dates = {}
                 for key in request.form.keys():
@@ -1894,10 +1900,59 @@ def absentee_sheet():
                         course_code = key.replace('exam_date_', '')
                         exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
                 
-                html_content = generate_absentee_html_by_course(session['absentees'], exam_dates)
-                response = make_response(html_content)
-                response.headers['Content-Type'] = 'text/html; charset=utf-8'
-                return response
+                # Group absentees by course code
+                absentees_by_course = {}
+                for absentee in session['absentees']:
+                    course_code = absentee['course_code']
+                    if course_code not in absentees_by_course:
+                        absentees_by_course[course_code] = []
+                    absentees_by_course[course_code].append(absentee['roll_no'])
+                
+                # Generate attendance sheets for each course with only absentees
+                from app.attendance import generate_attendance_sheet
+                all_html = []
+                
+                for course_code, roll_numbers in absentees_by_course.items():
+                    exam_date = exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
+                    
+                    # Generate attendance sheet with only these specific students
+                    html_content, message = generate_attendance_sheet(
+                        course_code=course_code,
+                        exam_date=exam_date,
+                        semester_id=semester_id,
+                        preview=True,
+                        in_memory=True,
+                        program_level=None,
+                        section=None,
+                        instructor=None,
+                        roll_numbers=roll_numbers
+                    )
+                    
+                    if html_content:
+                        all_html.append(html_content)
+                    else:
+                        print(f"Failed to generate attendance sheet for {course_code}: {message}")
+                
+                if all_html:
+                    # Combine all HTML with page breaks
+                    combined_html = all_html[0]
+                    if len(all_html) > 1:
+                        # Insert additional sheets between </body> and </html>
+                        for additional_html in all_html[1:]:
+                            # Extract body content from additional HTML
+                            body_start = additional_html.find('<body>')
+                            body_end = additional_html.find('</body>')
+                            if body_start != -1 and body_end != -1:
+                                body_content = additional_html[body_start + 6:body_end]
+                                # Insert before </body> tag of combined HTML
+                                insert_pos = combined_html.rfind('</body>')
+                                combined_html = combined_html[:insert_pos] + body_content + combined_html[insert_pos:]
+                    
+                    response = make_response(combined_html)
+                    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+                    return response
+                else:
+                    flash('Error generating preview for absentees.', 'error')
             else:
                 flash('No absentees to preview.', 'error')
         

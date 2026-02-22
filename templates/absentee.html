@@ -760,6 +760,20 @@ function handleClearAbsentees(event) {
 
 // Preview function - opens in new tab with course data
 function previewAbsentees() {
+    // Check if semester is selected
+    const semesterSelect = document.getElementById('semester_id');
+    if (!semesterSelect || !semesterSelect.value) {
+        alert('⚠️ Please select a semester before previewing!');
+        if (semesterSelect) {
+            semesterSelect.focus();
+            semesterSelect.style.border = '2px solid #ef4444';
+            setTimeout(() => {
+                semesterSelect.style.border = '1px solid #cbd5e1';
+            }, 2000);
+        }
+        return;
+    }
+    
     // Get all course exam dates
     const courseDates = document.querySelectorAll('.course-exam-date');
     let hasAllDates = true;
@@ -776,6 +790,13 @@ function previewAbsentees() {
     actionInput.name = 'action';
     actionInput.value = 'preview_absentees';
     tempForm.appendChild(actionInput);
+    
+    // Add semester_id field
+    const semesterInput = document.createElement('input');
+    semesterInput.type = 'hidden';
+    semesterInput.name = 'semester_id';
+    semesterInput.value = semesterSelect.value;
+    tempForm.appendChild(semesterInput);
     
     // Add all course exam dates
     courseDates.forEach(dateInput => {
