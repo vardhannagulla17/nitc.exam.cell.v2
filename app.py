@@ -2586,6 +2586,14 @@ def admin_absentees():
                     # Generate HTML for approved absentees 
                     try:
                         html_content = generate_consolidated_absentee_html(result.data)
+                        
+                        # Save HTML for debugging
+                        try:
+                            with open('debug_approved_absentees.html', 'w', encoding='utf-8') as f:
+                                f.write(html_content)
+                            print(f"[DEBUG] Saved HTML to debug_approved_absentees.html ({len(html_content)} chars)")
+                        except Exception as e:
+                            print(f"[DEBUG] Could not save HTML: {e}")
                     except Exception as html_err:
                         print(f"Error in generate_consolidated_absentee_html: {html_err}")
                         import traceback
