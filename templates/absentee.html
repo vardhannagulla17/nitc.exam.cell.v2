@@ -289,6 +289,21 @@
 <script>
 // Prepare exam dates for form submission (download button)
 function prepareExamDatesForSubmit() {
+    const semesterSelect = document.getElementById('semester_id');
+    
+    // Check semester selection
+    if (!semesterSelect || !semesterSelect.value) {
+        alert('⚠️ Please select a semester before downloading!');
+        if (semesterSelect) {
+            semesterSelect.focus();
+            semesterSelect.style.border = '2px solid #ef4444';
+            setTimeout(() => {
+                semesterSelect.style.border = '1px solid #cbd5e1';
+            }, 2000);
+        }
+        return false;
+    }
+    
     const courseDates = document.querySelectorAll('.course-exam-date');
     const form = document.getElementById('absenteeActionsForm');
     
@@ -430,41 +445,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const uploadBtn = absenteeForm.querySelector('button[value="upload_to_admin"]');
         
         let isProcessing = false;
-        
-        if (downloadBtn) {
-            downloadBtn.addEventListener('click', function(e) {
-                if (isProcessing) {
-                    e.preventDefault();
-                    return;
-                }
-                
-                const semesterSelect = document.getElementById('semester_id');
-                if (!semesterSelect || !semesterSelect.value) {
-                    e.preventDefault();
-                    alert('⚠️ Please select a semester before downloading!');
-                    if (semesterSelect) {
-                        semesterSelect.focus();
-                        semesterSelect.style.border = '2px solid #ef4444';
-                        setTimeout(() => {
-                            semesterSelect.style.border = '1px solid #cbd5e1';
-                        }, 2000);
-                    }
-                    return;
-                }
-                
-                isProcessing = true;
-                const originalHTML = downloadBtn.innerHTML;
-                downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Sheets...';
-                downloadBtn.disabled = true;
-                
-                // Reset after download completes (generous timeout)
-                setTimeout(() => {
-                    isProcessing = false;
-                    downloadBtn.innerHTML = originalHTML;
-                    downloadBtn.disabled = false;
-                }, 5000);
-            });
-        }
         
         if (uploadBtn) {
             uploadBtn.addEventListener('click', function(e) {
