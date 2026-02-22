@@ -450,53 +450,47 @@ document.addEventListener('DOMContentLoaded', function() {
         const downloadBtn = absenteeForm.querySelector('button[value="download_absentees"]');
         const uploadBtn = absenteeForm.querySelector('button[value="upload_to_admin"]');
         
-        let isProcessing = false;
+        let downloadProcessing = false;
+        let uploadProcessing = false;
         
         // Download button loading state
         if (downloadBtn) {
             downloadBtn.addEventListener('click', function(e) {
-                console.log('[DOWNLOAD BTN] Click event fired');
-                if (isProcessing) {
-                    console.log('[DOWNLOAD BTN] Already processing, preventing second request');
+                console.log('[DOWNLOAD BTN] Click event fired, isProcessing:', downloadProcessing);
+                if (downloadProcessing) {
+                    console.log('[DOWNLOAD BTN] Already processing, preventing duplicate request');
                     e.preventDefault();
                     return;
                 }
                 
                 // Set loading state after brief delay to allow onclick handler to complete
                 setTimeout(() => {
-                    if (isProcessing) return; // Already triggered
-                    
                     console.log('[DOWNLOAD BTN] Setting loading state');
-                    isProcessing = true;
+                    downloadProcessing = true;
                     const originalHTML = downloadBtn.innerHTML;
                     downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Sheets...';
                     downloadBtn.disabled = true;
                     
-                    // Reset after download completes (usually within 5 seconds)
+                    // Reset after timeout (download should complete within 30 seconds)
                     const timeout = setTimeout(() => {
-                        console.log('[DOWNLOAD BTN] Timeout - resetting button state');
-                        isProcessing = false;
+                        console.log('[DOWNLOAD BTN] Timeout reached, resetting button state');
+                        downloadProcessing = false;
                         downloadBtn.innerHTML = originalHTML;
                         downloadBtn.disabled = false;
                     }, 30000); // 30 second timeout
                     
-                    // Also reset when the window or document gains focus (download completed)
-                    const resetOnFocus = () => {
-                        console.log('[DOWNLOAD BTN] Focus detected - resetting button');
-                        clearTimeout(timeout);
-                        isProcessing = false;
-                        downloadBtn.innerHTML = originalHTML;
-                        downloadBtn.disabled = false;
-                        window.removeEventListener('focus', resetOnFocus);
-                    };
-                    window.addEventListener('focus', resetOnFocus);
+                    // Monitor for successful download completion
+                    // Downloads don't navigate away, so monitor for network completion instead
+                    // User has 30 seconds to wait, then button resets
                 }, 50);
             });
         }
         
         if (uploadBtn) {
             uploadBtn.addEventListener('click', function(e) {
-                if (isProcessing) {
+                console.log('[UPLOAD BTN] Click event fired, isProcessing:', uploadProcessing);
+                if (uploadProcessing) {
+                    console.log('[UPLOAD BTN] Already processing, preventing duplicate request');
                     e.preventDefault();
                     return;
                 }
@@ -504,19 +498,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Don't proceed if validateSemesterAndConfirmUpload returns false
                 // That function is called via onclick attribute
                 setTimeout(() => {
-                    if (isProcessing) return; // Already triggered
-                    
-                    isProcessing = true;
+                    console.log('[UPLOAD BTN] Setting loading state');
+                    uploadProcessing = true;
                     const originalHTML = uploadBtn.innerHTML;
                     uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
                     uploadBtn.disabled = true;
                     
-                    // Reset after upload completes
-                    setTimeout(() => {
-                        isProcessing = false;
+                    // Reset after 5 second timeout
+                    const timeout = setTimeout(() => {
+                        console.log('[UPLOAD BTN] Timeout reached, resetting button state');
+                        uploadProcessing = false;
                         uploadBtn.innerHTML = originalHTML;
                         uploadBtn.disabled = false;
-                    }, 3000);
+                    }, 5000);
                 }, 100);
             });
         }
