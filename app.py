@@ -2998,7 +2998,8 @@ def generate_consolidated_absentee_html(absentees):
     for idx, (course_code, course_title, student) in enumerate(all_sorted_absentees, 1):
         roll_no = student.get('roll_no', '')
         name = student.get('name', '')
-        exam_date = student.get('exam_date', '')\n        instructor = student.get('instructor', 'N/A')
+        exam_date = student.get('exam_date', '')
+        instructor = student.get('instructor', 'N/A')
         
         # Format exam date
         try:
