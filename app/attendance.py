@@ -5,6 +5,8 @@ Clean, working implementation
 from supabase_client import supabase
 from app.database import USE_SUPABASE_DB
 from helpers.utils import extract_semester_from_roll_no
+from io import BytesIO
+import zipfile
 
 
 def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
@@ -171,3 +173,42 @@ def generate_html(course_code, course_title, instructor, exam_date, semester, st
 """
     
     return html
+
+
+def generate_all_attendance_sheets_zip(semester_id, exam_date, **kwargs):
+    """Generate ZIP file with all attendance sheets for a semester"""
+    try:
+        # Get all courses for this semester
+        courses_result = supabase.table('students').select('course_code, course_title').eq('semester_id', semester_id).execute()
+        
+        if not courses_result.data:
+            return None, "No courses found"
+        
+        # Get unique courses
+        courses_dict = {}
+        for row in courses_result.data:
+            code = row['course_code']
+            if code not in courses_dict:
+                courses_dict[code] = row['course_title']
+        
+        # Create ZIP in memory
+        zip_buffer = BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            count = 0
+            for course_code in courses_dict:
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
+                
+                if html_content:
+                    filename = f"Attendance_{course_code}_{exam_date}.html"
+                    zipf.writestr(filename, html_content.encode('utf-8'))
+                    count += 1
+            
+            if count == 0:
+                return None, "No attendance sheets generated"
+        
+        zip_buffer.seek(0)
+        return zip_buffer.getvalue(), f"Generated {count} attendance sheets"
+        
+    except Exception as e:
+        return None, f"Error: {str(e)}"
