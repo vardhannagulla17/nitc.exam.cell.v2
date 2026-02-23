@@ -288,70 +288,54 @@
 </div>
 
 <script>
-// Prepare exam dates for form submission (download button)
+// Prepare exam dates for download submission
 function prepareExamDatesForSubmit() {
-    console.log('[DOWNLOAD] prepareExamDatesForSubmit() called');
+    console.log('[DOWNLOAD] Starting validation');
+    
     const semesterSelect = document.getElementById('semester_id');
     const form = document.getElementById('absenteeActionsForm');
     
     // Validate form exists
     if (!form) {
-        console.log('[DOWNLOAD] ERROR: Form not found!');
-        alert('❌ Form error - please refresh the page');
+        alert('❌ Error: Form not found. Please refresh the page.');
         return false;
     }
     
-    // Check semester selection
+    // Validate semester selection
     if (!semesterSelect || !semesterSelect.value) {
-        console.log('[DOWNLOAD] ERROR: Semester not selected');
         alert('⚠️ Please select a semester before downloading!');
         if (semesterSelect) {
             semesterSelect.focus();
             semesterSelect.style.border = '2px solid #ef4444';
-            setTimeout(() => {
-                semesterSelect.style.border = '1px solid #cbd5e1';
-            }, 2000);
+            setTimeout(() => semesterSelect.style.border = '', 2000);
         }
         return false;
     }
     
+    console.log(`[DOWNLOAD] Semester: ${semesterSelect.value}`);
+    
+    // Collect all exam dates from visible date inputs
     const courseDates = document.querySelectorAll('.course-exam-date');
     
-    console.log(`[DOWNLOAD] Found ${courseDates.length} course exam date inputs`);
-    console.log(`[DOWNLOAD] Semester selected: ${semesterSelect.value}`);
-    console.log(`[DOWNLOAD] Form action: ${form.action}`);
-    console.log(`[DOWNLOAD] Form method: ${form.method}`);
+    // Remove old hidden date fields
+    form.querySelectorAll('input[name^="exam_date_"]').forEach(field => field.remove());
     
-    // Remove any existing hidden date fields first
-    const existingDateFields = form.querySelectorAll('input[name^="exam_date_"]');
-    console.log(`[DOWNLOAD] Removing ${existingDateFields.length} existing hidden date fields`);
-    existingDateFields.forEach(field => field.remove());
-    
-    // Add exam date fields to the form
+    // Add exam dates as hidden fields
     let dateCount = 0;
+    const today = new Date().toISOString().split('T')[0];
+    
     courseDates.forEach(dateInput => {
-        const hiddenDate = document.createElement('input');
-        hiddenDate.type = 'hidden';
-        hiddenDate.name = dateInput.name;
-        hiddenDate.value = dateInput.value || new Date().toISOString().split('T')[0];
-        form.appendChild(hiddenDate);
-        console.log(`[DOWNLOAD] Added hidden field: ${dateInput.name} = ${hiddenDate.value}`);
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = dateInput.name;
+        hidden.value = dateInput.value || today;
+        form.appendChild(hidden);
         dateCount++;
+        console.log(`[DOWNLOAD] Added date: ${dateInput.name} = ${hidden.value}`);
     });
     
-    console.log(`[DOWNLOAD] Added ${dateCount} exam date fields to form`);
-    
-    // Validate we have at least the required fields
-    const formData = new FormData(form);
-    console.log('[DOWNLOAD] Final form data:');
-    for (let [key, value] of formData.entries()) {
-        if (key.startsWith('exam_date_') || key === 'semester_id' || key === 'action') {
-            console.log(`  ${key} = ${value}`);
-        }
-    }
-    
-    console.log('[DOWNLOAD] Returning true - form will submit');
-    return true; // Allow form submission
+    console.log(`[DOWNLOAD] Ready to submit with ${dateCount} course dates`);
+    return true;
 }
 
 // Validate semester selection before upload
