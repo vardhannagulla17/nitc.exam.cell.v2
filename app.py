@@ -1521,107 +1521,53 @@ def download_attendance():
                     flash(f'Error generating ZIP file: {str(zip_err)}', 'error')
                     
             elif action == 'preview' and course_code:
-                print(f"DEBUG: Generating preview for {course_code}, section={section}, instructor={instructor}")
-                try:
-                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, program_level=program_level, section=section, instructor=instructor)
-                    print(f"DEBUG: Preview generation result: {bool(html_content)}, Message: {message}")
-                    
-                    if html_content:
-                        print(f"DEBUG: Returning preview HTML, Size: {len(html_content)} chars")
-                        return html_content
-                    else:
-                        print(f"ERROR: Preview generation failed: {message}")
-                        flash(f'Error generating preview: {message}', 'error')
-                except Exception as preview_err:
-                    print(f"ERROR: Exception in preview: {type(preview_err).__name__}: {str(preview_err)}")
-                    import traceback
-                    traceback.print_exc()
-                    flash(f'Error generating preview: {str(preview_err)}', 'error')
+                # SIMPLE PREVIEW
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
+                
+                if html_content:
+                    return html_content
+                else:
+                    flash(f'Error: {message}', 'error')
+                    return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
                     
             elif action == 'download' and course_code:
-                print(f"DEBUG: Generating PDF download for {course_code}, section={section}, instructor={instructor}")
-                try:
-                    # Generate HTML content first
-                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level, section=section, instructor=instructor)
-                    print(f"DEBUG: HTML generation result: {bool(html_content)}, Message: {message}")
-                    
-                    if html_content:
-                        # Convert HTML to PDF
-                        print(f"DEBUG: Converting HTML to PDF for {course_code}")
-                        pdf_bytes = html_to_pdf(html_content)
-                        print(f"DEBUG: PDF conversion result: {bool(pdf_bytes)}, Size: {len(pdf_bytes) if pdf_bytes else 0} bytes")
-                        
-                        if pdf_bytes:
-                            # Create a proper filename for download
-                            safe_course = secure_filename(str(course_code))
-                            safe_date = secure_filename(str(exam_date))
-                            section_suffix = f"_{section}" if section and section != 'all' else ""
-                            instructor_suffix = f"_{secure_filename(instructor[:20])}" if instructor else ""
-                            filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.pdf"
-                            print(f"DEBUG: Sending PDF file: {filename}")
-                            
-                            pdf_io = BytesIO(pdf_bytes)
-                            pdf_io.seek(0)
-                            return send_file(
-                                pdf_io,
-                                mimetype='application/pdf',
-                                as_attachment=True,
-                                download_name=filename
-                            )
-                        else:
-                            print("ERROR: PDF conversion returned None or empty bytes")
-                            flash('Error converting HTML to PDF. Please try HTML download instead.', 'error')
-                            # Redirect to page with error
-                            return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
-                    else:
-                        print(f"ERROR: HTML generation failed: {message}")
-                        flash(f'Error generating attendance sheet: {message}', 'error')
-                        # Redirect to page with error
-                        return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
-                except Exception as pdf_err:
-                    print(f"ERROR: Exception in PDF download: {type(pdf_err).__name__}: {str(pdf_err)}")
-                    import traceback
-                    traceback.print_exc()
-                    flash(f'Error generating PDF: {str(pdf_err)}', 'error')
-                    # Redirect to page with error
+                # SIMPLE PDF DOWNLOAD
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
+                
+                if not html_content:
+                    flash(f'Error: {message}', 'error')
                     return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
+                
+                # Convert to PDF
+                pdf_bytes = html_to_pdf(html_content)
+                
+                if not pdf_bytes:
+                    flash('PDF conversion failed. Try HTML download.', 'error')
+                    return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
+                
+                filename = f"Attendance_{course_code}_{exam_date}.pdf"
+                
+                return Response(
+                    pdf_bytes,
+                    mimetype='application/pdf',
+                    headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+                )
                     
             elif action == 'download_html' and course_code:
-                print(f"DEBUG: Generating HTML download for {course_code}, section={section}, instructor={instructor}")
-                try:
-                    # Generate HTML content
-                    html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level, section=section, instructor=instructor)
-                    print(f"DEBUG: HTML generation result: {bool(html_content)}, Message: {message}")
-                    
-                    if html_content:
-                        # Create a proper filename for download
-                        safe_course = secure_filename(str(course_code))
-                        safe_date = secure_filename(str(exam_date))
-                        section_suffix = f"_{section}" if section and section != 'all' else ""
-                        instructor_suffix = f"_{secure_filename(instructor[:20])}" if instructor else ""
-                        filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.html"
-                        print(f"DEBUG: Sending HTML file: {filename}, Size: {len(html_content)} chars")
-                        
-                        html_io = BytesIO(html_content.encode('utf-8'))
-                        html_io.seek(0)
-                        return send_file(
-                            html_io,
-                            mimetype='text/html',
-                            as_attachment=True,
-                            download_name=filename
-                        )
-                    else:
-                        print(f"ERROR: HTML generation failed: {message}")
-                        flash(f'Error generating HTML: {message}', 'error')
-                        # Redirect to page with error
-                        return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
-                except Exception as html_err:
-                    print(f"ERROR: Exception in HTML download: {type(html_err).__name__}: {str(html_err)}")
-                    import traceback
-                    traceback.print_exc()
-                    flash(f'Error generating HTML: {str(html_err)}', 'error')
-                    # Redirect to page with error
+                # SIMPLE HTML DOWNLOAD
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
+                
+                if not html_content:
+                    flash(f'Error: {message}', 'error')
                     return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
+                
+                filename = f"Attendance_{course_code}_{exam_date}.html"
+                
+                return Response(
+                    html_content,
+                    mimetype='text/html',
+                    headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+                )
             else:
                 if not course_code:
                     flash('Please select a course!', 'error')
