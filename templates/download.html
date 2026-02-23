@@ -455,72 +455,42 @@ previewBtn.addEventListener('click', () => {
     }, 100);
 });
 
-// Download HTML button loading state
-downloadHtmlBtn.addEventListener('click', (e) => {
-    console.log('[Download HTML] Button clicked, isDownloading:', isDownloading);
-    if (isDownloading) {
-        e.preventDefault();
-        console.log('[Download HTML] Prevented - already downloading');
-        return;
-    }
-    console.log('[Download HTML] Processing download...');
-    isDownloading = true;
-    const originalHTML = downloadHtmlBtn.innerHTML;
+// Download HTML button - show loading state but DON'T prevent submission
+downloadHtmlBtn.addEventListener('click', () => {
+    console.log('[Download HTML] Button clicked');
     downloadHtmlBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
-    updateButtons();
+    downloadHtmlBtn.disabled = true;
     
-    // Reset after download completes (generous timeout for large files)
+    // Reset after a delay (download doesn't block page, so page stays)
     setTimeout(() => {
-        console.log('[Download HTML] Resetting button state after timeout');
-        isDownloading = false;
-        downloadHtmlBtn.innerHTML = originalHTML;
-        updateButtons();
+        downloadHtmlBtn.innerHTML = '<i class="fas fa-file-code"></i> Download HTML';
+        downloadHtmlBtn.disabled = false;
     }, 3000);
 });
 
-// Download button loading state
-downloadBtn.addEventListener('click', (e) => {
-    console.log('[Download PDF] Button clicked, isDownloading:', isDownloading);
-    if (isDownloading) {
-        e.preventDefault();
-        console.log('[Download PDF] Prevented - already downloading');
-        return;
-    }
-    console.log('[Download PDF] Processing download...');
-    isDownloading = true;
-    const originalHTML = downloadBtn.innerHTML;
+// Download PDF button - show loading state but DON'T prevent submission
+downloadBtn.addEventListener('click', () => {
+    console.log('[Download PDF] Button clicked');
     downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
-    updateButtons();
+    downloadBtn.disabled = true;
     
-    // Reset after download completes (generous timeout for large files)
+    // Reset after a delay
     setTimeout(() => {
-        console.log('[Download PDF] Resetting button state after timeout');
-        isDownloading = false;
-        downloadBtn.innerHTML = originalHTML;
-        updateButtons();
+        downloadBtn.innerHTML = '<i class="fas fa-file-pdf"></i> Download PDF';
+        downloadBtn.disabled = false;
     }, 3000);
 });
 
-// Download All button loading state
-downloadAllBtn.addEventListener('click', (e) => {
-    console.log('[Download All] Button clicked, isDownloading:', isDownloading);
-    if (isDownloading) {
-        e.preventDefault();
-        console.log('[Download All] Prevented - already downloading');
-        return;
-    }
-    console.log('[Download All] Processing ZIP generation...');
-    isDownloading = true;
-    const originalHTML = downloadAllBtn.innerHTML;
+// Download All button - show loading state but DON'T prevent submission
+downloadAllBtn.addEventListener('click', () => {
+    console.log('[Download All] Button clicked');
     downloadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating ZIP...';
-    updateButtons();
+    downloadAllBtn.disabled = true;
     
-    // Reset after download completes (generous timeout for ZIP generation)
+    // Reset after a delay
     setTimeout(() => {
-        console.log('[Download All] Resetting button state after timeout');
-        isDownloading = false;
-        downloadAllBtn.innerHTML = originalHTML;
-        updateButtons();
+        downloadAllBtn.innerHTML = '<i class="fas fa-file-archive"></i> Download All';
+        downloadAllBtn.disabled = false;
     }, 5000);
 });
 

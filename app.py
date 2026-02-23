@@ -1492,10 +1492,13 @@ def download_attendance():
                         if zip_data:
                             zip_filename = f'attendance_sheets_{semester_id}_{exam_date}.zip'
                             print(f"DEBUG: Sending ZIP file: {zip_filename}, Size: {len(zip_data)} bytes")
-                            return Response(
-                                zip_data,
+                            zip_io = BytesIO(zip_data)
+                            zip_io.seek(0)
+                            return send_file(
+                                zip_io,
                                 mimetype='application/zip',
-                                headers={'Content-Disposition': f'attachment; filename="{zip_filename}"'}
+                                as_attachment=True,
+                                download_name=zip_filename
                             )
                         else:
                             print(f"ERROR: ZIP generation failed: {message}")
@@ -1557,10 +1560,13 @@ def download_attendance():
                             filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.pdf"
                             print(f"DEBUG: Sending PDF file: {filename}")
                             
-                            return Response(
-                                pdf_bytes,
+                            pdf_io = BytesIO(pdf_bytes)
+                            pdf_io.seek(0)
+                            return send_file(
+                                pdf_io,
                                 mimetype='application/pdf',
-                                headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+                                as_attachment=True,
+                                download_name=filename
                             )
                         else:
                             print("ERROR: PDF conversion returned None or empty bytes")
@@ -1596,10 +1602,13 @@ def download_attendance():
                         filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.html"
                         print(f"DEBUG: Sending HTML file: {filename}, Size: {len(html_content)} chars")
                         
-                        return Response(
-                            html_content,
-                            mimetype='text/html; charset=utf-8',
-                            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+                        html_io = BytesIO(html_content.encode('utf-8'))
+                        html_io.seek(0)
+                        return send_file(
+                            html_io,
+                            mimetype='text/html',
+                            as_attachment=True,
+                            download_name=filename
                         )
                     else:
                         print(f"ERROR: HTML generation failed: {message}")
