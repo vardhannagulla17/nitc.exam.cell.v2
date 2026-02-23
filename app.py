@@ -1493,10 +1493,12 @@ def download_attendance():
                         if zip_data:
                             zip_filename = f'attendance_sheets_{semester_id}_{exam_date}.zip'
                             print(f"DEBUG: Sending ZIP file: {zip_filename}, Size: {len(zip_data)} bytes")
-                            response = make_response(zip_data)
-                            response.headers['Content-Type'] = 'application/zip'
-                            response.headers['Content-Disposition'] = f'attachment; filename="{zip_filename}"'
-                            return response
+                            from flask import Response
+                            return Response(
+                                zip_data,
+                                mimetype='application/zip',
+                                headers={'Content-Disposition': f'attachment; filename="{zip_filename}"'}
+                            )
                         else:
                             print(f"ERROR: ZIP generation failed: {message}")
                             flash(f'Error generating ZIP: {message}', 'error')
@@ -1557,10 +1559,12 @@ def download_attendance():
                             filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.pdf"
                             print(f"DEBUG: Sending PDF file: {filename}")
                             
-                            response = make_response(pdf_bytes)
-                            response.headers['Content-Type'] = 'application/pdf'
-                            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-                            return response
+                            from flask import Response
+                            return Response(
+                                pdf_bytes,
+                                mimetype='application/pdf',
+                                headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+                            )
                         else:
                             print("ERROR: PDF conversion returned None or empty bytes")
                             flash('Error converting HTML to PDF. Please try HTML download instead.', 'error')
@@ -1595,10 +1599,12 @@ def download_attendance():
                         filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.html"
                         print(f"DEBUG: Sending HTML file: {filename}, Size: {len(html_content)} chars")
                         
-                        response = make_response(html_content)
-                        response.headers['Content-Type'] = 'text/html; charset=utf-8'
-                        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-                        return response
+                        from flask import Response
+                        return Response(
+                            html_content,
+                            mimetype='text/html; charset=utf-8',
+                            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+                        )
                     else:
                         print(f"ERROR: HTML generation failed: {message}")
                         flash(f'Error generating HTML: {message}', 'error')
