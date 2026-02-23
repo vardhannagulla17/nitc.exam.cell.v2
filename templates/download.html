@@ -194,10 +194,15 @@ function updateButtons() {
     const canDownload = hasCourse && hasDate && hasSemester && !isDownloading;
     const canDownloadAll = hasDate && hasSemester && !isDownloading;
     
+    console.log(`[updateButtons] hasDate=${hasDate}, hasSemester=${hasSemester}, hasCourse=${hasCourse}, isDownloading=${isDownloading}`);
+    console.log(`[updateButtons] canDownload=${canDownload}, canDownloadAll=${canDownloadAll}`);
+    
     previewBtn.disabled = !canDownload || isDownloading;
     downloadHtmlBtn.disabled = !canDownload || isDownloading;
     downloadBtn.disabled = !canDownload || isDownloading;
     downloadAllBtn.disabled = !canDownloadAll || isDownloading;
+    
+    console.log(`[updateButtons] Buttons disabled: preview=${previewBtn.disabled}, html=${downloadHtmlBtn.disabled}, pdf=${downloadBtn.disabled}, all=${downloadAllBtn.disabled}`);
 }
 
 // Program change - fetch semesters via AJAX
@@ -425,10 +430,12 @@ dateInput.addEventListener('change', () => {
 
 // Preview button
 previewBtn.addEventListener('click', () => {
+    console.log('[Preview] Button clicked');
     const form = $('downloadForm');
     const originalAction = form.action;
     const originalTarget = form.target;
     
+    console.log('[Preview] Opening in new tab with action=preview');
     // Temporarily modify form
     form.target = '_blank';
     const actionInput = document.createElement('input');
@@ -437,21 +444,26 @@ previewBtn.addEventListener('click', () => {
     actionInput.value = 'preview';
     form.appendChild(actionInput);
     
+    console.log('[Preview] Submitting form');
     form.submit();
     
     // Restore form
     setTimeout(() => {
         form.target = originalTarget;
         actionInput.remove();
+        console.log('[Preview] Form restored');
     }, 100);
 });
 
 // Download HTML button loading state
 downloadHtmlBtn.addEventListener('click', (e) => {
+    console.log('[Download HTML] Button clicked, isDownloading:', isDownloading);
     if (isDownloading) {
         e.preventDefault();
+        console.log('[Download HTML] Prevented - already downloading');
         return;
     }
+    console.log('[Download HTML] Processing download...');
     isDownloading = true;
     const originalHTML = downloadHtmlBtn.innerHTML;
     downloadHtmlBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
@@ -459,6 +471,7 @@ downloadHtmlBtn.addEventListener('click', (e) => {
     
     // Reset after download completes (generous timeout for large files)
     setTimeout(() => {
+        console.log('[Download HTML] Resetting button state after timeout');
         isDownloading = false;
         downloadHtmlBtn.innerHTML = originalHTML;
         updateButtons();
@@ -467,10 +480,13 @@ downloadHtmlBtn.addEventListener('click', (e) => {
 
 // Download button loading state
 downloadBtn.addEventListener('click', (e) => {
+    console.log('[Download PDF] Button clicked, isDownloading:', isDownloading);
     if (isDownloading) {
         e.preventDefault();
+        console.log('[Download PDF] Prevented - already downloading');
         return;
     }
+    console.log('[Download PDF] Processing download...');
     isDownloading = true;
     const originalHTML = downloadBtn.innerHTML;
     downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
@@ -478,6 +494,7 @@ downloadBtn.addEventListener('click', (e) => {
     
     // Reset after download completes (generous timeout for large files)
     setTimeout(() => {
+        console.log('[Download PDF] Resetting button state after timeout');
         isDownloading = false;
         downloadBtn.innerHTML = originalHTML;
         updateButtons();
@@ -486,10 +503,13 @@ downloadBtn.addEventListener('click', (e) => {
 
 // Download All button loading state
 downloadAllBtn.addEventListener('click', (e) => {
+    console.log('[Download All] Button clicked, isDownloading:', isDownloading);
     if (isDownloading) {
         e.preventDefault();
+        console.log('[Download All] Prevented - already downloading');
         return;
     }
+    console.log('[Download All] Processing ZIP generation...');
     isDownloading = true;
     const originalHTML = downloadAllBtn.innerHTML;
     downloadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating ZIP...';
@@ -497,6 +517,7 @@ downloadAllBtn.addEventListener('click', (e) => {
     
     // Reset after download completes (generous timeout for ZIP generation)
     setTimeout(() => {
+        console.log('[Download All] Resetting button state after timeout');
         isDownloading = false;
         downloadAllBtn.innerHTML = originalHTML;
         updateButtons();
@@ -504,8 +525,10 @@ downloadAllBtn.addEventListener('click', (e) => {
 });
 
 // Initialize
+console.log('[Init] Initializing download page...');
 updateVisibility();
 updateButtons();
+console.log('[Init] Download page ready');
 </script>
 
 <style>
