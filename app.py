@@ -1508,30 +1508,7 @@ def download_attendance():
                     return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
                     
             elif action == 'download' and course_code:
-                # SIMPLE PDF DOWNLOAD
-                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
-                
-                if not html_content:
-                    flash(f'Error: {message}', 'error')
-                    return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
-                
-                # Convert to PDF
-                pdf_bytes = html_to_pdf(html_content)
-                
-                if not pdf_bytes:
-                    flash('PDF conversion failed. Try HTML download.', 'error')
-                    return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
-                
-                filename = f"Attendance_{course_code}_{exam_date}.pdf"
-                
-                return Response(
-                    pdf_bytes,
-                    mimetype='application/pdf',
-                    headers={'Content-Disposition': f'attachment; filename="{filename}"'}
-                )
-                    
-            elif action == 'download_html' and course_code:
-                # SIMPLE HTML DOWNLOAD
+                # DOWNLOAD AS HTML (PDF has corruption issues)
                 html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
                 
                 if not html_content:

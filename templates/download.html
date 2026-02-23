@@ -102,11 +102,8 @@
                         <button type="button" id="preview-btn" class="btn btn-secondary" disabled>
                             <i class="fas fa-eye"></i> Preview
                         </button>
-                        <button type="submit" name="action" value="download_html" id="download-html-btn" class="btn btn-info" disabled>
-                            <i class="fas fa-file-code"></i> Download HTML
-                        </button>
                         <button type="submit" name="action" value="download" id="download-btn" class="btn btn-primary" disabled>
-                            <i class="fas fa-file-pdf"></i> Download PDF
+                            <i class="fas fa-download"></i> Download
                         </button>
                         <button type="submit" name="action" value="download_all" id="download-all-btn" class="btn btn-success" disabled>
                             <i class="fas fa-file-archive"></i> Download All
@@ -159,7 +156,6 @@ const sectionSelect = $('section');
 const instructorSelect = $('instructor');
 const dateInput = $('exam_date');
 const previewBtn = $('preview-btn');
-const downloadHtmlBtn = $('download-html-btn');
 const downloadBtn = $('download-btn');
 const downloadAllBtn = $('download-all-btn');
 
@@ -196,11 +192,10 @@ function updateButtons() {
     console.log(`[updateButtons] canDownload=${canDownload}, canDownloadAll=${canDownloadAll}`);
     
     previewBtn.disabled = !canDownload;
-    downloadHtmlBtn.disabled = !canDownload;
     downloadBtn.disabled = !canDownload;
     downloadAllBtn.disabled = !canDownloadAll;
     
-    console.log(`[updateButtons] Buttons disabled: preview=${previewBtn.disabled}, html=${downloadHtmlBtn.disabled}, pdf=${downloadBtn.disabled}, all=${downloadAllBtn.disabled}`);
+    console.log(`[updateButtons] Buttons disabled: preview=${previewBtn.disabled}, download=${downloadBtn.disabled}, all=${downloadAllBtn.disabled}`);
 }
 
 // Program change - fetch semesters via AJAX
