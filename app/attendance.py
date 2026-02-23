@@ -1,508 +1,370 @@
+"""
+Attendance Sheet Generation Module - Rebuilt from Scratch
+Generates HTML attendance sheets for courses with proper sorting and filtering
+"""
 import os
-import shutil
-import tempfile
 import zipfile
-import sqlite3
 from io import BytesIO
-from helpers.utils import sort_by_roll_number, sort_attendance_students
 from flask import current_app
-from werkzeug.utils import secure_filename
 from supabase_client import supabase
 from app.database import USE_SUPABASE_DB
-from xhtml2pdf import pisa
+from helpers.utils import extract_semester_from_roll_no
 
-# Get download folder path
 
-def html_to_pdf(source_html):
-    """Convert HTML string to PDF bytes"""
-    result = BytesIO()
-    pdf = pisa.pisaDocument(BytesIO(source_html.encode("utf-8")), result)
-    if pdf.err:
-        return None
-    return result.getvalue()
-
-def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, in_memory=False, program_level=None, section=None, instructor=None, roll_numbers=None):
-    """Generate HTML attendance sheet for a specific course and date using NITC format
+def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False, 
+                              in_memory=False, program_level=None, section=None, 
+                              instructor=None, roll_numbers=None):
+    """
+    Generate HTML attendance sheet for a course
     
     Args:
-        section: Optional timetable_batch value (e.g., 'ME01', 'ME02') to filter students by section
-                If None or 'all', includes all sections
-        instructor: Optional instructor name to filter students by instructor
-        roll_numbers: Optional list of specific roll numbers to include (for absentee sheets)
-    """
-    # For Vercel deployment, always use in_memory=True
-    IS_VERCEL = os.environ.get('VERCEL') in ('1', 'true', 'True', True)
-    if IS_VERCEL or current_app.config.get('IS_VERCEL'):
-        in_memory = True
+        course_code: Course code (e.g., 'ME3411E')
+        exam_date: Exam date (YYYY-MM-DD)
+        semester_id: Semester ID from database
+        preview: If True, returns HTML directly
+        in_memory: If True, returns HTML (for ZIP generation)
+        program_level: Filter by UG/PG/PhD
+        section: Filter by timetable_batch
+        instructor: Filter by main_instructor
+        roll_numbers: List of specific roll numbers (for absentee sheets)
     
-    # Only create folders if we're not in memory mode
-    if not in_memory:
-        download_folder = current_app.config.get('DOWNLOAD_FOLDER') or os.path.join(current_app.config.get('BASE_DIR', '.'), 'downloads')
-        try:
-            os.makedirs(download_folder, exist_ok=True)
-        except Exception as e:
-            print(f"Warning: could not create download folder {download_folder}: {e}")
-            download_folder = tempfile.mkdtemp(prefix='downloads_')
+    Returns:
+        (html_content, message) tuple
+    """
     try:
         # Get semester information
-        if USE_SUPABASE_DB and supabase:
-            result = supabase.table('semesters').select('academic_year, semester_type, degree_level, exam_type, db_name').eq('id', semester_id).execute()
-            if not result.data:
-                return None, "Semester not found"
-            semester_info = result.data[0]
-            academic_year = semester_info['academic_year']
-            semester_type = semester_info['semester_type']
-            degree_level = semester_info['degree_level']
-            exam_type = semester_info['exam_type']
-            db_name = semester_info['db_name']
-        else:
-            import sqlite3
-            db_path = os.path.join(current_app.config['BASE_DIR'], 'exam_cell.db')
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute('SELECT academic_year, semester_type, degree_level, exam_type, db_name FROM semesters WHERE id = ?', (semester_id,))
-            semester_info = cursor.fetchone()
-            conn.close()
-            
-            if not semester_info:
-                return None, "Semester not found"
-            
-            academic_year, semester_type, degree_level, exam_type, db_name = semester_info
+        semester_info = _get_semester_info(semester_id)
+        if not semester_info:
+            return None, "Semester not found"
         
-        # Get students from database (with optional roll number filtering for absentees)
-        students_sorted = get_sorted_students(semester_id, course_code, program_level, section, instructor, roll_numbers) if USE_SUPABASE_DB else get_sorted_students(db_name, course_code, program_level, section, None, roll_numbers)
-        if not students_sorted:
-            filter_desc = ""
-            if section and section != 'all':
-                filter_desc += f" section {section}"
-            if instructor:
-                filter_desc += f" instructor {instructor}"
-            if roll_numbers:
-                filter_desc += f" (absentees only)"
-            return None, f"No students found for this course{filter_desc}"
-        
-        # Get course details
-        course_title = students_sorted[0][2] if students_sorted else "Unknown Course"
-        instructor_name = students_sorted[0][3] if students_sorted else "Unknown Instructor"
-        
-        # Generate HTML content
-        html_content = generate_html_content(
-            course_code, exam_date, academic_year, semester_type, 
-            degree_level, exam_type, course_title, instructor_name, 
-            students_sorted
+        # Get students for the course with filters applied
+        students = _get_students_for_course(
+            semester_id, course_code, program_level, 
+            section, instructor, roll_numbers
         )
         
-        if preview:
-            # Return HTML for preview
-            return html_content, "Generated successfully"
-        
-        if in_memory:
-            # Return HTML for in-memory processing (ZIP generation)
-            return html_content, "Generated successfully"
+        if not students:
+            filter_msg = []
+            if section: filter_msg.append(f"section {section}")
+            if instructor: filter_msg.append(f"instructor {instructor}")
+            if roll_numbers: filter_msg.append("absentees only")
             
-        # For download: Convert to PDF and save to file
-        safe_course = secure_filename(str(course_code))
-        safe_date = secure_filename(str(exam_date))
-        filename = f"Attendance_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{safe_course}_{safe_date}.pdf"
-        filepath = os.path.join(download_folder, filename)
+            msg = "No students found for this course"
+            if filter_msg:
+                msg += f" ({', '.join(filter_msg)})"
+            return None, msg
         
-        try:
-            # Convert HTML to PDF
-            pdf_bytes = html_to_pdf(html_content)
-            if not pdf_bytes:
-                return None, "Failed to convert HTML to PDF"
-            
-            # Write PDF to file
-            with open(filepath, 'wb') as f:
-                f.write(pdf_bytes)
-        except Exception as write_err:
-            return None, f"Failed to write PDF file: {write_err}"
-
-        return filepath, "Attendance sheet PDF generated successfully"
+        # Sort students: Batch → Semester → Alphabetical
+        students_sorted = _sort_students_by_batch_semester_name(students)
         
+        # Extract course metadata
+        course_title = students_sorted[0]['course_title']
+        instructor_name = students_sorted[0]['main_instructor']
+        
+        # Generate HTML content
+        html_content = _generate_html(
+            course_code=course_code,
+            exam_date=exam_date,
+            semester_info=semester_info,
+            course_title=course_title,
+            instructor_name=instructor_name,
+            students=students_sorted
+        )
+        
+        return html_content, "Generated successfully"
+    
     except Exception as e:
-        return None, f"Error generating attendance sheet: {str(e)}"
+        print(f"[ERROR] generate_attendance_sheet: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None, f"Error: {str(e)}"
 
-# NOTE: simple attendance sheet generator removed. The detailed attendance
-# sheet (generate_attendance_sheet / generate_html_content) now includes
-# signature, bio-break and additional sheets columns and should be used
-# for both preview and download.
 
-def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=False, program_level=None):
-    """Generate all attendance sheets for a semester and create a ZIP file with program and course folders.
-    When in_memory=True, returns (zip_bytes, message) instead of (filepath, message)."""
+def generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=True, program_level=None):
+    """
+    Generate attendance sheets for all courses and return as ZIP file
+    
+    Args:
+        semester_id: Semester ID
+        exam_date: Exam date (YYYY-MM-DD)
+        in_memory: Always True for Vercel compatibility
+        program_level: Filter by UG/PG/PhD
+    
+    Returns:
+        (zip_bytes, message) tuple
+    """
     try:
         # Get semester information
-        if USE_SUPABASE_DB and supabase:
-            result = supabase.table('semesters').select('academic_year, semester_type, degree_level, exam_type, db_name').eq('id', semester_id).execute()
-            if not result.data:
-                return None, "Semester not found"
-            semester_info = result.data[0]
-            academic_year = semester_info['academic_year']
-            semester_type = semester_info['semester_type']
-            degree_level = semester_info['degree_level']
-            exam_type = semester_info['exam_type']
-            db_name = semester_info['db_name']
-        else:
-            base_dir = current_app.config['BASE_DIR']
-            download_folder = current_app.config['DOWNLOAD_FOLDER']
-            os.makedirs(download_folder, exist_ok=True)
-            
-            db_path = os.path.join(base_dir, 'exam_cell.db')
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute('SELECT academic_year, semester_type, degree_level, exam_type, db_name FROM semesters WHERE id = ?', (semester_id,))
-            semester_info = cursor.fetchone()
-            conn.close()
-            
-            if not semester_info:
-                return None, "Semester not found"
-            
-            academic_year, semester_type, degree_level, exam_type, db_name = semester_info
+        semester_info = _get_semester_info(semester_id)
+        if not semester_info:
+            return None, "Semester not found"
         
-        # Get all courses from database
-        courses = get_courses(semester_id if USE_SUPABASE_DB else db_name, program_level)
+        # Get all courses
+        courses = _get_all_courses(semester_id, program_level)
         if not courses:
             return None, "No courses found for this semester"
         
-        # Create temporary directory for organizing files (only if not in memory)
-        temp_dir = None
-        generated_files = []
+        # Create ZIP file in memory
+        zip_buffer = BytesIO()
         
-        # Initialize ZIP file early based on mode
-        if in_memory:
-            zip_buffer = BytesIO()
-            zipf = zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED)
-        else:
-            temp_dir = tempfile.mkdtemp()
-            zip_filename = f"AttendanceSheets_{academic_year}_{semester_type}_{degree_level}_{exam_type}_{exam_date}.zip"
-            zip_filepath = os.path.join(download_folder, zip_filename)
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add README
+            readme = _generate_readme(semester_info, exam_date, len(courses))
+            zipf.writestr('README.txt', readme)
             
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(zip_filepath), exist_ok=True)
-            
-            # Remove existing ZIP file if it exists
-            if os.path.exists(zip_filepath):
-                try:
-                    os.remove(zip_filepath)
-                except Exception as e:
-                    print(f"Warning: Could not remove existing ZIP file: {str(e)}")
-            
-            zipf = zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED)
-        
-        # Add README file explaining the structure
-        readme_content = f"""Attendance Sheets Organization
-----------------------------
-Academic Year: {academic_year}
-Semester: {semester_type}
-Examination: {'Mid Semester' if exam_type == 'midsem' else 'End Semester' if exam_type == 'endsem' else exam_type} Examination
-Date: {exam_date}
-
-Folder Structure:
----------------
-/UG/ - Undergraduate Courses
-/PG/ - Postgraduate Courses
-/PhD/ - PhD Courses
-
-Each course folder contains:
-1. Detailed_*.html - Full attendance sheet with bio-breaks tracking
-"""
-        zipf.writestr('README.txt', readme_content)
-        
-        # Create program level directories
-        program_dirs = {'UG': 'Undergraduate', 'PG': 'Postgraduate', 'PhD': 'PhD'}
-        
-        # Create program level directories in temp (only if not in memory)
-        if not in_memory:
-            for program in program_dirs.keys():
-                try:
-                    os.makedirs(os.path.join(temp_dir, program), exist_ok=True)
-                except Exception:
-                    # If temp dir creation fails (unlikely), continue — we'll fail later when needed
-                    pass
-        
-        # Create course folders and generate files
-        for course_code, course_title in courses:
-            # Determine program level based on students' roll number prefixes (B=UG, M=PG, P=PhD)
-            try:
-                students_for_course = get_sorted_students(semester_id if USE_SUPABASE_DB else db_name, course_code, program_level) or []
-                roll_prefixes = [str(s[0]).strip().upper()[:1] for s in students_for_course if s and s[0]]
-                has_ug = any(p == 'B' for p in roll_prefixes)
-                has_pg = any(p == 'M' for p in roll_prefixes)
-                has_phd = any(p == 'P' for p in roll_prefixes)
-                if has_pg and not has_ug and not has_phd:
-                    detected_program_level = 'PG'
-                elif has_ug and not has_pg and not has_phd:
-                    detected_program_level = 'UG'
-                elif has_phd and not has_ug and not has_pg:
-                    detected_program_level = 'PhD'
-                else:
-                    # Mixed or unknown: prefer UG if present, else PG, else default UG
-                    detected_program_level = 'UG' if has_ug else ('PG' if has_pg else ('PhD' if has_phd else 'UG'))
-            except Exception:
-                # Fallback to previous heuristic based on course code
-                detected_program_level = 'PG' if course_code.startswith('M') else 'PhD' if course_code.startswith('P') else 'UG'
-            
-            # Generate detailed attendance sheet (with bio breaks)
-            html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, in_memory=True, program_level=program_level)
-            if html_content:
-                safe_course = secure_filename(str(course_code))
-                filename = f"Detailed_Attendance_{academic_year}_{semester_type}_{course_code}_{exam_date}.pdf"
-                rel_path = os.path.join(detected_program_level, safe_course, filename)
+            # Generate attendance sheet for each course
+            files_added = 0
+            for course_code, course_title in courses:
+                # Determine program level from course
+                prog_level = _detect_program_level(semester_id, course_code)
                 
-                # Convert HTML to PDF
-                pdf_bytes = html_to_pdf(html_content)
-                if not pdf_bytes:
-                    print(f"Warning: Failed to convert {course_code} to PDF, skipping...")
-                    continue
+                # Generate HTML
+                html_content, message = generate_attendance_sheet(
+                    course_code=course_code,
+                    exam_date=exam_date,
+                    semester_id=semester_id,
+                    preview=True,
+                    in_memory=True,
+                    program_level=program_level
+                )
                 
-                if in_memory:
-                    # Add PDF directly to ZIP
-                    zipf.writestr(rel_path, pdf_bytes)
-                else:
-                    # Create course directory and write to temp dir
-                    temp_program_dir = os.path.join(temp_dir, detected_program_level)
-                    course_dir = os.path.join(temp_program_dir, course_code)
-                    
-                    # Ensure both program and course directories exist
-                    os.makedirs(temp_program_dir, exist_ok=True)
-                    os.makedirs(course_dir, exist_ok=True)
-                    
-                    # Write to temp dir and copy
-                    dest_path = os.path.join(course_dir, filename)
-                    try:
-                        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                        with open(dest_path, 'wb') as f:
-                            f.write(pdf_bytes)
-                        generated_files.append((dest_path, rel_path))
-                    except Exception as e:
-                        print(f"Warning: Could not write file {dest_path}: {str(e)}")
-                        continue
+                if html_content:
+                    # Create path: ProgramLevel/CourseCode/filename.html
+                    filename = f"Attendance_{course_code}_{exam_date}.html"
+                    path = f"{prog_level}/{course_code}/{filename}"
+                    zipf.writestr(path, html_content.encode('utf-8'))
+                    files_added += 1
+            
+            if files_added == 0:
+                return None, "No attendance sheets could be generated"
         
-        # Add all generated files to ZIP (only for filesystem mode)
-        if not in_memory:
-            for file_path, rel_path in generated_files:
-                zipf.write(file_path, rel_path)
-        
-        # Get the count before cleanup
-        total_files = len(generated_files) if not in_memory else len(courses)
-        
-        # Close ZIP file
-        zipf.close()
-        
-        # Cleanup temp directory (only if not in memory)
-        if not in_memory and temp_dir:
-            try:
-                # Close any open file handles
-                for file_path, _ in generated_files:
-                    try:
-                        if os.path.exists(file_path):
-                            os.chmod(file_path, 0o777)  # Ensure we have permissions to remove
-                    except Exception:
-                        pass  # Ignore permission setting errors
-                
-                # Remove the temp directory
-                if os.path.exists(temp_dir):
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-            except Exception as cleanup_error:
-                print(f"Warning: Could not clean up temporary directory: {str(cleanup_error)}")
-                # Continue execution as this is not a critical error
-        
-        if in_memory:
-            zip_data = zip_buffer.getvalue()
-            zip_buffer.close()
-            return zip_data, f"Generated attendance sheets in ZIP"
-        else:
-            return zip_filepath, f"Generated {total_files} attendance sheets in ZIP file"
-        
-    except Exception as e:
-        return None, f"Error generating bulk attendance sheets: {str(e)}"
-
-# Helper functions
-def get_sorted_students(db_name_or_semester_id, course_code, program_level=None, section=None, instructor=None, roll_numbers=None):
-    """Get sorted list of students for a course with optional filters
+        zip_buffer.seek(0)
+        return zip_buffer.getvalue(), f"Generated {files_added} attendance sheets"
     
-    Args:
-        section: Optional timetable_batch filter
-        instructor: Optional main_instructor filter
-        roll_numbers: Optional list of specific roll numbers to filter (for absentees)
-    """
-    import sqlite3
+    except Exception as e:
+        print(f"[ERROR] generate_all_attendance_sheets_zip: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None, f"Error: {str(e)}"
+
+
+# ==================== PRIVATE HELPER FUNCTIONS ====================
+
+def _get_semester_info(semester_id):
+    """Get semester information from database"""
     try:
         if USE_SUPABASE_DB and supabase:
-            # db_name_or_semester_id is semester_id when using Supabase
-            semester_id = db_name_or_semester_id
+            result = supabase.table('semesters')\
+                .select('academic_year, semester_type, degree_level, exam_type')\
+                .eq('id', semester_id)\
+                .execute()
             
-            # Handle pagination - Supabase has 1000 record default limit
-            all_students = []
-            page_size = 1000
-            offset = 0
+            if result.data:
+                return result.data[0]
+        return None
+    except Exception as e:
+        print(f"[ERROR] _get_semester_info: {str(e)}")
+        return None
+
+
+def _get_students_for_course(semester_id, course_code, program_level=None, 
+                             section=None, instructor=None, roll_numbers=None):
+    """
+    Get students for a course with filters
+    
+    Returns:
+        List of dicts with keys: roll_no, name, course_title, main_instructor, timetable_batch
+    """
+    try:
+        if not (USE_SUPABASE_DB and supabase):
+            return []
+        
+        # Build query with pagination support
+        all_students = []
+        page_size = 1000
+        offset = 0
+        
+        while True:
+            query = supabase.table('students')\
+                .select('roll_no, name, course_title, main_instructor, timetable_batch')\
+                .eq('semester_id', semester_id)\
+                .eq('course_code', course_code)
             
-            while True:
-                query = supabase.table('students').select('roll_no, name, course_title, main_instructor, program_name, timetable_batch').eq('semester_id', semester_id).eq('course_code', course_code)
-                
-                if program_level:
-                    prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
-                    prefix = prefix_map.get(program_level)
-                    if prefix:
-                        query = query.like('roll_no', f'{prefix}%')
-                
-                # Filter by section if specified
-                if section and section != 'all':
-                    query = query.eq('timetable_batch', section)
-                
-                # Filter by instructor if specified
-                if instructor:
-                    query = query.eq('main_instructor', instructor)
-                
-                # Filter by specific roll numbers if specified (for absentees)
-                if roll_numbers:
-                    query = query.in_('roll_no', roll_numbers)
-                
-                result = query.range(offset, offset + page_size - 1).execute()
-                if not result.data:
-                    break
-                all_students.extend(result.data)
-                if len(result.data) < page_size:
-                    break
-                offset += page_size
+            # Apply filters
+            if program_level:
+                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
+                prefix = prefix_map.get(program_level)
+                if prefix:
+                    query = query.like('roll_no', f'{prefix}%')
             
-            students = [(row['roll_no'], row['name'], row['course_title'], row['main_instructor'], row['program_name'], row.get('timetable_batch', '')) for row in all_students]
+            if section and section != 'all':
+                query = query.eq('timetable_batch', section)
             
-            return sort_attendance_students(students)
-        else:
-            # db_name_or_semester_id is db_name when using SQLite
-            db_name = db_name_or_semester_id
-            if not os.path.isabs(db_name):
-                db_name = os.path.join(current_app.config['BASE_DIR'], db_name)
-            sem_conn = sqlite3.connect(db_name)
-            cursor = sem_conn.cursor()
+            if instructor:
+                query = query.eq('main_instructor', instructor)
             
             if roll_numbers:
-                # Filter by specific roll numbers
-                placeholders = ','.join('?' * len(roll_numbers))
-                cursor.execute(f'''
-                    SELECT roll_no, name, course_title, main_instructor, program_name, timetable_batch 
-                    FROM students 
-                    WHERE course_code = ? AND roll_no IN ({placeholders})
-                    ORDER BY roll_no
-                ''', (course_code, *roll_numbers))
-            else:
-                cursor.execute('''
-                    SELECT roll_no, name, course_title, main_instructor, program_name, timetable_batch 
-                    FROM students 
-                    WHERE course_code = ? 
-                    ORDER BY roll_no
-                ''', (course_code,))
-            students = cursor.fetchall()
-            sem_conn.close()
+                query = query.in_('roll_no', roll_numbers)
             
-            # Filter by program level if specified
-            if program_level:
-                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
-                prefix = prefix_map.get(program_level)
-                if prefix:
-                    students = [s for s in students if s[0] and str(s[0]).startswith(prefix)]
+            # Execute query with pagination
+            result = query.range(offset, offset + page_size - 1).execute()
             
-            return sort_attendance_students(students)
-    except Exception as e:
-        print(f"Error in get_sorted_students: {e}")
-        return []
-
-def get_courses(db_name_or_semester_id, program_level=None):
-    """Get all courses from a semester, optionally filtered by program level"""
-    import sqlite3
-    try:
-        if USE_SUPABASE_DB and supabase:
-            semester_id = db_name_or_semester_id
+            if not result.data:
+                break
             
-            # Handle pagination - Supabase has 1000 record default limit
-            all_students = []
-            page_size = 1000
-            offset = 0
+            all_students.extend(result.data)
             
-            while True:
-                query = supabase.table('students').select('course_code, course_title, roll_no').eq('semester_id', semester_id)
-                
-                if program_level:
-                    prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
-                    prefix = prefix_map.get(program_level)
-                    if prefix:
-                        query = query.like('roll_no', f'{prefix}%')
-                
-                result = query.range(offset, offset + page_size - 1).execute()
-                if not result.data:
-                    break
-                all_students.extend(result.data)
-                if len(result.data) < page_size:
-                    break
-                offset += page_size
+            if len(result.data) < page_size:
+                break
             
-            # Get unique courses
-            courses_dict = {}
-            for row in all_students:
-                code = row['course_code']
-                if code not in courses_dict:
-                    courses_dict[code] = row['course_title']
-            
-            courses = sorted([(code, title) for code, title in courses_dict.items()])
-            return courses
-        else:
-            db_name = db_name_or_semester_id
-            if not os.path.isabs(db_name):
-                db_name = os.path.join(current_app.config['BASE_DIR'], db_name)
-            sem_conn = sqlite3.connect(db_name)
-            cursor = sem_conn.cursor()
-            cursor.execute('SELECT DISTINCT course_code, course_title, roll_no FROM students ORDER BY course_code')
-            all_courses = cursor.fetchall()
-            sem_conn.close()
-            
-            # Filter by program level if specified
-            if program_level:
-                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
-                prefix = prefix_map.get(program_level)
-                if prefix:
-                    # Group by course and check if any student in course matches prefix
-                    courses_dict = {}
-                    for code, title, roll_no in all_courses:
-                        if roll_no and str(roll_no).startswith(prefix):
-                            courses_dict[code] = title
-                    return sorted([(code, title) for code, title in courses_dict.items()])
-            
-            # Return all courses (without roll_no in output)
-            courses_dict = {}
-            for code, title, _ in all_courses:
-                if code not in courses_dict:
-                    courses_dict[code] = title
-            return sorted([(code, title) for code, title in courses_dict.items()])
-    except Exception as e:
-        print(f"Error in get_courses: {e}")
-        return []
-
-# HTML generation functions
-def generate_html_content(course_code, exam_date, academic_year, semester_type, degree_level, exam_type, course_title, instructor_name, students_sorted):
-    """Generate HTML content for attendance sheet"""
-    # Calculate pagination
-    rows_per_page = 60
-    total_students = len(students_sorted)
-    total_pages = max(1, (total_students + rows_per_page - 1) // rows_per_page)
+            offset += page_size
+        
+        return all_students
     
+    except Exception as e:
+        print(f"[ERROR] _get_students_for_course: {str(e)}")
+        return []
+
+
+def _get_all_courses(semester_id, program_level=None):
+    """
+    Get all unique courses for a semester
+    
+    Returns:
+        List of tuples (course_code, course_title)
+    """
+    try:
+        if not (USE_SUPABASE_DB and supabase):
+            return []
+        
+        # Get all students with pagination
+        all_students = []
+        page_size = 1000
+        offset = 0
+        
+        while True:
+            query = supabase.table('students')\
+                .select('course_code, course_title, roll_no')\
+                .eq('semester_id', semester_id)
+            
+            if program_level:
+                prefix_map = {'UG': 'B', 'PG': 'M', 'PhD': 'P'}
+                prefix = prefix_map.get(program_level)
+                if prefix:
+                    query = query.like('roll_no', f'{prefix}%')
+            
+            result = query.range(offset, offset + page_size - 1).execute()
+            
+            if not result.data:
+                break
+            
+            all_students.extend(result.data)
+            
+            if len(result.data) < page_size:
+                break
+            
+            offset += page_size
+        
+        # Extract unique courses
+        courses_dict = {}
+        for row in all_students:
+            code = row['course_code']
+            if code not in courses_dict:
+                courses_dict[code] = row['course_title']
+        
+        # Return sorted list
+        return sorted([(code, title) for code, title in courses_dict.items()])
+    
+    except Exception as e:
+        print(f"[ERROR] _get_all_courses: {str(e)}")
+        return []
+
+
+def _sort_students_by_batch_semester_name(students):
+    """
+    Sort students by: BATCH → SEMESTER → ALPHABETICAL
+    
+    Args:
+        students: List of dicts with roll_no, name, timetable_batch
+    
+    Returns:
+        Sorted list
+    """
+    def sort_key(student):
+        # 1. Batch (timetable_batch) - PRIMARY SORT
+        batch = student.get('timetable_batch', '') or ''
+        batch = batch.strip().upper() if batch else 'ZZZ99'  # Push empty batches to end
+        
+        # 2. Semester (calculated from roll number) - SECONDARY SORT
+        semester = extract_semester_from_roll_no(student.get('roll_no', ''))
+        
+        # 3. Name (alphabetical) - TERTIARY SORT
+        name = student.get('name', '').strip().upper()
+        
+        return (batch, semester, name)
+    
+    return sorted(students, key=sort_key)
+
+
+def _detect_program_level(semester_id, course_code):
+    """
+    Detect program level (UG/PG/PhD) for a course based on student roll numbers
+    """
+    try:
+        students = _get_students_for_course(semester_id, course_code)
+        
+        if not students:
+            return 'UG'  # Default
+        
+        # Check first character of roll numbers
+        prefixes = [s['roll_no'][0] for s in students if s.get('roll_no')]
+        
+        has_b = any(p == 'B' for p in prefixes)
+        has_m = any(p == 'M' for p in prefixes)
+        has_p = any(p == 'P' for p in prefixes)
+        
+        # Determine dominant program level
+        if has_m and not has_b and not has_p:
+            return 'PG'
+        elif has_p and not has_b and not has_m:
+            return 'PhD'
+        else:
+            return 'UG'  # Default or mixed
+    
+    except Exception:
+        return 'UG'
+
+
+def _generate_html(course_code, exam_date, semester_info, course_title, instructor_name, students):
+    """
+    Generate HTML content for attendance sheet
+    """
     # Display mappings
-    exam_type_display = {
+    exam_type_map = {
         'midsem': 'Mid Semester Examination',
         'endsem': 'End Semester Examination'
     }
-    
-    semester_display = {
+    semester_map = {
         'monsoon': 'Monsoon',
         'winter': 'Winter'
     }
     
-    html_content = f"""<!DOCTYPE html>
+    # Extract info
+    academic_year = semester_info.get('academic_year', '')
+    semester_type = semester_map.get(semester_info.get('semester_type', ''), semester_info.get('semester_type', ''))
+    exam_type = exam_type_map.get(semester_info.get('exam_type', ''), semester_info.get('exam_type', ''))
+    
+    # Pagination
+    rows_per_page = 60
+    total_students = len(students)
+    total_pages = max(1, (total_students + rows_per_page - 1) // rows_per_page)
+    
+    # Start HTML
+    html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Attendance Sheet - {course_title} - {instructor_name}</title>
+    <title>Attendance Sheet - {course_code}</title>
     <style>
         body {{ 
             font-family: Arial, sans-serif; 
@@ -530,6 +392,10 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
             font-size: 10px; 
             margin-top: 4px; 
         }}
+        .info-section {{
+            font-size: 10px;
+            margin: 8px 0;
+        }}
         table {{ 
             border-collapse: collapse; 
             width: 100%; 
@@ -546,15 +412,9 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
             font-weight: bold; 
         }}
         @media print {{
-            body {{ 
-                margin: 10mm; 
-            }}
-            .page {{ 
-                page-break-after: always; 
-            }}
-            .page:last-child {{ 
-                page-break-after: auto; 
-            }}
+            body {{ margin: 10mm; }}
+            .page {{ page-break-after: always; }}
+            .page:last-child {{ page-break-after: auto; }}
         }}
     </style>
 </head>
@@ -565,11 +425,11 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
     for page_num in range(total_pages):
         start_idx = page_num * rows_per_page
         end_idx = min(start_idx + rows_per_page, total_students)
-        page_students = students_sorted[start_idx:end_idx]
+        page_students = students[start_idx:end_idx]
         
-        html_content += f"""
+        html += f"""
     <div class="page">
-        <!-- Header Section -->
+        <!-- Header -->
         <div class="header">
             <div class="institute-name">NATIONAL INSTITUTE OF TECHNOLOGY CALICUT</div>
             <div class="department">DEPARTMENT OF MECHANICAL ENGINEERING</div>
@@ -577,11 +437,11 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
             <div class="page-no">Page {page_num + 1} of {total_pages}</div>
         </div>
 
-        <!-- Course Information Section -->
+        <!-- Course Information -->
         <div class="info-section">
-            <div><strong>Name of the Examination:</strong> {exam_type_display.get(exam_type, exam_type)}</div>
+            <div><strong>Name of the Examination:</strong> {exam_type}</div>
             <div>
-                <strong>Semester:</strong> {semester_display.get(semester_type, semester_type)} &nbsp;&nbsp;
+                <strong>Semester:</strong> {semester_type} &nbsp;&nbsp;
                 <strong>Academic Year:</strong> {academic_year} &nbsp;&nbsp;
                 <strong>Date:</strong> {exam_date} &nbsp;&nbsp;
                 <strong>Time:</strong> ____________
@@ -609,34 +469,34 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
             <tbody>
 """
         
-        # Add student rows for this page
+        # Add student rows
         for i, student in enumerate(page_students):
             serial_no = start_idx + i + 1
-            roll_no = student[0] if student[0] else ''
-            name = student[1] if student[1] else ''
-            batch = student[5] if len(student) > 5 and student[5] else ''
+            roll_no = student.get('roll_no', '')
+            name = student.get('name', '')
+            batch = student.get('timetable_batch', '') or '-'
             
-            html_content += f"""
+            html += f"""
                 <tr>
                     <td>{serial_no}</td>
                     <td>{roll_no}</td>
-                    <td>{batch if batch else '-'}</td>
+                    <td>{batch}</td>
                     <td>{name}</td>
                     <td></td>
                     <td></td>
                     <td></td>
                 </tr>"""
         
-        html_content += """
+        html += """
             </tbody>
         </table>
 
-        <!-- Answer Books, Invigilators and Absentees Section -->
+        <!-- Answer Books and Invigilators -->
         <div style="margin-top: 20px;">
             <table>
                 <tr>
-                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the answer Books</th>
-                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of the Invigilators</th>
+                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of Answer Books</th>
+                    <th colspan="3" style="background-color: #d3d3d3; text-align: center;">Details of Invigilators</th>
                 </tr>
                 <tr>
                     <td style="width: 12%;"></td>
@@ -683,10 +543,45 @@ def generate_html_content(course_code, exam_date, academic_year, semester_type, 
     </div>
 """
     
-    html_content += """
+    html += """
 </body>
 </html>
 """
-    return html_content
+    return html
 
-# simple sheet removed
+
+def _generate_readme(semester_info, exam_date, course_count):
+    """Generate README content for ZIP file"""
+    exam_type_map = {
+        'midsem': 'Mid Semester',
+        'endsem': 'End Semester'
+    }
+    
+    return f"""Attendance Sheets
+==================
+
+Academic Year: {semester_info.get('academic_year', 'N/A')}
+Semester: {semester_info.get('semester_type', 'N/A').title()}
+Examination: {exam_type_map.get(semester_info.get('exam_type', ''), semester_info.get('exam_type', 'N/A'))}
+Date: {exam_date}
+
+Total Courses: {course_count}
+
+Folder Structure:
+-----------------
+/UG/     - Undergraduate Courses
+/PG/     - Postgraduate Courses 
+/PhD/    - PhD Courses
+
+Each course folder contains:
+- Attendance_{CourseCode}_{Date}.html
+
+Sorting:
+--------
+Students are sorted by:
+1. Batch (timetable_batch)
+2. Semester (calculated from roll number)
+3. Name (alphabetical A-Z)
+
+Generated by NITC Exam Cell Management System
+"""
