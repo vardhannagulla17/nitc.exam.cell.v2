@@ -1482,43 +1482,20 @@ def download_attendance():
         
         try:
             if action == 'download_all':
-                print("DEBUG: Generating all attendance sheets ZIP")
-                try:
-                    if IS_VERCEL:
-                        # Generate ZIP in memory
-                        print("DEBUG: Using in-memory ZIP generation (Vercel mode)")
-                        zip_data, message = generate_all_attendance_sheets_zip(semester_id, exam_date, in_memory=True, program_level=program_level)
-                        print(f"DEBUG: ZIP generation result: {bool(zip_data)}, Message: {message}")
-                        if zip_data:
-                            zip_filename = f'attendance_sheets_{semester_id}_{exam_date}.zip'
-                            print(f"DEBUG: Sending ZIP file: {zip_filename}, Size: {len(zip_data)} bytes")
-                            zip_io = BytesIO(zip_data)
-                            zip_io.seek(0)
-                            return send_file(
-                                zip_io,
-                                mimetype='application/zip',
-                                as_attachment=True,
-                                download_name=zip_filename
-                            )
-                        else:
-                            print(f"ERROR: ZIP generation failed: {message}")
-                            flash(f'Error generating ZIP: {message}', 'error')
-                    else:
-                        # Generate ZIP on filesystem
-                        print("DEBUG: Using filesystem ZIP generation (local mode)")
-                        filepath, message = generate_all_attendance_sheets_zip(semester_id, exam_date, program_level=program_level)
-                        print(f"DEBUG: ZIP generation result: filepath={filepath}, exists={os.path.exists(filepath) if filepath else False}, message={message}")
-                        if filepath and os.path.exists(filepath):
-                            print(f"DEBUG: Sending ZIP file from disk: {filepath}")
-                            return send_file(filepath, as_attachment=True)
-                        else:
-                            print(f"ERROR: ZIP file not created or not found: {message}")
-                            flash(f'Error generating ZIP: {message}', 'error')
-                except Exception as zip_err:
-                    print(f"ERROR: Exception in download_all: {type(zip_err).__name__}: {str(zip_err)}")
-                    import traceback
-                    traceback.print_exc()
-                    flash(f'Error generating ZIP file: {str(zip_err)}', 'error')
+                # SIMPLE ZIP DOWNLOAD
+                zip_data, message = generate_all_attendance_sheets_zip(semester_id, exam_date)
+                
+                if not zip_data:
+                    flash(f'Error: {message}', 'error')
+                    return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
+                
+                filename = f'attendance_sheets_{semester_id}_{exam_date}.zip'
+                
+                return Response(
+                    zip_data,
+                    mimetype='application/zip',
+                    headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+                )
                     
             elif action == 'preview' and course_code:
                 # SIMPLE PREVIEW
