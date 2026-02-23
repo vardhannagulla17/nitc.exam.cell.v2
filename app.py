@@ -1567,23 +1567,20 @@ def download_attendance():
                         else:
                             print("ERROR: PDF conversion returned None or empty bytes")
                             flash('Error converting HTML to PDF. Please try HTML download instead.', 'error')
-                            # Return to page with error
-                            courses = get_courses_for_semester(semester_id, program_level)
-                            return render_template('download.html', semesters=semesters, courses=courses, program_levels=program_levels, selected_semester=semester_id, selected_program=program_level)
+                            # Redirect to page with error
+                            return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
                     else:
                         print(f"ERROR: HTML generation failed: {message}")
                         flash(f'Error generating attendance sheet: {message}', 'error')
-                        # Return to page with error
-                        courses = get_courses_for_semester(semester_id, program_level)
-                        return render_template('download.html', semesters=semesters, courses=courses, program_levels=program_levels, selected_semester=semester_id, selected_program=program_level)
+                        # Redirect to page with error
+                        return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
                 except Exception as pdf_err:
                     print(f"ERROR: Exception in PDF download: {type(pdf_err).__name__}: {str(pdf_err)}")
                     import traceback
                     traceback.print_exc()
                     flash(f'Error generating PDF: {str(pdf_err)}', 'error')
-                    # Return to page with error
-                    courses = get_courses_for_semester(semester_id, program_level) if semester_id and program_level else []
-                    return render_template('download.html', semesters=semesters, courses=courses, program_levels=program_levels, selected_semester=semester_id, selected_program=program_level)
+                    # Redirect to page with error
+                    return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
                     
             elif action == 'download_html' and course_code:
                 print(f"DEBUG: Generating HTML download for {course_code}, section={section}, instructor={instructor}")
@@ -1610,17 +1607,15 @@ def download_attendance():
                     else:
                         print(f"ERROR: HTML generation failed: {message}")
                         flash(f'Error generating HTML: {message}', 'error')
-                        # Return to page with error
-                        courses = get_courses_for_semester(semester_id, program_level)
-                        return render_template('download.html', semesters=semesters, courses=courses, program_levels=program_levels, selected_semester=semester_id, selected_program=program_level)
+                        # Redirect to page with error
+                        return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
                 except Exception as html_err:
                     print(f"ERROR: Exception in HTML download: {type(html_err).__name__}: {str(html_err)}")
                     import traceback
                     traceback.print_exc()
                     flash(f'Error generating HTML: {str(html_err)}', 'error')
-                    # Return to page with error
-                    courses = get_courses_for_semester(semester_id, program_level) if semester_id and program_level else []
-                    return render_template('download.html', semesters=semesters, courses=courses, program_levels=program_levels, selected_semester=semester_id, selected_program=program_level)
+                    # Redirect to page with error
+                    return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
             else:
                 if not course_code:
                     flash('Please select a course!', 'error')
