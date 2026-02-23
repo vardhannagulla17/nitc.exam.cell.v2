@@ -1435,18 +1435,17 @@ def download_attendance():
         print(f"POST data: {request.form}")
     
     if request.method == 'POST':
-        try:
-            action = request.form.get('action', 'download')
-            program_level = request.form.get('program_level')
-            semester_id = request.form.get('semester_id')
-            course_code = request.form.get('course_code')
-            exam_date = request.form.get('exam_date')
-            section = request.form.get('section', 'all')  # Default to 'all' sections
-            instructor = request.form.get('instructor', '').strip()  # NEW: Instructor filter
-            
-            print(f"DEBUG: POST request received with action={action}")
-            print(f"program_level={program_level}, semester_id={semester_id}")
-            print(f"course_code={course_code},exam_date={exam_date}, section={section}, instructor={instructor}")
+        action = request.form.get('action', 'download')
+        program_level = request.form.get('program_level')
+        semester_id = request.form.get('semester_id')
+        course_code = request.form.get('course_code')
+        exam_date = request.form.get('exam_date')
+        section = request.form.get('section', 'all')  # Default to 'all' sections
+        instructor = request.form.get('instructor', '').strip()  # NEW: Instructor filter
+        
+        print(f"DEBUG: POST request received with action={action}")
+        print(f"program_level={program_level}, semester_id={semester_id}")
+        print(f"course_code={course_code},exam_date={exam_date}, section={section}, instructor={instructor}")
         
         if not semester_id:
             flash('Please select a semester!', 'error')
