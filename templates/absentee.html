@@ -252,18 +252,33 @@
                             </select>
                         </div>
 
+                        <!-- Download Buttons in Same Style as Attendance Sheet -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
-                            <button type="button" onclick="previewAbsentees()" class="btn btn-secondary">
+                            <button type="button" onclick="previewAbsentees()" class="btn-download-action btn-preview">
                                 <i class="fas fa-eye"></i> Preview
                             </button>
-                            <button type="submit" name="action" value="download_absentees" class="btn btn-primary"
-                                    onclick="return prepareExamDatesForSubmit()"
-                                    data-custom-loading="true">
-                                <i class="fas fa-download"></i> Download
+                            <button type="submit" name="action" value="download_html_absentees" 
+                                    class="btn-download-action btn-download-html"
+                                    onclick="return prepareExamDatesForSubmit()">
+                                <i class="fas fa-file-code"></i> Download HTML
                             </button>
                         </div>
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
+                            <button type="submit" name="action" value="download_pdf_absentees" 
+                                    class="btn-download-action btn-download-pdf"
+                                    onclick="return prepareExamDatesForSubmit()">
+                                <i class="fas fa-file-pdf"></i> Download PDF
+                            </button>
+                            <button type="submit" name="action" value="download_all_absentees" 
+                                    class="btn-download-action btn-download-all"
+                                    onclick="return prepareExamDatesForSubmit()">
+                                <i class="fas fa-download"></i> Download All
+                            </button>
+                        </div>
+                        
+                        <!-- Additional Actions -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
                             <button type="submit" name="action" value="upload_to_admin" class="btn btn-success"
                                     onclick="return validateSemesterAndConfirmUpload()">
                                 <i class="fas fa-cloud-upload-alt"></i> Upload to Admin
@@ -1052,6 +1067,70 @@ function previewAbsentees() {
 
 .btn-danger:hover {
     background: #dc2626;
+}
+
+/* Download Action Buttons - Match download.html style */
+.btn-download-action {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-download-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.btn-download-action:active {
+    transform: translateY(0);
+}
+
+.btn-download-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.btn-preview {
+    background: linear-gradient(135deg, #ec4899, #be185d);
+}
+
+.btn-preview:hover {
+    background: linear-gradient(135deg, #db2777, #9f1239);
+}
+
+.btn-download-html {
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+}
+
+.btn-download-html:hover {
+    background: linear-gradient(135deg, #0891b2, #0e7490);
+}
+
+.btn-download-pdf {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+
+.btn-download-pdf:hover {
+    background: linear-gradient(135deg, #7c3aed, #5b21b6);
+}
+
+.btn-download-all {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.btn-download-all:hover {
+    background: linear-gradient(135deg, #059669, #047857);
 }
 </style>
 {% endblock %}

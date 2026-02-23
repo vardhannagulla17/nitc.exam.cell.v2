@@ -1978,21 +1978,21 @@ def absentee_sheet():
             else:
                 flash('No absentees to preview.', 'error')
         
-        elif action == 'download_absentees':
+        elif action == 'download_html_absentees':
+            # Download as HTML file(s)
             try:
                 print(f"\n{'='*60}")
-                print(f"[DOWNLOAD ABSENTEES] Request received")
+                print(f"[DOWNLOAD HTML ABSENTEES] Request received")
                 print(f"Session absentees count: {len(session.get('absentees', []))}")
-                print(f"Session keys: {list(session.keys())}")
                 print(f"{'='*60}")
                 
                 absentees = session.get('absentees', [])
                 if absentees:
                     semester_id = request.form.get('semester_id')
-                    print(f"[DOWNLOAD ABSENTEES] Semester ID: {semester_id}")
+                    print(f"[DOWNLOAD HTML ABSENTEES] Semester ID: {semester_id}")
                     
                     if not semester_id:
-                        print("[DOWNLOAD ABSENTEES] ERROR: No semester selected")
+                        print("[DOWNLOAD HTML ABSENTEES] ERROR: No semester selected")
                         flash('Please select a semester before downloading.', 'error')
                         return redirect(url_for('mark_absentees'))
                     
@@ -2003,7 +2003,141 @@ def absentee_sheet():
                             course_code = key.replace('exam_date_', '')
                             exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
                     
-                    print(f"[DOWNLOAD ABSENTEES] Found {len(exam_dates)} course exam dates")
+                    print(f"[DOWNLOAD HTML ABSENTEES] Found {len(exam_dates)} course exam dates")
+                    
+                    # Group absentees by course code
+                    absentees_by_course = {}
+                    for absentee in absentees:
+                        course_code = absentee['course_code']
+                        if course_code not in absentees_by_course:
+                            absentees_by_course[course_code] = []
+                        absentees_by_course[course_code].append(absentee['roll_no'])
+                    
+                    print(f"[DOWNLOAD HTML ABSENTEES] Grouped absentees by course: {list(absentees_by_course.keys())}")
+                    
+                    # Generate attendance sheets for each course with only absentees
+                    from app.attendance import generate_attendance_sheet
+                    from werkzeug.utils import secure_filename
+                    import zipfile
+                    
+                    all_html = []
+                    
+                    for course_code, roll_numbers in absentees_by_course.items():
+                        exam_date = exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
+                        print(f"[DOWNLOAD HTML ABSENTEES] Generating HTML for {course_code} with {len(roll_numbers)} absentee(s)")
+                        
+                        try:
+                            html_content, message = generate_attendance_sheet(
+                                course_code=course_code,
+                                exam_date=exam_date,
+                                semester_id=semester_id,
+                                preview=True,
+                                in_memory=True,
+                                program_level=None,
+                                section=None,
+                                instructor=None,
+                                roll_numbers=roll_numbers
+                            )
+                            
+                            if html_content:
+                                all_html.append({
+                                    'course_code': course_code,
+                                    'exam_date': exam_date,
+                                    'html': html_content
+                                })
+                            else:
+                                print(f"[DOWNLOAD HTML ABSENTEES] ERROR: Failed to generate HTML for {course_code}: {message}")
+                        except Exception as e:
+                            print(f"[DOWNLOAD HTML ABSENTEES] EXCEPTION: {type(e).__name__}: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
+                    
+                    if not all_html:
+                        print("[DOWNLOAD HTML ABSENTEES] ERROR: No HTML generated")
+                        flash('Error generating attendance sheets for absentees.', 'error')
+                        return redirect(url_for('mark_absentees'))
+                    
+                    # If only one course, send single HTML file
+                    if len(all_html) == 1:
+                        html_data = all_html[0]
+                        safe_course = secure_filename(str(html_data['course_code']))
+                        safe_date = secure_filename(str(html_data['exam_date']))
+                        filename = f"Absentee_Sheet_{safe_course}_{safe_date}.html"
+                        print(f"[DOWNLOAD HTML ABSENTEES] Sending single HTML: {filename}")
+                        
+                        return send_file(
+                            BytesIO(html_data['html'].encode('utf-8')),
+                            mimetype='text/html',
+                            as_attachment=True,
+                            download_name=filename
+                        )
+                    else:
+                        # Multiple courses - create a ZIP file
+                        print(f"[DOWNLOAD HTML ABSENTEES] Creating ZIP with {len(all_html)} HTML files")
+                        zip_buffer = BytesIO()
+                        
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            for html_data in all_html:
+                                safe_course = secure_filename(str(html_data['course_code']))
+                                safe_date = secure_filename(str(html_data['exam_date']))
+                                filename = f"Absentee_Sheet_{safe_course}_{safe_date}.html"
+                                zip_file.writestr(filename, html_data['html'].encode('utf-8'))
+                                print(f"[DOWNLOAD HTML ABSENTEES]   Added to ZIP: {filename}")
+                        
+                        zip_buffer.seek(0)
+                        today = datetime.now().strftime('%Y-%m-%d')
+                        zip_filename = f"Absentee_Sheets_HTML_{today}.zip"
+                        print(f"[DOWNLOAD HTML ABSENTEES] Sending ZIP: {zip_filename}, Size: {len(zip_buffer.getvalue())} bytes")
+                        
+                        return send_file(
+                            zip_buffer,
+                            mimetype='application/zip',
+                            as_attachment=True,
+                            download_name=zip_filename
+                        )
+                else:
+                    print("[DOWNLOAD HTML ABSENTEES] ERROR: No absentees in session")
+                    flash('No absentees to download.', 'error')
+            
+            except Exception as e:
+                print(f"\n{'='*60}")
+                print(f"[DOWNLOAD HTML ABSENTEES] UNHANDLED EXCEPTION")
+                print(f"Error Type: {type(e).__name__}")
+                print(f"Error Message: {str(e)}")
+                print(f"{'='*60}")
+                import traceback
+                traceback.print_exc()
+                flash(f'Error downloading HTML absentee sheets: {str(e)}', 'error')
+            
+            return redirect(url_for('mark_absentees'))
+        
+        elif action == 'download_pdf_absentees' or action == 'download_absentees':
+            # Download as PDF file(s)
+            try:
+                print(f"\n{'='*60}")
+                print(f"[DOWNLOAD PDF ABSENTEES] Request received")
+                print(f"Session absentees count: {len(session.get('absentees', []))}")
+                print(f"Session keys: {list(session.keys())}")
+                print(f"{'='*60}")
+                
+                absentees = session.get('absentees', [])
+                if absentees:
+                    semester_id = request.form.get('semester_id')
+                    print(f"[DOWNLOAD PDF ABSENTEES] Semester ID: {semester_id}")
+                    
+                    if not semester_id:
+                        print("[DOWNLOAD PDF ABSENTEES] ERROR: No semester selected")
+                        flash('Please select a semester before downloading.', 'error')
+                        return redirect(url_for('mark_absentees'))
+                    
+                    # Get exam dates for each course from form
+                    exam_dates = {}
+                    for key in request.form.keys():
+                        if key.startswith('exam_date_'):
+                            course_code = key.replace('exam_date_', '')
+                            exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
+                    
+                    print(f"[DOWNLOAD PDF ABSENTEES] Found {len(exam_dates)} course exam dates")
                     for course_code, date in list(exam_dates.items())[:3]:
                         print(f"  - {course_code}: {date}")
                     
@@ -2015,7 +2149,7 @@ def absentee_sheet():
                             absentees_by_course[course_code] = []
                         absentees_by_course[course_code].append(absentee['roll_no'])
                     
-                    print(f"[DOWNLOAD ABSENTEES] Grouped absentees by course: {list(absentees_by_course.keys())}")
+                    print(f"[DOWNLOAD PDF ABSENTEES] Grouped absentees by course: {list(absentees_by_course.keys())}")
                     
                     # Generate attendance sheets for each course with only absentees
                     from app.attendance import generate_attendance_sheet
@@ -2023,7 +2157,7 @@ def absentee_sheet():
                     
                     for course_code, roll_numbers in absentees_by_course.items():
                         exam_date = exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
-                        print(f"[DOWNLOAD ABSENTEES] Generating sheet for {course_code} with {len(roll_numbers)} absentee(s), exam_date={exam_date}")
+                        print(f"[DOWNLOAD PDF ABSENTEES] Generating sheet for {course_code} with {len(roll_numbers)} absentee(s), exam_date={exam_date}")
                         
                         try:
                             # Generate attendance sheet with only these specific students
@@ -2039,13 +2173,13 @@ def absentee_sheet():
                                 roll_numbers=roll_numbers
                             )
                             
-                            print(f"[DOWNLOAD ABSENTEES] HTML generated: {bool(html_content)}, Message: {message}")
+                            print(f"[DOWNLOAD PDF ABSENTEES] HTML generated: {bool(html_content)}, Message: {message}")
                             
                             if html_content:
                                 # Convert to PDF
-                                print(f"[DOWNLOAD ABSENTEES] Converting {course_code} to PDF...")
+                                print(f"[DOWNLOAD PDF ABSENTEES] Converting {course_code} to PDF...")
                                 pdf_bytes = html_to_pdf(html_content)
-                                print(f"[DOWNLOAD ABSENTEES] PDF generated: {bool(pdf_bytes)}, Size: {len(pdf_bytes) if pdf_bytes else 0} bytes")
+                                print(f"[DOWNLOAD PDF ABSENTEES] PDF generated: {bool(pdf_bytes)}, Size: {len(pdf_bytes) if pdf_bytes else 0} bytes")
                                 
                                 if pdf_bytes:
                                     all_pdfs.append({
@@ -2054,18 +2188,18 @@ def absentee_sheet():
                                         'pdf': pdf_bytes
                                     })
                                 else:
-                                    print(f"[DOWNLOAD ABSENTEES] ERROR: Failed to convert {course_code} to PDF")
+                                    print(f"[DOWNLOAD PDF ABSENTEES] ERROR: Failed to convert {course_code} to PDF")
                             else:
-                                print(f"[DOWNLOAD ABSENTEES] ERROR: Failed to generate attendance sheet for {course_code}: {message}")
+                                print(f"[DOWNLOAD PDF ABSENTEES] ERROR: Failed to generate attendance sheet for {course_code}: {message}")
                         except Exception as e:
-                            print(f"[DOWNLOAD ABSENTEES] EXCEPTION: {type(e).__name__}: {str(e)}")
+                            print(f"[DOWNLOAD PDF ABSENTEES] EXCEPTION: {type(e).__name__}: {str(e)}")
                             import traceback
                             traceback.print_exc()
                     
-                    print(f"[DOWNLOAD ABSENTEES] Total PDFs generated: {len(all_pdfs)}")
+                    print(f"[DOWNLOAD PDF ABSENTEES] Total PDFs generated: {len(all_pdfs)}")
                     
                     if not all_pdfs:
-                        print("[DOWNLOAD ABSENTEES] ERROR: No PDFs generated")
+                        print("[DOWNLOAD PDF ABSENTEES] ERROR: No PDFs generated")
                         flash('Error generating attendance sheets for absentees.', 'error')
                         return redirect(url_for('mark_absentees'))
                     
@@ -2073,7 +2207,7 @@ def absentee_sheet():
                     if len(all_pdfs) == 1:
                         pdf_data = all_pdfs[0]
                         filename = f"Absentee_Sheet_{pdf_data['course_code']}_{pdf_data['exam_date']}.pdf"
-                        print(f"[DOWNLOAD ABSENTEES] Sending single PDF: {filename}")
+                        print(f"[DOWNLOAD PDF ABSENTEES] Sending single PDF: {filename}")
                         
                         return send_file(
                             BytesIO(pdf_data['pdf']),
@@ -2083,7 +2217,7 @@ def absentee_sheet():
                         )
                     else:
                         # Multiple courses - create a ZIP file
-                        print(f"[DOWNLOAD ABSENTEES] Creating ZIP with {len(all_pdfs)} PDFs")
+                        print(f"[DOWNLOAD PDF ABSENTEES] Creating ZIP with {len(all_pdfs)} PDFs")
                         import zipfile
                         zip_buffer = BytesIO()
                         
@@ -2091,12 +2225,12 @@ def absentee_sheet():
                             for pdf_data in all_pdfs:
                                 filename = f"Absentee_Sheet_{pdf_data['course_code']}_{pdf_data['exam_date']}.pdf"
                                 zip_file.writestr(filename, pdf_data['pdf'])
-                                print(f"[DOWNLOAD ABSENTEES]   Added to ZIP: {filename}")
+                                print(f"[DOWNLOAD PDF ABSENTEES]   Added to ZIP: {filename}")
                         
                         zip_buffer.seek(0)
                         today = datetime.now().strftime('%Y-%m-%d')
-                        zip_filename = f"Absentee_Sheets_{today}.zip"
-                        print(f"[DOWNLOAD ABSENTEES] Sending ZIP: {zip_filename}, Size: {len(zip_buffer.getvalue())} bytes")
+                        zip_filename = f"Absentee_Sheets_PDF_{today}.zip"
+                        print(f"[DOWNLOAD PDF ABSENTEES] Sending ZIP: {zip_filename}, Size: {len(zip_buffer.getvalue())} bytes")
                         
                         return send_file(
                             zip_buffer,
@@ -2105,18 +2239,147 @@ def absentee_sheet():
                             download_name=zip_filename
                         )
                 else:
-                    print("[DOWNLOAD ABSENTEES] ERROR: No absentees in session")
+                    print("[DOWNLOAD PDF ABSENTEES] ERROR: No absentees in session")
                     flash('No absentees to download.', 'error')
             
             except Exception as e:
                 print(f"\n{'='*60}")
-                print(f"[DOWNLOAD ABSENTEES] UNHANDLED EXCEPTION")
+                print(f"[DOWNLOAD PDF ABSENTEES] UNHANDLED EXCEPTION")
                 print(f"Error Type: {type(e).__name__}")
                 print(f"Error Message: {str(e)}")
                 print(f"{'='*60}")
                 import traceback
                 traceback.print_exc()
-                flash(f'Error downloading absentee sheets: {str(e)}', 'error')
+                flash(f'Error downloading PDF absentee sheets: {str(e)}', 'error')
+            
+            return redirect(url_for('mark_absentees'))
+        
+        elif action == 'download_all_absentees':
+            # Download both HTML and PDF in a single ZIP
+            try:
+                print(f"\n{'='*60}")
+                print(f"[DOWNLOAD ALL ABSENTEES] Request received")
+                print(f"Session absentees count: {len(session.get('absentees', []))}")
+                print(f"{'='*60}")
+                
+                absentees = session.get('absentees', [])
+                if absentees:
+                    semester_id = request.form.get('semester_id')
+                    print(f"[DOWNLOAD ALL ABSENTEES] Semester ID: {semester_id}")
+                    
+                    if not semester_id:
+                        print("[DOWNLOAD ALL ABSENTEES] ERROR: No semester selected")
+                        flash('Please select a semester before downloading.', 'error')
+                        return redirect(url_for('mark_absentees'))
+                    
+                    # Get exam dates for each course from form
+                    exam_dates = {}
+                    for key in request.form.keys():
+                        if key.startswith('exam_date_'):
+                            course_code = key.replace('exam_date_', '')
+                            exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
+                    
+                    print(f"[DOWNLOAD ALL ABSENTEES] Found {len(exam_dates)} course exam dates")
+                    
+                    # Group absentees by course code
+                    absentees_by_course = {}
+                    for absentee in absentees:
+                        course_code = absentee['course_code']
+                        if course_code not in absentees_by_course:
+                            absentees_by_course[course_code] = []
+                        absentees_by_course[course_code].append(absentee['roll_no'])
+                    
+                    print(f"[DOWNLOAD ALL ABSENTEES] Grouped absentees by course: {list(absentees_by_course.keys())}")
+                    
+                    # Generate both HTML and PDF for each course
+                    from app.attendance import generate_attendance_sheet
+                    from werkzeug.utils import secure_filename
+                    import zipfile
+                    
+                    all_files = []  # Store both HTML and PDF
+                    
+                    for course_code, roll_numbers in absentees_by_course.items():
+                        exam_date = exam_dates.get(course_code, datetime.now().strftime('%Y-%m-%d'))
+                        print(f"[DOWNLOAD ALL ABSENTEES] Generating for {course_code} with {len(roll_numbers)} absentee(s)")
+                        
+                        try:
+                            html_content, message = generate_attendance_sheet(
+                                course_code=course_code,
+                                exam_date=exam_date,
+                                semester_id=semester_id,
+                                preview=True,
+                                in_memory=True,
+                                program_level=None,
+                                section=None,
+                                instructor=None,
+                                roll_numbers=roll_numbers
+                            )
+                            
+                            if html_content:
+                                # Store HTML
+                                safe_course = secure_filename(str(course_code))
+                                safe_date = secure_filename(str(exam_date))
+                                all_files.append({
+                                    'name': f"Absentee_Sheet_{safe_course}_{safe_date}.html",
+                                    'content': html_content.encode('utf-8'),
+                                    'type': 'html'
+                                })
+                                
+                                # Convert to PDF
+                                pdf_bytes = html_to_pdf(html_content)
+                                if pdf_bytes:
+                                    all_files.append({
+                                        'name': f"Absentee_Sheet_{safe_course}_{safe_date}.pdf",
+                                        'content': pdf_bytes,
+                                        'type': 'pdf'
+                                    })
+                                else:
+                                    print(f"[DOWNLOAD ALL ABSENTEES] PDF conversion failed for {course_code}")
+                            else:
+                                print(f"[DOWNLOAD ALL ABSENTEES] HTML generation failed for {course_code}: {message}")
+                        except Exception as e:
+                            print(f"[DOWNLOAD ALL ABSENTEES] EXCEPTION: {type(e).__name__}: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
+                    
+                    if not all_files:
+                        print("[DOWNLOAD ALL ABSENTEES] ERROR: No files generated")
+                        flash('Error generating attendance sheets for absentees.', 'error')
+                        return redirect(url_for('mark_absentees'))
+                    
+                    # Create a ZIP file with all HTML and PDF files
+                    print(f"[DOWNLOAD ALL ABSENTEES] Creating ZIP with {len(all_files)} files")
+                    zip_buffer = BytesIO()
+                    
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        for file_data in all_files:
+                            zip_file.writestr(file_data['name'], file_data['content'])
+                            print(f"[DOWNLOAD ALL ABSENTEES]   Added to ZIP: {file_data['name']} ({file_data['type'].upper()})")
+                    
+                    zip_buffer.seek(0)
+                    today = datetime.now().strftime('%Y-%m-%d')
+                    zip_filename = f"Absentee_Sheets_All_{today}.zip"
+                    print(f"[DOWNLOAD ALL ABSENTEES] Sending ZIP: {zip_filename}, Size: {len(zip_buffer.getvalue())} bytes")
+                    
+                    return send_file(
+                        zip_buffer,
+                        mimetype='application/zip',
+                        as_attachment=True,
+                        download_name=zip_filename
+                    )
+                else:
+                    print("[DOWNLOAD ALL ABSENTEES] ERROR: No absentees in session")
+                    flash('No absentees to download.', 'error')
+            
+            except Exception as e:
+                print(f"\n{'='*60}")
+                print(f"[DOWNLOAD ALL ABSENTEES] UNHANDLED EXCEPTION")
+                print(f"Error Type: {type(e).__name__}")
+                print(f"Error Message: {str(e)}")
+                print(f"{'='*60}")
+                import traceback
+                traceback.print_exc()
+                flash(f'Error downloading all absentee sheets: {str(e)}', 'error')
             
             return redirect(url_for('mark_absentees'))
         
