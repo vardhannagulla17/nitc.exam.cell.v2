@@ -1513,7 +1513,7 @@ def download_attendance():
                     flash(f'Error generating preview: {message}', 'error')
                     
             elif action == 'download' and course_code:
-                print(f"DEBUG: Generating download for {course_code}, section={section}, instructor={instructor}")
+                print(f"DEBUG: Generating PDF download for {course_code}, section={section}, instructor={instructor}")
                 # Generate HTML content first
                 html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level, section=section, instructor=instructor)
                 
@@ -1540,6 +1540,28 @@ def download_attendance():
                         flash('Error converting HTML to PDF', 'error')
                 else:
                     flash(f'Error generating download: {message}', 'error')
+                    
+            elif action == 'download_html' and course_code:
+                print(f"DEBUG: Generating HTML download for {course_code}, section={section}, instructor={instructor}")
+                # Generate HTML content
+                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id, preview=True, in_memory=True, program_level=program_level, section=section, instructor=instructor)
+                
+                if html_content:
+                    # Create a proper filename for download
+                    safe_course = secure_filename(str(course_code))
+                    safe_date = secure_filename(str(exam_date))
+                    section_suffix = f"_{section}" if section and section != 'all' else ""
+                    instructor_suffix = f"_{secure_filename(instructor[:20])}" if instructor else ""
+                    filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.html"
+                    
+                    return send_file(
+                        BytesIO(html_content.encode('utf-8')),
+                        mimetype='text/html',
+                        as_attachment=True,
+                        download_name=filename
+                    )
+                else:
+                    flash(f'Error generating HTML download: {message}', 'error')
             else:
                 if not course_code:
                     flash('Please select a course!', 'error')

@@ -102,8 +102,11 @@
                         <button type="button" id="preview-btn" class="btn btn-secondary" disabled>
                             <i class="fas fa-eye"></i> Preview
                         </button>
+                        <button type="submit" name="action" value="download_html" id="download-html-btn" class="btn btn-info" disabled>
+                            <i class="fas fa-file-code"></i> Download HTML
+                        </button>
                         <button type="submit" name="action" value="download" id="download-btn" class="btn btn-primary" disabled>
-                            <i class="fas fa-download"></i> Download
+                            <i class="fas fa-file-pdf"></i> Download PDF
                         </button>
                         <button type="submit" name="action" value="download_all" id="download-all-btn" class="btn btn-success" disabled>
                             <i class="fas fa-file-archive"></i> Download All
@@ -156,6 +159,7 @@ const sectionSelect = $('section');
 const instructorSelect = $('instructor');
 const dateInput = $('exam_date');
 const previewBtn = $('preview-btn');
+const downloadHtmlBtn = $('download-html-btn');
 const downloadBtn = $('download-btn');
 const downloadAllBtn = $('download-all-btn');
 
@@ -191,6 +195,7 @@ function updateButtons() {
     const canDownloadAll = hasDate && hasSemester && !isDownloading;
     
     previewBtn.disabled = !canDownload || isDownloading;
+    downloadHtmlBtn.disabled = !canDownload || isDownloading;
     downloadBtn.disabled = !canDownload || isDownloading;
     downloadAllBtn.disabled = !canDownloadAll || isDownloading;
 }
@@ -441,6 +446,25 @@ previewBtn.addEventListener('click', () => {
     }, 100);
 });
 
+// Download HTML button loading state
+downloadHtmlBtn.addEventListener('click', (e) => {
+    if (isDownloading) {
+        e.preventDefault();
+        return;
+    }
+    isDownloading = true;
+    const originalHTML = downloadHtmlBtn.innerHTML;
+    downloadHtmlBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
+    updateButtons();
+    
+    // Reset after download completes (generous timeout for large files)
+    setTimeout(() => {
+        isDownloading = false;
+        downloadHtmlBtn.innerHTML = originalHTML;
+        updateButtons();
+    }, 3000);
+});
+
 // Download button loading state
 downloadBtn.addEventListener('click', (e) => {
     if (isDownloading) {
@@ -671,6 +695,16 @@ form {
 .btn-secondary:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+    color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 198, 255, 0.4);
 }
 
 .btn-success {
