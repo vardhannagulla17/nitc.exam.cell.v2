@@ -1492,12 +1492,10 @@ def download_attendance():
                         if zip_data:
                             zip_filename = f'attendance_sheets_{semester_id}_{exam_date}.zip'
                             print(f"DEBUG: Sending ZIP file: {zip_filename}, Size: {len(zip_data)} bytes")
-                            return send_file(
-                                BytesIO(zip_data),
-                                mimetype='application/zip',
-                                as_attachment=True,
-                                download_name=zip_filename
-                            )
+                            response = make_response(zip_data)
+                            response.headers['Content-Type'] = 'application/zip'
+                            response.headers['Content-Disposition'] = f'attachment; filename="{zip_filename}"'
+                            return response
                         else:
                             print(f"ERROR: ZIP generation failed: {message}")
                             flash(f'Error generating ZIP: {message}', 'error')
@@ -1558,12 +1556,10 @@ def download_attendance():
                             filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.pdf"
                             print(f"DEBUG: Sending PDF file: {filename}")
                             
-                            return send_file(
-                                BytesIO(pdf_bytes),
-                                mimetype='application/pdf',
-                                as_attachment=True,
-                                download_name=filename
-                            )
+                            response = make_response(pdf_bytes)
+                            response.headers['Content-Type'] = 'application/pdf'
+                            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                            return response
                         else:
                             print("ERROR: PDF conversion returned None or empty bytes")
                             flash('Error converting HTML to PDF. Please try HTML download instead.', 'error')
@@ -1598,12 +1594,10 @@ def download_attendance():
                         filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.html"
                         print(f"DEBUG: Sending HTML file: {filename}, Size: {len(html_content)} chars")
                         
-                        return send_file(
-                            BytesIO(html_content.encode('utf-8')),
-                            mimetype='text/html',
-                            as_attachment=True,
-                            download_name=filename
-                        )
+                        response = make_response(html_content)
+                        response.headers['Content-Type'] = 'text/html; charset=utf-8'
+                        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                        return response
                     else:
                         print(f"ERROR: HTML generation failed: {message}")
                         flash(f'Error generating HTML: {message}', 'error')
