@@ -163,8 +163,6 @@ const downloadHtmlBtn = $('download-html-btn');
 const downloadBtn = $('download-btn');
 const downloadAllBtn = $('download-all-btn');
 
-let isDownloading = false;
-
 // Set today's date
 if (dateInput) {
     dateInput.valueAsDate = new Date();
@@ -191,16 +189,16 @@ function updateButtons() {
     const hasSemester = semesterSelect.value;
     const hasCourse = courseSelect.value;
     
-    const canDownload = hasCourse && hasDate && hasSemester && !isDownloading;
-    const canDownloadAll = hasDate && hasSemester && !isDownloading;
+    const canDownload = hasCourse && hasDate && hasSemester;
+    const canDownloadAll = hasDate && hasSemester;
     
-    console.log(`[updateButtons] hasDate=${hasDate}, hasSemester=${hasSemester}, hasCourse=${hasCourse}, isDownloading=${isDownloading}`);
+    console.log(`[updateButtons] hasDate=${hasDate}, hasSemester=${hasSemester}, hasCourse=${hasCourse}`);
     console.log(`[updateButtons] canDownload=${canDownload}, canDownloadAll=${canDownloadAll}`);
     
-    previewBtn.disabled = !canDownload || isDownloading;
-    downloadHtmlBtn.disabled = !canDownload || isDownloading;
-    downloadBtn.disabled = !canDownload || isDownloading;
-    downloadAllBtn.disabled = !canDownloadAll || isDownloading;
+    previewBtn.disabled = !canDownload;
+    downloadHtmlBtn.disabled = !canDownload;
+    downloadBtn.disabled = !canDownload;
+    downloadAllBtn.disabled = !canDownloadAll;
     
     console.log(`[updateButtons] Buttons disabled: preview=${previewBtn.disabled}, html=${downloadHtmlBtn.disabled}, pdf=${downloadBtn.disabled}, all=${downloadAllBtn.disabled}`);
 }
@@ -453,45 +451,6 @@ previewBtn.addEventListener('click', () => {
         actionInput.remove();
         console.log('[Preview] Form restored');
     }, 100);
-});
-
-// Download HTML button - show loading state but DON'T prevent submission
-downloadHtmlBtn.addEventListener('click', () => {
-    console.log('[Download HTML] Button clicked');
-    downloadHtmlBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
-    downloadHtmlBtn.disabled = true;
-    
-    // Reset after a delay (download doesn't block page, so page stays)
-    setTimeout(() => {
-        downloadHtmlBtn.innerHTML = '<i class="fas fa-file-code"></i> Download HTML';
-        downloadHtmlBtn.disabled = false;
-    }, 3000);
-});
-
-// Download PDF button - show loading state but DON'T prevent submission
-downloadBtn.addEventListener('click', () => {
-    console.log('[Download PDF] Button clicked');
-    downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
-    downloadBtn.disabled = true;
-    
-    // Reset after a delay
-    setTimeout(() => {
-        downloadBtn.innerHTML = '<i class="fas fa-file-pdf"></i> Download PDF';
-        downloadBtn.disabled = false;
-    }, 3000);
-});
-
-// Download All button - show loading state but DON'T prevent submission
-downloadAllBtn.addEventListener('click', () => {
-    console.log('[Download All] Button clicked');
-    downloadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating ZIP...';
-    downloadAllBtn.disabled = true;
-    
-    // Reset after a delay
-    setTimeout(() => {
-        downloadAllBtn.innerHTML = '<i class="fas fa-file-archive"></i> Download All';
-        downloadAllBtn.disabled = false;
-    }, 5000);
 });
 
 // Form submit listener for debugging
