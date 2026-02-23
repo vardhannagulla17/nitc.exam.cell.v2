@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, current_app, make_response, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, current_app, make_response, jsonify, Response
 from werkzeug.utils import secure_filename
 import os
 import sys
@@ -1493,7 +1493,6 @@ def download_attendance():
                         if zip_data:
                             zip_filename = f'attendance_sheets_{semester_id}_{exam_date}.zip'
                             print(f"DEBUG: Sending ZIP file: {zip_filename}, Size: {len(zip_data)} bytes")
-                            from flask import Response
                             return Response(
                                 zip_data,
                                 mimetype='application/zip',
@@ -1559,7 +1558,6 @@ def download_attendance():
                             filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.pdf"
                             print(f"DEBUG: Sending PDF file: {filename}")
                             
-                            from flask import Response
                             return Response(
                                 pdf_bytes,
                                 mimetype='application/pdf',
@@ -1599,7 +1597,6 @@ def download_attendance():
                         filename = f"Attendance_{safe_course}{section_suffix}{instructor_suffix}_{safe_date}.html"
                         print(f"DEBUG: Sending HTML file: {filename}, Size: {len(html_content)} chars")
                         
-                        from flask import Response
                         return Response(
                             html_content,
                             mimetype='text/html; charset=utf-8',
