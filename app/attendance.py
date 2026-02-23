@@ -32,36 +32,63 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
         (html_content, message) tuple
     """
     try:
+        print(f"\n{'='*60}")
+        print(f"[ATTENDANCE] START: course={course_code}, date={exam_date}, semester={semester_id}")
+        print(f"[ATTENDANCE] Filters: program={program_level}, section={section}, instructor={instructor}")
+        print(f"{'='*60}")
+        
+        # Validate inputs
+        if not course_code:
+            print("[ATTENDANCE] ERROR: Missing course_code")
+            return None, "Course code is required"
+        if not semester_id:
+            print("[ATTENDANCE] ERROR: Missing semester_id")
+            return None, "Semester ID is required"
+        if not exam_date:
+            print("[ATTENDANCE] ERROR: Missing exam_date")
+            return None, "Exam date is required"
+        
         # Get semester information
+        print("[ATTENDANCE] Step 1: Getting semester info...")
         semester_info = _get_semester_info(semester_id)
         if not semester_info:
-            return None, "Semester not found"
+            print(f"[ATTENDANCE] ERROR: Semester {semester_id} not found in database")
+            return None, f"Semester {semester_id} not found"
+        print(f"[ATTENDANCE] Semester info: {semester_info}")
         
         # Get students for the course with filters applied
+        print(f"[ATTENDANCE] Step 2: Getting students for course {course_code}...")
         students = _get_students_for_course(
             semester_id, course_code, program_level, 
             section, instructor, roll_numbers
         )
         
+        print(f"[ATTENDANCE] Found {len(students) if students else 0} students")
+        
         if not students:
             filter_msg = []
-            if section: filter_msg.append(f"section {section}")
+            if section and section != 'all': filter_msg.append(f"section {section}")
             if instructor: filter_msg.append(f"instructor {instructor}")
             if roll_numbers: filter_msg.append("absentees only")
             
-            msg = "No students found for this course"
+            msg = f"No students found for course {course_code}"
             if filter_msg:
-                msg += f" ({', '.join(filter_msg)})"
+                msg += f" with filters: {', '.join(filter_msg)}"
+            print(f"[ATTENDANCE] ERROR: {msg}")
             return None, msg
         
         # Sort students: Batch → Semester → Alphabetical
+        print("[ATTENDANCE] Step 3: Sorting students...")
         students_sorted = _sort_students_by_batch_semester_name(students)
+        print(f"[ATTENDANCE] Sorted {len(students_sorted)} students")
         
         # Extract course metadata
-        course_title = students_sorted[0]['course_title']
-        instructor_name = students_sorted[0]['main_instructor']
+        course_title = students_sorted[0].get('course_title', 'Unknown Course')
+        instructor_name = students_sorted[0].get('main_instructor', 'Unknown Instructor')
+        print(f"[ATTENDANCE] Course: {course_title}, Instructor: {instructor_name}")
         
         # Generate HTML content
+        print("[ATTENDANCE] Step 4: Generating HTML...")
         html_content = _generate_html(
             course_code=course_code,
             exam_date=exam_date,
@@ -71,12 +98,17 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, preview=False
             students=students_sorted
         )
         
+        print(f"[ATTENDANCE] SUCCESS: Generated {len(html_content)} chars of HTML")
+        print(f"{'='*60}\n")
         return html_content, "Generated successfully"
     
     except Exception as e:
-        print(f"[ERROR] generate_attendance_sheet: {str(e)}")
+        print(f"\n{'='*60}")
+        print(f"[ATTENDANCE] EXCEPTION: {type(e).__name__}: {str(e)}")
+        print(f"{'='*60}")
         import traceback
         traceback.print_exc()
+        print(f"{'='*60}\n")
         return None, f"Error: {str(e)}"
 
 
@@ -176,7 +208,10 @@ def _get_students_for_course(semester_id, course_code, program_level=None,
         List of dicts with keys: roll_no, name, course_title, main_instructor, timetable_batch
     """
     try:
+        print(f"[GET_STUDENTS] semester_id={semester_id}, course={course_code}, filters=program:{program_level}, section:{section}, instructor:{instructor}")
+        
         if not (USE_SUPABASE_DB and supabase):
+            print("[GET_STUDENTS] ERROR: Supabase not configured")
             return []
         
         # Build query with pagination support
@@ -184,6 +219,7 @@ def _get_students_for_course(semester_id, course_code, program_level=None,
         page_size = 1000
         offset = 0
         
+        print(f"[GET_STUDENTS] Starting paginated query...")
         while True:
             query = supabase.table('students')\
                 .select('roll_no, name, course_title, main_instructor, timetable_batch')\
@@ -196,22 +232,29 @@ def _get_students_for_course(semester_id, course_code, program_level=None,
                 prefix = prefix_map.get(program_level)
                 if prefix:
                     query = query.like('roll_no', f'{prefix}%')
+                    print(f"[GET_STUDENTS] Applied program_level filter: {prefix}%")
             
             if section and section != 'all':
                 query = query.eq('timetable_batch', section)
+                print(f"[GET_STUDENTS] Applied section filter: {section}")
             
             if instructor:
                 query = query.eq('main_instructor', instructor)
+                print(f"[GET_STUDENTS] Applied instructor filter: {instructor}")
             
             if roll_numbers:
                 query = query.in_('roll_no', roll_numbers)
+                print(f"[GET_STUDENTS] Applied roll_numbers filter: {len(roll_numbers)} students")
             
             # Execute query with pagination
+            print(f"[GET_STUDENTS] Executing query at offset {offset}...")
             result = query.range(offset, offset + page_size - 1).execute()
             
             if not result.data:
+                print(f"[GET_STUDENTS] No more data at offset {offset}")
                 break
             
+            print(f"[GET_STUDENTS] Got {len(result.data)} students at offset {offset}")
             all_students.extend(result.data)
             
             if len(result.data) < page_size:
@@ -219,10 +262,13 @@ def _get_students_for_course(semester_id, course_code, program_level=None,
             
             offset += page_size
         
+        print(f"[GET_STUDENTS] TOTAL: {len(all_students)} students retrieved")
         return all_students
     
     except Exception as e:
-        print(f"[ERROR] _get_students_for_course: {str(e)}")
+        print(f"[GET_STUDENTS] ERROR: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []
 
 

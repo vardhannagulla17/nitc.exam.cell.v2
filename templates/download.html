@@ -524,6 +524,14 @@ downloadAllBtn.addEventListener('click', (e) => {
     }, 5000);
 });
 
+// Form submit listener for debugging
+const form = $('downloadForm');
+form.addEventListener('submit', (e) => {
+    const action = new FormData(form).get('action');
+    console.log('[Form] Submitting with action:', action);
+    console.log('[Form] Form data:', Object.fromEntries(new FormData(form)));
+});
+
 // Initialize
 console.log('[Init] Initializing download page...');
 updateVisibility();

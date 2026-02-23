@@ -1435,17 +1435,18 @@ def download_attendance():
         print(f"POST data: {request.form}")
     
     if request.method == 'POST':
-        action = request.form.get('action', 'download')
-        program_level = request.form.get('program_level')
-        semester_id = request.form.get('semester_id')
-        course_code = request.form.get('course_code')
-        exam_date = request.form.get('exam_date')
-        section = request.form.get('section', 'all')  # Default to 'all' sections
-        instructor = request.form.get('instructor', '').strip()  # NEW: Instructor filter
-        
-        print(f"DEBUG: POST request received with action={action}")
-        print(f"program_level={program_level}, semester_id={semester_id}")
-        print(f"course_code={course_code},exam_date={exam_date}, section={section}, instructor={instructor}")
+        try:
+            action = request.form.get('action', 'download')
+            program_level = request.form.get('program_level')
+            semester_id = request.form.get('semester_id')
+            course_code = request.form.get('course_code')
+            exam_date = request.form.get('exam_date')
+            section = request.form.get('section', 'all')  # Default to 'all' sections
+            instructor = request.form.get('instructor', '').strip()  # NEW: Instructor filter
+            
+            print(f"DEBUG: POST request received with action={action}")
+            print(f"program_level={program_level}, semester_id={semester_id}")
+            print(f"course_code={course_code},exam_date={exam_date}, section={section}, instructor={instructor}")
         
         if not semester_id:
             flash('Please select a semester!', 'error')
@@ -1616,8 +1617,11 @@ def download_attendance():
                 else:
                     flash('Invalid action specified!', 'error')
         except Exception as e:
-            print(f"DEBUG: Error during attendance sheet generation: {str(e)}")
-            flash(f'An error occurred while generating attendance sheet: {str(e)}', 'error')
+            print(f"DEBUG: CAUGHT EXCEPTION in download route: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            flash(f'An error occurred: {str(e)}', 'error')
+            return redirect(url_for('download_attendance', program_level=program_level, semester_id=semester_id))
     
     # Handle program level and semester selection from URL parameters
     program_level = request.args.get('program_level') or selected_program
