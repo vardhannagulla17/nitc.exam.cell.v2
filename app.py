@@ -431,8 +431,7 @@ def get_database_usage_stats():
 
 from app.attendance import (
     generate_attendance_sheet,
-    generate_all_attendance_sheets_zip,
-    html_to_pdf
+    generate_all_attendance_sheets_zip
 )
 
 # Initialize database for Vercel (serverless) environment
