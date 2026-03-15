@@ -8,7 +8,11 @@ Test script to verify the complete absentee workflow:
 """
 import os
 import sys
+import pytest
 from dotenv import load_dotenv
+
+if __name__ != '__main__':
+    pytest.skip("Legacy integration script; run directly instead of pytest collection", allow_module_level=True)
 
 # Load environment variables
 load_dotenv()

@@ -8,11 +8,17 @@ Tests the new features:
 
 import requests
 import sys
+import pytest
 
 BASE_URL = "http://127.0.0.1:5000"
 
 def test_absentee_workflow():
     """Test the complete absentee workflow"""
+
+    try:
+        requests.get(f"{BASE_URL}/", timeout=1)
+    except requests.exceptions.RequestException:
+        pytest.skip(f"Local server not running at {BASE_URL}")
     
     print("=" * 60)
     print("TEST 1: Login and Access Absentee Page")
