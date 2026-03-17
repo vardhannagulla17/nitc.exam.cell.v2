@@ -1,14 +1,7 @@
 import sqlite3
 import os
-import time
 from flask import current_app
-
-# Simple in-memory cache for dashboard stats
-_stats_cache = {
-    'data': None,
-    'timestamp': 0,
-    'ttl': 600  # Cache for 10 minutes (600 seconds) - balance between freshness and performance
-}
+from helpers.redis_cache import get_cached, invalidate
 
 def get_db_connection(db_path=None):
     """Get database connection"""
@@ -23,30 +16,11 @@ def get_db_connection(db_path=None):
 
 def invalidate_stats_cache():
     """Invalidate the stats cache to force refresh on next request"""
-    global _stats_cache
-    _stats_cache['data'] = None
-    _stats_cache['timestamp'] = 0
+    invalidate('semester_stats')
     print("Stats cache invalidated")
 
-def get_semester_stats(force_refresh=False):
-    """Calculate actual statistics from the database with caching
-    
-    Args:
-        force_refresh: If True, bypass cache and recalculate stats
-    """
-    global _stats_cache
-    
-    # Check if we have valid cached data
-    current_time = time.time()
-    cache_age = current_time - _stats_cache['timestamp']
-    
-    if not force_refresh and _stats_cache['data'] is not None and cache_age < _stats_cache['ttl']:
-        print(f"Using cached stats (age: {cache_age:.1f}s)")
-        return _stats_cache['data']
-    
-    # Cache miss or expired - recalculate
-    print("Recalculating stats (cache miss or expired)")
-    
+def _compute_semester_stats():
+    """Compute semester statistics from SQLite databases (called on cache miss)."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -106,21 +80,25 @@ def get_semester_stats(force_refresh=False):
             'total_courses': len(unique_courses),
             'total_semesters': total_semesters
         }
-        
-        # Update cache
-        _stats_cache['data'] = stats
-        _stats_cache['timestamp'] = time.time()
-        print(f"Stats cached: {stats}")
-        
+        print(f"Stats computed: {stats}")
         return stats
     except Exception as e:
         print(f"Error calculating semester stats: {str(e)}")
-        # Don't cache errors
         return {
             'total_students': 0,
             'total_courses': 0,
             'total_semesters': 0
         }
+
+def get_semester_stats(force_refresh=False):
+    """Get semester statistics, cached via Redis (shared across serverless instances).
+
+    Args:
+        force_refresh: If True, bypass cache and recompute stats
+    """
+    if force_refresh:
+        invalidate('semester_stats')
+    return get_cached('semester_stats', _compute_semester_stats, ttl_seconds=600)
 
 def cleanup_semester_databases():
     """Clean up semester databases when files are deleted"""

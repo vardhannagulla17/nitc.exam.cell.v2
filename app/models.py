@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 from helpers.utils import sort_by_roll_number
+from helpers.redis_cache import get_cached
 from supabase_client import supabase
 
 from .database import get_db_connection, USE_SUPABASE_DB
@@ -27,35 +28,6 @@ SMTP_USER = os.environ.get('SMTP_USER', '')
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
 SMTP_FROM = os.environ.get('SMTP_FROM', '')
 SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'NITC Exam Cell')
-
-# Simple cache for query results (reduces database load)
-_query_cache = {}
-_cache_timestamps = {}
-
-def _get_cached(cache_key, fetch_function, ttl_seconds=300):
-    """
-    Simple caching helper to reduce database queries.
-    Args:
-        cache_key: Unique key for this cached data
-        fetch_function: Function to call if cache miss
-        ttl_seconds: Time to live in seconds (default 5 minutes)
-    """
-    now = datetime.now()
-    
-    # Check if we have cached data
-    if cache_key in _query_cache and cache_key in _cache_timestamps:
-        cached_time = _cache_timestamps[cache_key]
-        age = (now - cached_time).total_seconds()
-        
-        # Return cached data if still fresh
-        if age < ttl_seconds:
-            return _query_cache[cache_key]
-    
-    # Cache miss or expired - fetch fresh data
-    data = fetch_function()
-    _query_cache[cache_key] = data
-    _cache_timestamps[cache_key] = now
-    return data
 
 def generate_otp():
     """Generate a random 6-digit OTP"""
@@ -1394,9 +1366,9 @@ def get_semesters_for_program_level(program_level=None):
 
 def get_all_semesters():
     """Get all available semesters that have students - OPTIMIZED"""
-    
-    # Use cache to avoid repeated queries (10 minute TTL)
-    return _get_cached('all_semesters', _fetch_semesters_with_students, ttl_seconds=600)
+
+    # Use Redis cache (shared across serverless instances) with 10 minute TTL
+    return get_cached('all_semesters', _fetch_semesters_with_students, ttl_seconds=600)
 
 def _fetch_semesters_with_students():
     """Internal function to fetch semesters with students (called when cache expires)"""
