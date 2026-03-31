@@ -45,66 +45,6 @@ def extract_semester_from_roll_no(roll_no):
     # Ensure semester is at least 1
     return max(1, current_semester)
 
-def sort_absentees_by_semester_batch_name(absentees_data):
-    """
-    Sort absentees by:
-    1. Batch (e.g., ME01, ME02, CS01, etc.) - from timetable_batch field - PRIMARY SORT
-    2. Semester (increasing order) - calculated from roll number and current date - SECONDARY SORT
-    3. Name (alphabetically A-Z) - TERTIARY SORT
-    
-    Args:
-        absentees_data: List of dicts with keys: roll_no, name, timetable_batch (optional)
-    
-    Returns:
-        Sorted list
-    """
-    def sort_key(absentee):
-        # 1. Batch - PRIMARY SORT
-        batch = absentee.get('timetable_batch', '') or ''
-        batch = batch.strip().upper() if batch else 'ZZZ99'  # Default for missing batch
-        
-        # 2. Semester - SECONDARY SORT
-        semester = extract_semester_from_roll_no(absentee.get('roll_no', ''))
-        
-        # 3. Name - TERTIARY SORT
-        name = absentee.get('name', '').strip().upper()
-        
-        return (batch, semester, name)
-    
-    return sorted(absentees_data, key=sort_key)
-
-def sort_attendance_students(students):
-    """
-    Sort attendance students by:
-    1. Batch (alphabetically) - from timetable_batch - PRIMARY SORT
-    2. Semester (increasing order) - calculated from roll number - SECONDARY SORT
-    3. Name (alphabetically A-Z) - TERTIARY SORT
-    
-    Args:
-        students: List of tuples (roll_no, name, course_title, main_instructor, program_name, timetable_batch)
-    
-    Returns:
-        Sorted list
-    """
-    def sort_key(student):
-        roll_no = student[0] if len(student) > 0 else ''
-        name = student[1] if len(student) > 1 else ''
-        timetable_batch = student[5] if len(student) > 5 else ''
-        
-        # 1. Batch - PRIMARY SORT (first in sort order)
-        batch = timetable_batch or ''
-        batch = batch.strip().upper() if batch else 'ZZZ99'  # Default for missing batch
-        
-        # 2. Semester - SECONDARY SORT (second in sort order)
-        semester = extract_semester_from_roll_no(roll_no)
-        
-        # 3. Name - TERTIARY SORT (third in sort order)
-        name_upper = name.strip().upper() if name else ''
-        
-        return (batch, semester, name_upper)
-    
-    return sorted(students, key=sort_key)
-
 def sort_by_roll_number(students):
     """Sort students by department (last 2 letters) first, then by roll number"""
     def extract_sort_key(roll_no):

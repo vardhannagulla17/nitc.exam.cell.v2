@@ -71,15 +71,4 @@ def delete_file_safely(filepath):
         print(f"Error deleting file {filepath}: {str(e)}")
         return False
 
-def get_file_size_formatted(size_bytes):
-    """Convert file size to human readable format"""
-    if size_bytes == 0:
-        return "0 B"
-    
-    size_names = ["B", "KB", "MB", "GB"]
-    i = 0
-    while size_bytes >= 1024 and i < len(size_names) - 1:
-        size_bytes /= 1024.0
-        i += 1
-    
-    return f"{size_bytes:.1f} {size_names[i]}"
+
