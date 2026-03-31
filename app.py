@@ -176,8 +176,6 @@ from app.models import (
     get_semesters_for_program_level,
     get_all_users, get_pending_users, get_pending_users_count, approve_user, reject_user,
     toggle_user_active, update_user_role, delete_user,
-    upload_exam_timetable, get_exam_date_for_course, get_timetable_for_semester,
-    get_courses_with_exam_dates, has_timetable_for_semester,
     create_password_reset_request, verify_password_reset_otp
 )
 
@@ -977,110 +975,10 @@ def upload_file():
     
     return render_template('upload.html')
 
+
 # ============================================
-# EXAM TIMETABLE MANAGEMENT
+# API ENDPOINTS
 # ============================================
-
-@app.route('/timetable', methods=['GET', 'POST'])
-def manage_timetable():
-    """Manage exam timetable - upload and view"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    # Only admin can upload timetable
-    if session.get('role') != 'admin':
-        flash('Access denied. Only administrators can manage timetables.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    semesters = get_all_semesters()
-    selected_semester = request.args.get('semester_id')
-    timetable = []
-    
-    if request.method == 'POST':
-        semester_id = request.form.get('semester_id')
-        
-        if 'file' not in request.files:
-            flash('No file selected!', 'error')
-            return redirect(request.url)
-        
-        file = request.files['file']
-        if file.filename == '':
-            flash('No file selected!', 'error')
-            return redirect(request.url)
-        
-        if file and (allowed_file(file.filename) or file.filename.lower().endswith('.pdf')):
-            try:
-                # Detect file type
-                filename_lower = file.filename.lower()
-                if filename_lower.endswith('.pdf'):
-                    file_type = 'pdf'
-                else:
-                    file_type = 'excel'
-                
-                # Read file content
-                content = BytesIO(file.read())
-                
-                success, message = upload_exam_timetable(
-                    content, 
-                    semester_id, 
-                    session.get('email', 'admin'),
-                    file_type=file_type
-                )
-                
-                if success:
-                    flash(message, 'success')
-                else:
-                    flash(message, 'error')
-                
-                return redirect(url_for('manage_timetable', semester_id=semester_id))
-            except Exception as e:
-                flash(f'Error uploading timetable: {str(e)}', 'error')
-        else:
-            flash('Invalid file type! Please upload Excel or PDF files.', 'error')
-    
-    # Get timetable for selected semester
-    if selected_semester:
-        timetable = get_timetable_for_semester(selected_semester)
-    
-    return render_template('timetable.html', 
-                         semesters=semesters, 
-                         timetable=timetable,
-                         selected_semester=selected_semester)
-
-@app.route('/api/exam-date/<semester_id>/<course_code>', methods=['GET'])
-def api_get_exam_date(semester_id, course_code):
-    """Get exam date for a course via AJAX"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    try:
-        exam_info = get_exam_date_for_course(course_code, semester_id)
-        if exam_info:
-            return jsonify({
-                'success': True,
-                'exam_date': exam_info.get('exam_date'),
-                'exam_time': exam_info.get('exam_time'),
-                'venue': exam_info.get('venue')
-            }), 200
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'No exam scheduled for this course'
-            }), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/courses-with-dates/<semester_id>/<program_level>', methods=['GET'])
-def api_get_courses_with_dates(semester_id, program_level):
-    """Get courses with exam dates for a semester and program level"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    try:
-        courses = get_courses_with_exam_dates(semester_id, program_level)
-        return jsonify({'success': True, 'courses': courses}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 # API endpoints for AJAX requests (no page reload)
 @app.route('/api/semesters/<program_level>', methods=['GET'])

@@ -66,16 +66,6 @@
                         </select>
                     </div>
 
-                    <!-- Section/Batch -->
-                    <div class="form-field" id="section-field" style="display:none;">
-                        <label for="section">
-                            <i class="fas fa-users"></i> Section/Batch (Optional)
-                        </label>
-                        <select name="section" id="section">
-                            <option value="all">All Sections</option>
-                        </select>
-                    </div>
-
                     <!-- Instructor Filter -->
                     <div class="form-field" id="instructor-field" style="display:none;">
                         <label for="instructor">
@@ -90,9 +80,6 @@
                     <div class="form-field" id="date-field" style="display:none;">
                         <label for="exam_date">
                             <i class="fas fa-calendar-alt"></i> Exam Date
-                            <span id="date-auto-fill-badge" class="auto-fill-badge" style="display:none;">
-                                <i class="fas fa-magic"></i> Auto-filled from timetable
-                            </span>
                         </label>
                         <input type="date" name="exam_date" id="exam_date" required>
                     </div>
@@ -152,7 +139,6 @@ const $ = id => document.getElementById(id);
 const programSelect = $('program_level');
 const semesterSelect = $('semester_id');
 const courseSelect = $('course_code');
-const sectionSelect = $('section');
 const instructorSelect = $('instructor');
 const dateInput = $('exam_date');
 const previewBtn = $('preview-btn');
@@ -172,8 +158,7 @@ function updateVisibility() {
     
     $('semester-field').style.display = hasProgram ? 'block' : 'none';
     $('course-field').style.display = hasSemester ? 'block' : 'none';
-    // Show both section and instructor filters when course is selected
-    $('section-field').style.display = hasCourse ? 'block' : 'none';
+    // Show instructor filter when course is selected
     $('instructor-field').style.display = hasCourse ? 'block' : 'none';
     $('date-field').style.display = hasSemester ? 'block' : 'none';
     $('action-buttons').style.display = hasSemester ? 'flex' : 'none';
@@ -343,34 +328,12 @@ if (courseSearch) {
 courseSelect.addEventListener('change', async () => {
     const semester = semesterSelect.value;
     const courseCode = courseSelect.value;
-    const autoFillBadge = $('date-auto-fill-badge');
     
-    // Hide badge initially
-    if (autoFillBadge) autoFillBadge.style.display = 'none';
-    
-    // Reset section and instructor dropdowns
-    sectionSelect.innerHTML = '<option value="all">All Sections</option>';
+    // Reset instructor dropdown
     instructorSelect.innerHTML = '<option value="">All Instructors</option>';
     
-    // Fetch sections, instructors and exam date if both semester and course are selected
+    // Fetch instructors if both semester and course are selected
     if (semester && courseCode) {
-        // Fetch sections for this course
-        try {
-            const sectionsResponse = await fetch(`/api/sections/${semester}/${encodeURIComponent(courseCode)}`);
-            const sectionsData = await sectionsResponse.json();
-            
-            if (sectionsData.sections && sectionsData.sections.length > 0) {
-                sectionsData.sections.forEach(section => {
-                    const option = document.createElement('option');
-                    option.value = section.code;
-                    option.textContent = `${section.code} (${section.instructor})`;
-                    sectionSelect.appendChild(option);
-                });
-            }
-        } catch (error) {
-            console.error('Error fetching sections:', error);
-        }
-        
         // Fetch instructors for this course
         try {
             const instructorsResponse = await fetch(`/api/instructors/${encodeURIComponent(courseCode)}`);
@@ -387,37 +350,14 @@ courseSelect.addEventListener('change', async () => {
         } catch (error) {
             console.error('Error fetching instructors:', error);
         }
-        
-        // Try to auto-fill exam date from timetable
-        try {
-            const response = await fetch(`/api/exam-date/${semester}/${encodeURIComponent(courseCode)}`);
-            const data = await response.json();
-            
-            if (data.exam_date) {
-                dateInput.value = data.exam_date;
-                // Show the auto-fill badge
-                if (autoFillBadge) autoFillBadge.style.display = 'inline-flex';
-                // Show a visual indicator that date was auto-filled
-                dateInput.style.backgroundColor = '#e0f2fe';
-                dateInput.style.borderColor = '#0284c7';
-                setTimeout(() => {
-                    dateInput.style.backgroundColor = '';
-                    dateInput.style.borderColor = '';
-                }, 2000);
-            }
-        } catch (error) {
-            console.error('Error fetching exam date:', error);
-        }
     }
     
     updateVisibility();
     updateButtons();
 });
 
-// Hide auto-fill badge when user manually changes date
+// Update buttons when date changes
 dateInput.addEventListener('change', () => {
-    const autoFillBadge = $('date-auto-fill-badge');
-    if (autoFillBadge) autoFillBadge.style.display = 'none';
     updateButtons();
 });
 

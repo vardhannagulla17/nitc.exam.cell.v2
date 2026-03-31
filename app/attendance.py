@@ -67,12 +67,33 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
         students.sort(key=sort_key)  # Sort the students list using our custom key
         
         # STEP 4: Get course details from first student record
-        # All students in the same course have same course_title and instructor
         course_title = students[0].get('course_title', 'Unknown Course')
         instructor = students[0].get('main_instructor', 'Unknown Instructor')
         
-        # STEP 5: Generate the HTML content
-        html = generate_html(course_code, course_title, instructor, exam_date, semester, students)
+        # STEP 5: Check if course has multiple instructors/sections
+        # Collect unique instructor-section combinations
+        unique_instructors = set()
+        unique_sections = set()
+        for student in students:
+            unique_instructors.add(student.get('main_instructor', 'Unknown'))
+            section = student.get('timetable_batch', '')
+            if section:
+                unique_sections.add(section)
+        
+        # Create instructor display
+        instructor_display = instructor
+        
+        # If there's only one section, show it beside instructor name
+        if len(unique_sections) == 1:
+            section = list(unique_sections)[0]
+            instructor_display = f"{instructor} (Section: {section})"
+        elif len(unique_sections) > 1:
+            # Multiple sections - show that in the display
+            sections_str = ', '.join(sorted(unique_sections))
+            instructor_display = f"{instructor} (Sections: {sections_str})"
+        
+        # STEP 6: Generate the HTML content
+        html = generate_html(course_code, course_title, instructor_display, exam_date, semester, students)
         
         return html, "Success"
         

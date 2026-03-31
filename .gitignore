@@ -118,6 +118,13 @@ exam_cell.db
 *.pdf
 !requirements.txt
 
+# Test files - not needed in repository
+test_*.py
+test_*.html
+
+# Removed features
+timetable.html
+
 # Spyder project settings
 .spyderproject
 .spyproject
