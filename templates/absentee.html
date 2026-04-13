@@ -77,6 +77,18 @@
                                style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; text-transform: uppercase;">
                     </div>
 
+                    <div class="form-field" id="bulk_roll_field" style="{% if not selected_course_code %}display: none;{% endif %}">
+                        <label for="roll_numbers_bulk">
+                            <i class="fas fa-list-ol"></i> Multiple Roll Numbers (comma/space/newline)
+                        </label>
+                        <textarea name="roll_numbers_bulk" id="roll_numbers_bulk" rows="3"
+                                  placeholder="Example: B240351EE, M240123ME, P240777CS"
+                                  style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; text-transform: uppercase; resize: vertical;">{{ bulk_roll_input if bulk_roll_input else '' }}</textarea>
+                        <div style="font-size: 0.82rem; color: #64748b; margin-top: 0.35rem;">
+                            You can paste many roll numbers. Pattern accepted: starts with B/M/P and contains 6 digits.
+                        </div>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
                         <button type="submit" class="btn btn-primary" style="width: 100%;"
                                 onclick="setSearchAction('load_students')">
@@ -87,6 +99,10 @@
                             <i class="fas fa-search"></i> Find by Roll
                         </button>
                     </div>
+                    <button type="submit" class="btn" style="width: 100%; margin-top: 0.75rem; background: #0ea5e9; color: white;"
+                            onclick="setSearchAction('search_multiple_students')">
+                        <i class="fas fa-layer-group"></i> Find Multiple Rolls
+                    </button>
                 </form>
 
                 <!-- Students List for Selection -->
@@ -134,7 +150,7 @@
                         </div>
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                            <button type="submit" class="btn btn-success" style="width: 100%;">
+                            <button type="submit" class="btn btn-success" style="width: 100%;" data-custom-loading="true">
                                 <i class="fas fa-user-times"></i> Mark Selected as Absent
                             </button>
                             <button type="button" onclick="clearAllSelections()" class="btn btn-danger" style="width: 100%;">
@@ -469,12 +485,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Pressing Enter in roll input searches and loads only that student.
     const rollInput = document.getElementById('roll_no_search');
+    const bulkRollInput = document.getElementById('roll_numbers_bulk');
     const courseSelectionForm = document.getElementById('courseSelectionForm');
     if (rollInput && courseSelectionForm) {
         rollInput.addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
                 setSearchAction('search_student');
+                courseSelectionForm.submit();
+            }
+        });
+    }
+
+    if (bulkRollInput && courseSelectionForm) {
+        bulkRollInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                setSearchAction('search_multiple_students');
                 courseSelectionForm.submit();
             }
         });
@@ -569,6 +596,7 @@ function initCourseSearch() {
     const dropdown = document.getElementById('course_dropdown');
     const sectionField = document.getElementById('section_field');
     const rollField = document.getElementById('roll_field');
+    const bulkRollField = document.getElementById('bulk_roll_field');
     
     if (!searchInput || !dropdown) return;
     
@@ -581,6 +609,7 @@ function initCourseSearch() {
             courseCodeInput.value = savedCourse;
             if (sectionField) sectionField.style.display = 'block';
             if (rollField) rollField.style.display = 'block';
+            if (bulkRollField) bulkRollField.style.display = 'block';
         }
     }
     
@@ -650,6 +679,8 @@ function selectCourse(code, title) {
     const dropdown = document.getElementById('course_dropdown');
     const sectionField = document.getElementById('section_field');
     const instructorField = document.getElementById('instructor_field');
+    const rollField = document.getElementById('roll_field');
+    const bulkRollField = document.getElementById('bulk_roll_field');
     
     searchInput.value = code + ' - ' + title;
     courseCodeInput.value = code;
@@ -657,6 +688,7 @@ function selectCourse(code, title) {
     if (sectionField) sectionField.style.display = 'block';
     if (instructorField) instructorField.style.display = 'block';
     if (rollField) rollField.style.display = 'block';
+    if (bulkRollField) bulkRollField.style.display = 'block';
     
     // Load instructors for this course
     loadInstructorsForCourse(code);

@@ -5,6 +5,7 @@ import sys
 import time
 from io import BytesIO
 import uuid
+import re
 from datetime import datetime
 from xhtml2pdf import pisa
 
@@ -1524,6 +1525,7 @@ def absentee_sheet():
     selected_course_code = None
     selected_section = None
     selected_instructor = None
+    bulk_roll_input = ''
 
     # Accept course selection by dropdown, typed course code, or typed course name.
     def resolve_course_code(raw_course_code, raw_course_search):
@@ -1574,6 +1576,22 @@ def absentee_sheet():
             return unique_partial_codes[0]
 
         return None
+
+    def extract_roll_numbers(raw_text):
+        if not raw_text:
+            return []
+
+        # Accept comma/space/newline/continuous pasted text and extract valid roll patterns.
+        matches = re.findall(r'([BMP]\d{6}[A-Z]*)', raw_text.upper())
+
+        # Keep order while removing duplicates.
+        unique_rolls = []
+        seen = set()
+        for roll in matches:
+            if roll not in seen:
+                seen.add(roll)
+                unique_rolls.append(roll)
+        return unique_rolls
     
     if request.method == 'POST':
         action = request.form.get('action')
@@ -1759,6 +1777,59 @@ def absentee_sheet():
                 except Exception as e:
                     print(f"Error searching student: {e}")
                     flash('Error searching for student.', 'error')
+
+        elif action == 'search_multiple_students':
+            course_code = resolve_course_code(
+                request.form.get('course_code', ''),
+                request.form.get('course_search', '')
+            )
+            section = request.form.get('section', '').strip().upper()
+            instructor = request.form.get('instructor', '').strip()
+            bulk_roll_input = request.form.get('roll_numbers_bulk', '').strip().upper()
+            roll_numbers = extract_roll_numbers(bulk_roll_input)
+
+            if not course_code:
+                flash('Please select a course before searching roll numbers.', 'error')
+            elif not roll_numbers:
+                flash('Please enter valid roll numbers (start with B/M/P and include 6 digits).', 'error')
+            elif USE_SUPABASE_DB and supabase:
+                try:
+                    query = supabase.table('students')\
+                        .select('roll_no, name, course_code, course_title, timetable_batch, main_instructor')\
+                        .eq('course_code', course_code)\
+                        .in_('roll_no', roll_numbers)
+
+                    if section:
+                        query = query.eq('timetable_batch', section)
+
+                    if instructor:
+                        query = query.eq('main_instructor', instructor)
+
+                    response = query.order('roll_no').execute()
+
+                    selected_course_code = course_code
+                    selected_section = section if section else None
+                    selected_instructor = instructor if instructor else None
+
+                    if response.data and len(response.data) > 0:
+                        course_students = response.data
+
+                        found_rolls = {row.get('roll_no', '').upper() for row in response.data}
+                        missing_rolls = [r for r in roll_numbers if r not in found_rolls]
+
+                        flash(f'Loaded {len(response.data)} student(s) from {course_code} using roll-number search.', 'success')
+
+                        if missing_rolls:
+                            preview_missing = ', '.join(missing_rolls[:8])
+                            if len(missing_rolls) > 8:
+                                preview_missing += ', ...'
+                            flash(f'{len(missing_rolls)} roll number(s) not found with current filters: {preview_missing}', 'warning')
+                    else:
+                        flash('No students found for the provided roll numbers with current filters.', 'error')
+
+                except Exception as e:
+                    print(f"Error searching multiple students: {e}")
+                    flash('Error searching roll numbers.', 'error')
         
         elif action == 'add_absentee':
             roll_no = request.form.get('roll_no', '').strip()
@@ -2155,6 +2226,7 @@ def absentee_sheet():
                          selected_course_code=selected_course_code,
                          selected_section=selected_section,
                          selected_instructor=selected_instructor,
+                         bulk_roll_input=bulk_roll_input,
                          semesters=semesters)
 
 
