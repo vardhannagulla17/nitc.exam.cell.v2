@@ -62,6 +62,7 @@
                             <i class="fas fa-chalkboard-teacher"></i> Instructor (Optional - filter by instructor)
                         </label>
                         <select name="instructor" id="instructor" 
+                                data-selected="{{ selected_instructor if selected_instructor else '' }}"
                                 style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem;">
                             <option value="">All Instructors</option>
                         </select>
@@ -452,6 +453,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize searchable course dropdown
     initCourseSearch();
+
+    // When course is already selected after POST, load instructor options immediately.
+    const selectedCourseCode = document.getElementById('course_code');
+    if (selectedCourseCode && selectedCourseCode.value) {
+        loadInstructorsForCourse(selectedCourseCode.value);
+    }
     
     // Add loading states to action buttons
     const absenteeForm = document.getElementById('absenteeActionsForm');
@@ -552,6 +559,11 @@ function initCourseSearch() {
     
     searchInput.addEventListener('input', function() {
         const query = this.value.toLowerCase().trim();
+
+        // Clear hidden course code when user types manually to avoid stale selection.
+        if (courseCodeInput) {
+            courseCodeInput.value = '';
+        }
         
         if (query === '') {
             showAllCourses();
@@ -643,6 +655,10 @@ async function loadInstructorsForCourse(courseCode) {
         }
         
         instructorSelect.innerHTML = html;
+        const selectedInstructor = instructorSelect.dataset.selected;
+        if (selectedInstructor) {
+            instructorSelect.value = selectedInstructor;
+        }
         instructorSelect.disabled = false;
     } catch (error) {
         console.error('Error loading instructors:', error);

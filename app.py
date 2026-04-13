@@ -1523,18 +1523,72 @@ def absentee_sheet():
     course_students = None
     selected_course_code = None
     selected_section = None
+    selected_instructor = None
+
+    # Accept course selection by dropdown, typed course code, or typed course name.
+    def resolve_course_code(raw_course_code, raw_course_search):
+        code_input = (raw_course_code or '').strip()
+        search_input = (raw_course_search or '').strip()
+
+        if not code_input and not search_input:
+            return None
+
+        # Build case-insensitive lookup maps from known courses.
+        code_map = {}
+        title_map = {}
+        for code, title in all_courses:
+            if code:
+                code_map[code.strip().lower()] = code
+            if title:
+                title_key = title.strip().lower()
+                title_map.setdefault(title_key, []).append(code)
+
+        # Priority 1: explicit hidden code from dropdown.
+        if code_input:
+            normalized = code_map.get(code_input.lower())
+            if normalized:
+                return normalized
+            return code_input.upper()
+
+        # Priority 2: parse "CODE - TITLE" format from search box.
+        if ' - ' in search_input:
+            maybe_code = search_input.split(' - ', 1)[0].strip()
+            normalized = code_map.get(maybe_code.lower())
+            if normalized:
+                return normalized
+
+        # Priority 3: typed course code.
+        normalized = code_map.get(search_input.lower())
+        if normalized:
+            return normalized
+
+        # Priority 4: exact course title.
+        exact_codes = title_map.get(search_input.lower(), [])
+        if len(exact_codes) == 1:
+            return exact_codes[0]
+
+        # Priority 5: partial course title when unambiguous.
+        partial_codes = [code for code, title in all_courses if search_input.lower() in (title or '').lower()]
+        unique_partial_codes = sorted(set(partial_codes))
+        if len(unique_partial_codes) == 1:
+            return unique_partial_codes[0]
+
+        return None
     
     if request.method == 'POST':
         action = request.form.get('action')
         
         if action == 'load_students':
             # Load all students for a selected course
-            course_code = request.form.get('course_code', '').strip()
+            course_code = resolve_course_code(
+                request.form.get('course_code', ''),
+                request.form.get('course_search', '')
+            )
             section = request.form.get('section', '').strip().upper()
             instructor = request.form.get('instructor', '').strip()
             
             if not course_code:
-                flash('Please select a course.', 'error')
+                flash('Please select or type a valid course code/name.', 'error')
             elif USE_SUPABASE_DB and supabase:
                 try:
                     # Build query with optional filters
@@ -1556,6 +1610,7 @@ def absentee_sheet():
                         course_students = response.data
                         selected_course_code = course_code
                         selected_section = section if section else None
+                        selected_instructor = instructor if instructor else None
                         filter_msg = f'Loaded {len(course_students)} students from {course_code}'
                         if section:
                             filter_msg += f' (Section: {section})'
@@ -1572,11 +1627,18 @@ def absentee_sheet():
         
         elif action == 'add_multiple_absentees':
             # Add multiple selected students to absentee list
-            course_code = request.form.get('course_code', '').strip()
+            course_code = resolve_course_code(
+                request.form.get('course_code', ''),
+                request.form.get('course_search', '')
+            )
             section = request.form.get('section', '').strip().upper()
             selected_students = request.form.getlist('selected_students')
             
-            if not selected_students:
+            if not course_code:
+                message = 'Invalid course selected. Please choose a valid course first.'
+                success = False
+                added_count = 0
+            elif not selected_students:
                 message = 'No students selected.'
                 success = False
                 added_count = 0
@@ -1644,7 +1706,7 @@ def absentee_sheet():
                 selected_section = section if section else None
                 try:
                     query = supabase.table('students')\
-                        .select('roll_no, name, course_code, course_title, timetable_batch')\
+                        .select('roll_no, name, course_code, course_title, timetable_batch, main_instructor')\
                         .eq('course_code', course_code)
                     if section:
                         query = query.eq('timetable_batch', section)
@@ -1655,7 +1717,10 @@ def absentee_sheet():
                     print(f"Error reloading students: {e}")
         
         elif action == 'search_student':
-            course_code = request.form.get('course_code', '').strip()
+            course_code = resolve_course_code(
+                request.form.get('course_code', ''),
+                request.form.get('course_search', '')
+            )
             roll_no = request.form.get('roll_no', '').strip().upper()
             
             if not course_code or not roll_no:
@@ -1774,7 +1839,7 @@ def absentee_sheet():
                 
                 if not semester_id:
                     flash('Please select a semester before previewing.', 'error')
-                    return redirect(url_for('mark_absentees'))
+                    return redirect(url_for('absentee_sheet'))
                 
                 # Get exam dates for each course from form
                 exam_dates = {}
@@ -1851,14 +1916,14 @@ def absentee_sheet():
                 if not absentees:
                     print("[DOWNLOAD] No absentees found in session")
                     flash('No absentees to download. Please mark some students absent first.', 'warning')
-                    return redirect(url_for('mark_absentees'))
+                    return redirect(url_for('absentee_sheet'))
                 
                 # Validate semester selection
                 semester_id = request.form.get('semester_id')
                 if not semester_id:
                     print("[DOWNLOAD] No semester selected")
                     flash('Please select a semester before downloading.', 'error')
-                    return redirect(url_for('mark_absentees'))
+                    return redirect(url_for('absentee_sheet'))
                 
                 print(f"[DOWNLOAD] Processing {len(absentees)} absentees for semester {semester_id}")
                 
@@ -1924,7 +1989,7 @@ def absentee_sheet():
                 if files_generated == 0:
                     print("[DOWNLOAD] No files were generated")
                     flash('Error: Could not generate attendance sheets. Please try again.', 'error')
-                    return redirect(url_for('mark_absentees'))
+                    return redirect(url_for('absentee_sheet'))
                 
                 # Send the ZIP file
                 zip_buffer.seek(0)
@@ -1948,7 +2013,7 @@ def absentee_sheet():
                 import traceback
                 traceback.print_exc()
                 flash(f'Error downloading attendance sheets: {str(e)}', 'error')
-                return redirect(url_for('mark_absentees'))
+                return redirect(url_for('absentee_sheet'))
         
         elif action == 'upload_to_admin':
             # Staff uploads absentees to admin for consolidation
@@ -2076,6 +2141,7 @@ def absentee_sheet():
                          course_students=course_students,
                          selected_course_code=selected_course_code,
                          selected_section=selected_section,
+                         selected_instructor=selected_instructor,
                          semesters=semesters)
 
 
