@@ -3038,7 +3038,6 @@ def generate_consolidated_absentee_html(absentees):
                 <th style="width: 20%;">Student Name</th>
                 <th style="width: 10%;">Course Code</th>
                 <th style="width: 25%;">Course Name</th>
-                <th style="width: 12%;">Exam Date</th>
                 <th style="width: 16%;">Instructor</th>
             </tr>
         </thead>
@@ -3049,14 +3048,7 @@ def generate_consolidated_absentee_html(absentees):
     for idx, (course_code, course_title, student) in enumerate(all_sorted_absentees, 1):
         roll_no = student.get('roll_no', '')
         name = student.get('name', '')
-        exam_date = student.get('exam_date', '')
         instructor = student.get('instructor', 'N/A')
-        
-        # Format exam date
-        try:
-            formatted_exam_date = datetime.strptime(str(exam_date), '%Y-%m-%d').strftime('%d-%m-%Y')
-        except Exception as e:
-            formatted_exam_date = str(exam_date) if exam_date else ''
         
         html_content += f"""
             <tr>
@@ -3065,7 +3057,6 @@ def generate_consolidated_absentee_html(absentees):
                 <td>{name}</td>
                 <td>{course_code}</td>
                 <td>{course_title}</td>
-                <td style="text-align: center;">{formatted_exam_date}</td>
                 <td>{instructor}</td>
             </tr>
 """
