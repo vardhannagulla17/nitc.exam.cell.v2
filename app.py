@@ -1722,27 +1722,47 @@ def absentee_sheet():
                 request.form.get('course_search', '')
             )
             roll_no = request.form.get('roll_no', '').strip().upper()
+            section = request.form.get('section', '').strip().upper()
+            instructor = request.form.get('instructor', '').strip()
             
             if not course_code or not roll_no:
                 flash('Please select a course and enter roll number.', 'error')
             elif USE_SUPABASE_DB and supabase:
                 try:
-                    response = supabase.table('students')\
-                        .select('roll_no, name, course_code, course_title')\
+                    query = supabase.table('students')\
+                        .select('roll_no, name, course_code, course_title, timetable_batch, main_instructor')\
                         .eq('course_code', course_code)\
-                        .eq('roll_no', roll_no)\
-                        .execute()
+                        .eq('roll_no', roll_no)
+
+                    if section:
+                        query = query.eq('timetable_batch', section)
+
+                    if instructor:
+                        query = query.eq('main_instructor', instructor)
+
+                    response = query.execute()
                     
                     if response.data and len(response.data) > 0:
                         row = response.data[0]
+                        selected_course_code = course_code
+                        selected_section = section if section else None
+                        selected_instructor = instructor if instructor else None
+                        course_students = [row]
+
                         student_info = {
                             'roll_no': row['roll_no'],
                             'name': row['name'],
                             'course_code': row['course_code'],
                             'course_title': row['course_title']
                         }
+                        flash(f"Loaded student {row['roll_no']} from {course_code}.", 'success')
                     else:
-                        flash(f'Student {roll_no} not found in course {course_code}.', 'error')
+                        filter_suffix = ''
+                        if section:
+                            filter_suffix += f' section {section}'
+                        if instructor:
+                            filter_suffix += f' instructor {instructor}'
+                        flash(f'Student {roll_no} not found in course {course_code}{filter_suffix}.', 'error')
                 except Exception as e:
                     print(f"Error searching student: {e}")
                     flash('Error searching for student.', 'error')

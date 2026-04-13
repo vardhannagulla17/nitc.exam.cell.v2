@@ -19,7 +19,7 @@
                 </div>
 
                 <form method="POST" action="/absentee" id="courseSelectionForm" style="padding: 1.5rem;">
-                    <input type="hidden" name="action" value="load_students">
+                    <input type="hidden" name="action" id="search_action" value="load_students">
                     
                     <div class="form-field">
                         <label for="course_search">
@@ -68,9 +68,25 @@
                         </select>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
-                        <i class="fas fa-users"></i> Load All Students
-                    </button>
+                    <div class="form-field" id="roll_field" style="{% if not selected_course_code %}display: none;{% endif %}">
+                        <label for="roll_no_search">
+                            <i class="fas fa-id-card"></i> Roll Number (Optional - press Enter to find one student)
+                        </label>
+                        <input type="text" name="roll_no" id="roll_no_search"
+                               placeholder="Type roll no and press Enter"
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; text-transform: uppercase;">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
+                        <button type="submit" class="btn btn-primary" style="width: 100%;"
+                                onclick="setSearchAction('load_students')">
+                            <i class="fas fa-users"></i> Load All Students
+                        </button>
+                        <button type="submit" class="btn btn-secondary" style="width: 100%;"
+                                onclick="setSearchAction('search_student')">
+                            <i class="fas fa-search"></i> Find by Roll
+                        </button>
+                    </div>
                 </form>
 
                 <!-- Students List for Selection -->
@@ -450,6 +466,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (studentsForm) {
         studentsForm.addEventListener('submit', handleMarkAbsentSubmit);
     }
+
+    // Pressing Enter in roll input searches and loads only that student.
+    const rollInput = document.getElementById('roll_no_search');
+    const courseSelectionForm = document.getElementById('courseSelectionForm');
+    if (rollInput && courseSelectionForm) {
+        rollInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                setSearchAction('search_student');
+                courseSelectionForm.submit();
+            }
+        });
+    }
     
     // Initialize searchable course dropdown
     initCourseSearch();
@@ -539,6 +568,7 @@ function initCourseSearch() {
     const courseCodeInput = document.getElementById('course_code');
     const dropdown = document.getElementById('course_dropdown');
     const sectionField = document.getElementById('section_field');
+    const rollField = document.getElementById('roll_field');
     
     if (!searchInput || !dropdown) return;
     
@@ -550,6 +580,7 @@ function initCourseSearch() {
             searchInput.value = savedCourse + ' - ' + course.title;
             courseCodeInput.value = savedCourse;
             if (sectionField) sectionField.style.display = 'block';
+            if (rollField) rollField.style.display = 'block';
         }
     }
     
@@ -625,12 +656,20 @@ function selectCourse(code, title) {
     dropdown.style.display = 'none';
     if (sectionField) sectionField.style.display = 'block';
     if (instructorField) instructorField.style.display = 'block';
+    if (rollField) rollField.style.display = 'block';
     
     // Load instructors for this course
     loadInstructorsForCourse(code);
     
     // Save to cookie
     setCookie('last_course_code', code, 30);
+}
+
+function setSearchAction(actionName) {
+    const actionInput = document.getElementById('search_action');
+    if (actionInput) {
+        actionInput.value = actionName;
+    }
 }
 
 // Load instructors for selected course
