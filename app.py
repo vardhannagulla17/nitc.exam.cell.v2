@@ -2958,7 +2958,7 @@ def generate_consolidated_absentee_html(absentees):
     for idx, (course_code, course_title, student) in enumerate(all_sorted_absentees, 1):
         roll_no = student.get('roll_no', '')
         name = student.get('name', '')
-        instructor = student.get('instructor', 'N/A')
+        instructor = student.get('instructor', '') or ''
         
         html_content += f"""
             <tr>
@@ -3013,21 +3013,39 @@ def attach_consolidated_absentee_metadata(absentees):
 
     if course_codes and USE_SUPABASE_DB and supabase:
         try:
-            student_rows = supabase.table('students')\
-                .select('course_code, main_instructor')\
-                .in_('course_code', course_codes)\
-                .execute()
-            if student_rows.data:
-                for row in student_rows.data:
-                    course_code = row.get('course_code', '')
-                    instructor = (row.get('main_instructor') or 'N/A').strip() or 'N/A'
-                    if course_code and course_code not in instructor_map:
-                        instructor_map[course_code] = instructor
+            for course_code in course_codes:
+                page_size = 1000
+                offset = 0
+                found_instructor = ''
+
+                while True:
+                    student_rows = supabase.table('students')\
+                        .select('main_instructor')\
+                        .eq('course_code', course_code)\
+                        .range(offset, offset + page_size - 1)\
+                        .execute()
+
+                    if not student_rows.data:
+                        break
+
+                    for row in student_rows.data:
+                        instructor = (row.get('main_instructor') or '').strip()
+                        if instructor:
+                            found_instructor = instructor
+                            break
+
+                    if found_instructor or len(student_rows.data) < page_size:
+                        break
+
+                    offset += page_size
+
+                if found_instructor:
+                    instructor_map[course_code] = found_instructor
         except Exception as e:
             print(f"Error building consolidated instructor map: {e}")
 
     for absentee in absentees:
-        absentee['instructor'] = instructor_map.get(absentee.get('course_code', ''), 'N/A')
+        absentee['instructor'] = instructor_map.get(absentee.get('course_code', ''), '')
 
     return absentees
 
