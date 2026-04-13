@@ -2435,37 +2435,8 @@ def admin_absentees():
                     .eq('status', 'approved')\
                     .execute()
                 
-                # Enrich with instructor data and flatten semester info
                 if result.data:
-                    for absentee in result.data:
-                        # Ensure exam_date is properly formatted as string
-                        exam_date = absentee.get('exam_date')
-                        if exam_date:
-                            if hasattr(exam_date, 'strftime'):
-                                absentee['exam_date'] = exam_date.strftime('%Y-%m-%d')
-                            elif isinstance(exam_date, str):
-                                absentee['exam_date'] = str(exam_date).split('T')[0] if 'T' in str(exam_date) else str(exam_date)
-                        
-                        # Flatten semester data
-                        if absentee.get('semesters'):
-                            absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
-                            absentee['semester_type'] = absentee['semesters'].get('semester_type', '')
-                            absentee['exam_type'] = absentee['semesters'].get('exam_type', '')
-                        else:
-                            absentee['academic_year'] = ''
-                            absentee['semester_type'] = ''
-                            absentee['exam_type'] = ''
-                        
-                        # Get instructor from students table
-                        student_query = supabase.table('students')\
-                            .select('main_instructor')\
-                            .eq('course_code', absentee['course_code'])\
-                            .limit(1)\
-                            .execute()
-                        if student_query.data:
-                            absentee['instructor'] = student_query.data[0].get('main_instructor', 'N/A')
-                        else:
-                            absentee['instructor'] = 'N/A'
+                    attach_consolidated_absentee_metadata(result.data)
                 
                 if result.data:
                     # Generate consolidated HTML for preview (not download)
@@ -2529,37 +2500,8 @@ def admin_absentees():
                     .eq('status', 'approved')\
                     .execute()
                 
-                # Enrich with instructor data and flatten semester info
                 if result.data:
-                    for absentee in result.data:
-                        # Ensure exam_date is properly formatted as string
-                        exam_date = absentee.get('exam_date')
-                        if exam_date:
-                            if hasattr(exam_date, 'strftime'):
-                                absentee['exam_date'] = exam_date.strftime('%Y-%m-%d')
-                            elif isinstance(exam_date, str):
-                                absentee['exam_date'] = str(exam_date).split('T')[0] if 'T' in str(exam_date) else str(exam_date)
-                        
-                        # Flatten semester data
-                        if absentee.get('semesters'):
-                            absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
-                            absentee['semester_type'] = absentee['semesters'].get('semester_type', '')
-                            absentee['exam_type'] = absentee['semesters'].get('exam_type', '')
-                        else:
-                            absentee['academic_year'] = ''
-                            absentee['semester_type'] = ''
-                            absentee['exam_type'] = ''
-                        
-                        # Get instructor from students table
-                        student_query = supabase.table('students')\
-                            .select('main_instructor')\
-                            .eq('course_code', absentee['course_code'])\
-                            .limit(1)\
-                            .execute()
-                        if student_query.data:
-                            absentee['instructor'] = student_query.data[0].get('main_instructor', 'N/A')
-                        else:
-                            absentee['instructor'] = 'N/A'
+                    attach_consolidated_absentee_metadata(result.data)
                     
                     # Generate consolidated HTML
                     try:
@@ -2595,39 +2537,7 @@ def admin_absentees():
                     .eq('status', 'approved')\
                     .execute()
                 if result.data:
-                    # Enrich with instructor data and flatten semester info
-                    for absentee in result.data:
-                        # Ensure exam_date is properly formatted as string
-                        exam_date = absentee.get('exam_date')
-                        if exam_date:
-                            # Convert to string if it's not already (handles date objects)
-                            if hasattr(exam_date, 'strftime'):
-                                absentee['exam_date'] = exam_date.strftime('%Y-%m-%d')
-                            elif isinstance(exam_date, str):
-                                # If it's already a string, ensure it's in the right format
-                                # PostgreSQL DATE fields come as ISO format strings (YYYY-MM-DD)
-                                absentee['exam_date'] = str(exam_date).split('T')[0] if 'T' in str(exam_date) else str(exam_date)
-                        
-                        # Flatten semester data
-                        if absentee.get('semesters'):
-                            absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
-                            absentee['semester_type'] = absentee['semesters'].get('semester_type', '')
-                            absentee['exam_type'] = absentee['semesters'].get('exam_type', '')
-                        else:
-                            absentee['academic_year'] = ''
-                            absentee['semester_type'] = ''
-                            absentee['exam_type'] = ''
-                        
-                        # Get instructor data
-                        student_query = supabase.table('students')\
-                            .select('main_instructor')\
-                            .eq('course_code', absentee.get('course_code', ''))\
-                            .limit(1)\
-                            .execute()
-                        if student_query.data:
-                            absentee['instructor'] = student_query.data[0].get('main_instructor', 'N/A')
-                        else:
-                            absentee['instructor'] = 'N/A'
+                    attach_consolidated_absentee_metadata(result.data)
                     
                     # Generate HTML for approved absentees 
                     try:
@@ -3074,6 +2984,52 @@ def generate_consolidated_absentee_html(absentees):
 """
     
     return html_content
+
+
+def attach_consolidated_absentee_metadata(absentees):
+    """Normalize consolidated absentee data and attach instructors in bulk."""
+    if not absentees:
+        return absentees
+
+    for absentee in absentees:
+        exam_date = absentee.get('exam_date')
+        if exam_date:
+            if hasattr(exam_date, 'strftime'):
+                absentee['exam_date'] = exam_date.strftime('%Y-%m-%d')
+            elif isinstance(exam_date, str):
+                absentee['exam_date'] = str(exam_date).split('T')[0] if 'T' in str(exam_date) else str(exam_date)
+
+        if absentee.get('semesters'):
+            absentee['academic_year'] = absentee['semesters'].get('academic_year', '')
+            absentee['semester_type'] = absentee['semesters'].get('semester_type', '')
+            absentee['exam_type'] = absentee['semesters'].get('exam_type', '')
+        else:
+            absentee['academic_year'] = ''
+            absentee['semester_type'] = ''
+            absentee['exam_type'] = ''
+
+    course_codes = sorted({a.get('course_code', '') for a in absentees if a.get('course_code')})
+    instructor_map = {}
+
+    if course_codes and USE_SUPABASE_DB and supabase:
+        try:
+            student_rows = supabase.table('students')\
+                .select('course_code, main_instructor')\
+                .in_('course_code', course_codes)\
+                .execute()
+            if student_rows.data:
+                for row in student_rows.data:
+                    course_code = row.get('course_code', '')
+                    instructor = (row.get('main_instructor') or 'N/A').strip() or 'N/A'
+                    if course_code and course_code not in instructor_map:
+                        instructor_map[course_code] = instructor
+        except Exception as e:
+            print(f"Error building consolidated instructor map: {e}")
+
+    for absentee in absentees:
+        absentee['instructor'] = instructor_map.get(absentee.get('course_code', ''), 'N/A')
+
+    return absentees
 
 def generate_absentee_html(absentees, exam_date):
     """Generate HTML for absentee list"""
