@@ -828,6 +828,7 @@ function handleMarkAbsentSubmit(event) {
     
     const form = event.target;
     const formData = new FormData(form);
+    const currentCourseCode = formData.get('course_code');
     
     // Check if any students are selected
     const selectedStudents = formData.getAll('selected_students');
@@ -846,11 +847,12 @@ function handleMarkAbsentSubmit(event) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            if (currentCourseCode) {
+                setCookie('last_course_code', currentCourseCode, 30);
+            }
             showNotification(data.message, 'success');
             // Clear selections
             clearAllSelections();
-            // Reload page to refresh absentee list
-            setTimeout(() => location.reload(), 500);
         } else {
             showNotification(data.message, 'warning');
         }
