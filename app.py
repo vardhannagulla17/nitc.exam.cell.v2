@@ -1748,13 +1748,6 @@ def absentee_sheet():
                         selected_section = section if section else None
                         selected_instructor = instructor if instructor else None
                         course_students = [row]
-
-                        student_info = {
-                            'roll_no': row['roll_no'],
-                            'name': row['name'],
-                            'course_code': row['course_code'],
-                            'course_title': row['course_title']
-                        }
                         flash(f"Loaded student {row['roll_no']} from {course_code}.", 'success')
                     else:
                         filter_suffix = ''
