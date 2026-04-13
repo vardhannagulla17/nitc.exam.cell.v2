@@ -175,11 +175,10 @@
             <div class="card">
                 <div class="card-header">
                     <h2><i class="fas fa-list"></i> Absentee List</h2>
-                    {% if course_info %}
-                    <p>{{ course_info.course_code }} - {{ course_info.course_title }}</p>
-                    {% endif %}
+                    <p id="absentee-course-info">{% if course_info %}{{ course_info.course_code }} - {{ course_info.course_title }}{% endif %}</p>
                 </div>
 
+                <div id="absentee-panel-body">
                 {% if absentees %}
                 <div style="padding: 1.5rem;">
                     <div style="background: #fff7ed; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; border-left: 4px solid #f59e0b;">
@@ -299,6 +298,7 @@
                     <p style="font-size: 0.9rem;">Search for students and add them to create your absentee list</p>
                 </div>
                 {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -853,6 +853,8 @@ function handleMarkAbsentSubmit(event) {
             showNotification(data.message, 'success');
             // Clear selections
             clearAllSelections();
+            // Refresh only the absentee panel (right side) without full page reload.
+            refreshAbsenteePanel();
         } else {
             showNotification(data.message, 'warning');
         }
@@ -860,6 +862,37 @@ function handleMarkAbsentSubmit(event) {
     .catch(error => {
         console.error('Error:', error);
         showNotification('Error marking students absent', 'error');
+    });
+}
+
+// Refresh only the right absentee panel by fetching the latest server-rendered HTML.
+function refreshAbsenteePanel() {
+    fetch('/absentee', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.text())
+    .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        const nextBody = doc.getElementById('absentee-panel-body');
+        const currentBody = document.getElementById('absentee-panel-body');
+        if (nextBody && currentBody) {
+            currentBody.innerHTML = nextBody.innerHTML;
+        }
+
+        const nextCourseInfo = doc.getElementById('absentee-course-info');
+        const currentCourseInfo = document.getElementById('absentee-course-info');
+        if (nextCourseInfo && currentCourseInfo) {
+            currentCourseInfo.innerHTML = nextCourseInfo.innerHTML;
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing absentee panel:', error);
+        showNotification('Marked absent, but failed to refresh panel.', 'warning');
     });
 }
 
