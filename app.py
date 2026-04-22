@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, current_app, make_response, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, current_app, make_response, jsonify, Response
 from werkzeug.utils import secure_filename
 import os
 import sys
@@ -1063,17 +1063,21 @@ def api_get_instructors(course_code):
     
     try:
         if USE_SUPABASE_DB and supabase:
+            semester_id = request.args.get('semester_id', '').strip()
             # Get unique instructors for the course
             all_records = []
             page_size = 1000
             offset = 0
             
             while True:
-                result = supabase.table('students')\
+                query = supabase.table('students')\
                     .select('main_instructor')\
-                    .eq('course_code', course_code)\
-                    .range(offset, offset + page_size - 1)\
-                    .execute()
+                    .eq('course_code', course_code)
+
+                if semester_id:
+                    query = query.eq('semester_id', semester_id)
+
+                result = query.range(offset, offset + page_size - 1).execute()
                 if not result.data:
                     break
                 all_records.extend(result.data)
@@ -1398,7 +1402,13 @@ def download_attendance():
                     
             elif action == 'preview' and course_code:
                 # SIMPLE PREVIEW
-                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
+                html_content, message = generate_attendance_sheet(
+                    course_code,
+                    exam_date,
+                    semester_id,
+                    section=section,
+                    instructor=instructor
+                )
                 
                 if html_content:
                     return html_content
@@ -1408,7 +1418,13 @@ def download_attendance():
                     
             elif action == 'download' and course_code:
                 # DOWNLOAD AS HTML (PDF has corruption issues)
-                html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
+                html_content, message = generate_attendance_sheet(
+                    course_code,
+                    exam_date,
+                    semester_id,
+                    section=section,
+                    instructor=instructor
+                )
                 
                 if not html_content:
                     flash(f'Error: {message}', 'error')

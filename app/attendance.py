@@ -45,10 +45,34 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
         semester = sem_result.data[0]  # Get the first (and only) result
         
         # STEP 2: Get all students enrolled in this course
-        # We query the 'students' table filtering by semester_id and course_code
-        students_result = supabase.table('students').select('*').eq('semester_id', semester_id).eq('course_code', course_code).execute()
+        # We query the 'students' table filtering by semester_id and course_code,
+        # then apply optional section/instructor/roll filters.
+        query = supabase.table('students').select('*').eq('semester_id', semester_id).eq('course_code', course_code)
+
+        section = (kwargs.get('section') or '').strip().upper()
+        instructor = (kwargs.get('instructor') or '').strip()
+        roll_numbers = kwargs.get('roll_numbers') or []
+
+        if section and section != 'ALL':
+            query = query.eq('timetable_batch', section)
+
+        if instructor:
+            query = query.eq('main_instructor', instructor)
+
+        if roll_numbers:
+            normalized_rolls = []
+            seen_rolls = set()
+            for roll in roll_numbers:
+                roll_value = (str(roll) if roll is not None else '').strip().upper()
+                if roll_value and roll_value not in seen_rolls:
+                    seen_rolls.add(roll_value)
+                    normalized_rolls.append(roll_value)
+            if normalized_rolls:
+                query = query.in_('roll_no', normalized_rolls)
+
+        students_result = query.execute()
         if not students_result.data:
-            return None, "No students found"
+            return None, "No students found for selected filters"
         
         students = students_result.data  # This is a list of student dictionaries
         

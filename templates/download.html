@@ -336,7 +336,7 @@ courseSelect.addEventListener('change', async () => {
     if (semester && courseCode) {
         // Fetch instructors for this course
         try {
-            const instructorsResponse = await fetch(`/api/instructors/${encodeURIComponent(courseCode)}`);
+            const instructorsResponse = await fetch(`/api/instructors/${encodeURIComponent(courseCode)}?semester_id=${encodeURIComponent(semester)}`);
             const instructorsData = await instructorsResponse.json();
             
             if (instructorsData.instructors && instructorsData.instructors.length > 0) {
