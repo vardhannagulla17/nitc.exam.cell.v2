@@ -13,7 +13,7 @@ class Config:
     ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
     
     # Database configuration
-    DATABASE_PATH = os.path.join(BASE_DIR, 'exam_cell.db')
+    DATABASE_PROVIDER = 'supabase'
     
     # Session configuration
     PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
@@ -44,7 +44,7 @@ class TestingConfig(Config):
     """Testing configuration"""
     DEBUG = True
     TESTING = True
-    DATABASE_PATH = os.path.join(Config.BASE_DIR, 'test_exam_cell.db')
+    DATABASE_PROVIDER = 'supabase'
 
 
 class VercelConfig(Config):
@@ -54,7 +54,7 @@ class VercelConfig(Config):
     # Use None for folder paths on Vercel (read-only filesystem)
     UPLOAD_FOLDER = None
     DOWNLOAD_FOLDER = None
-    DATABASE_PATH = None  # Can't use SQLite on Vercel serverless
+    DATABASE_PROVIDER = 'supabase'
 
 # Configuration dictionary
 config = {

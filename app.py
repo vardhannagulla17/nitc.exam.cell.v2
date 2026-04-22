@@ -22,9 +22,6 @@ from supabase_client import supabase
 # Import absentee storage for bucket operations
 from helpers.supabase_storage import absentee_storage
 
-# Import database utilities
-from app.database import USE_SUPABASE_DB
-
 # Add the current directory to Python path so we can import from nitc.exam.cell.v1.app
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -170,15 +167,31 @@ def get_uploaded_files():
         print(f"Error listing uploaded files: {str(e)}")
         return []
 
-# Import other modules
+# Import data and service modules
 from app.models import (
-    init_db, load_excel_to_db, get_user_by_credentials, register_user,
-    get_all_semesters, get_courses_for_semester,
+    get_user_by_credentials,
+    get_all_semesters,
+    get_courses_for_semester,
     get_semesters_for_program_level,
-    get_all_users, get_pending_users, get_pending_users_count, approve_user, reject_user,
-    toggle_user_active, update_user_role, delete_user,
-    create_password_reset_request, verify_password_reset_otp
+    get_all_users,
+    get_pending_users,
+    get_pending_users_count,
 )
+from database.db_setup import init_db
+from services.auth_service import (
+    approve_user,
+    create_password_reset_request,
+    create_pending_registration,
+    delete_user,
+    register_user,
+    reject_user,
+    resend_otp,
+    toggle_user_active,
+    update_user_role,
+    verify_otp_and_register,
+    verify_password_reset_otp,
+)
+from services.excel_service import load_excel_to_db
 
 # Simple in-memory cache for dashboard stats
 _stats_cache = {
@@ -222,120 +235,39 @@ def get_semester_stats(force_refresh=False):
     # Cache miss or expired - recalculate
     print("Recalculating stats (cache miss or expired)")
     try:
-        from app.database import USE_SUPABASE_DB
-        
-        if USE_SUPABASE_DB and supabase:
-            # Query Supabase for stats
-            print("DEBUG: Querying Supabase for semester stats...")
-            try:
-                semesters_result = supabase.table('semesters').select('id').execute()
-                total_semesters = len(semesters_result.data) if semesters_result.data else 0
-                print(f"DEBUG: Found {total_semesters} semesters")
-                
-                # Handle pagination for students - fetch all records
-                all_students = []
-                page_size = 1000
-                offset = 0
-                
-                while True:
-                    students_result = supabase.table('students').select('id, course_code').range(offset, offset + page_size - 1).execute()
-                    if not students_result.data:
-                        break
-                    all_students.extend(students_result.data)
-                    if len(students_result.data) < page_size:
-                        break
-                    offset += page_size
-                
-                total_students = len(all_students)
-                print(f"DEBUG: Found {total_students} students (paginated)")
-                
-                unique_courses = set(row['course_code'] for row in all_students)
-                total_courses = len(unique_courses)
-                print(f"DEBUG: Found {total_courses} unique courses")
-                
-                stats = {
-                    'total_students': total_students,
-                    'total_courses': total_courses,
-                    'total_semesters': total_semesters
-                }
-                
-                # Update cache for Supabase stats
-                _stats_cache['data'] = stats
-                _stats_cache['timestamp'] = time.time()
-                print(f"Stats cached: {stats}")
-                
-                return stats
-            except Exception as e:
-                print(f"ERROR querying Supabase in get_semester_stats: {e}")
-                # Don't cache errors
-                return {'total_students': 0, 'total_courses': 0, 'total_semesters': 0}
-        else:
-            # SQLite for local development
-            import sqlite3
-            conn = sqlite3.connect('exam_cell.db')
-            cursor = conn.cursor()
+        print("DEBUG: Querying Supabase for semester stats...")
+        semesters_result = supabase.table('semesters').select('id').execute()
+        total_semesters = len(semesters_result.data) if semesters_result.data else 0
+        print(f"DEBUG: Found {total_semesters} semesters")
 
-            # Get all semester databases
-            cursor.execute('SELECT db_name FROM semesters')
-            semester_dbs = cursor.fetchall()
-            
-            # Filter out entries whose DB files no longer exist
-            existing_semester_dbs = []
-            missing_db_names = []
-            for (db_name,) in semester_dbs:
-                abs_db_path = db_name if os.path.isabs(db_name) else os.path.join(app.config['BASE_DIR'], db_name)
-                if db_name and os.path.exists(abs_db_path):
-                    existing_semester_dbs.append((db_name,))
-                else:
-                    missing_db_names.append(db_name)
-            if missing_db_names:
-                try:
-                    cursor.executemany('DELETE FROM semesters WHERE db_name = ?', [(n,) for n in missing_db_names if n])
-                    conn.commit()
-                except Exception as _cleanup_err:
-                    pass
-            semester_dbs = existing_semester_dbs
-            
-            total_students = 0
-            unique_courses = set()
-            total_semesters = len(semester_dbs)
+        all_students = []
+        page_size = 1000
+        offset = 0
 
-            # Calculate totals from each semester database
-            for (db_name,) in semester_dbs:
-                try:
-                    abs_db_path = db_name if os.path.isabs(db_name) else os.path.join(app.config['BASE_DIR'], db_name)
-                    sem_conn = sqlite3.connect(abs_db_path)
-                    sem_cursor = sem_conn.cursor()
-                    
-                    # Count total student records
-                    sem_cursor.execute('SELECT COUNT(*) FROM students')
-                    student_count = sem_cursor.fetchone()[0]
-                    total_students += student_count
+        while True:
+            students_result = supabase.table('students').select('id, course_code').range(offset, offset + page_size - 1).execute()
+            if not students_result.data:
+                break
+            all_students.extend(students_result.data)
+            if len(students_result.data) < page_size:
+                break
+            offset += page_size
 
-                    # Get unique course codes
-                    sem_cursor.execute('SELECT DISTINCT course_code FROM students')
-                    courses = sem_cursor.fetchall()
-                    unique_courses.update(course[0] for course in courses)
+        total_students = len(all_students)
+        unique_courses = set(row['course_code'] for row in all_students)
+        total_courses = len(unique_courses)
 
-                    sem_conn.close()
-                except Exception as e:
-                    print(f"Error processing semester database {db_name}: {str(e)}")
-                    continue
+        stats = {
+            'total_students': total_students,
+            'total_courses': total_courses,
+            'total_semesters': total_semesters
+        }
 
-            conn.close()
-            
-            stats = {
-                'total_students': total_students,
-                'total_courses': len(unique_courses),
-                'total_semesters': total_semesters
-            }
-            
-            # Update cache
-            _stats_cache['data'] = stats
-            _stats_cache['timestamp'] = time.time()
-            print(f"Stats cached: {stats}")
-            
-            return stats
+        _stats_cache['data'] = stats
+        _stats_cache['timestamp'] = time.time()
+        print(f"Stats cached: {stats}")
+
+        return stats
     except Exception as e:
         print(f"Error calculating semester stats: {str(e)}")
         # Don't cache errors
@@ -361,62 +293,39 @@ def get_database_usage_stats():
     print("Recalculating DB usage stats (cache miss or expired)")
     
     try:
-        from app.database import USE_SUPABASE_DB
-        
-        if USE_SUPABASE_DB and supabase:
-            # Get breakdown by semester
-            semester_breakdown = []
-            semesters = supabase.table('semesters').select('id, academic_year, semester_type, degree_level, exam_type').execute()
-            
-            for sem in semesters.data:
-                # Handle pagination for student count per semester
-                student_count = 0
-                page_size = 1000
-                offset = 0
-                
-                while True:
-                    students = supabase.table('students').select('id').eq('semester_id', sem['id']).range(offset, offset + page_size - 1).execute()
-                    if not students.data:
-                        break
-                    student_count += len(students.data)
-                    if len(students.data) < page_size:
-                        break
-                    offset += page_size
-                
-                semester_breakdown.append({
-                    'name': f"{sem['academic_year']} {sem['semester_type']} {sem['degree_level']} {sem['exam_type']}",
-                    'count': student_count
-                })
-            
-            # Get total counts
-            total_students = supabase.table('students').select('id', count='exact').execute()
-            total_semesters = len(semesters.data)
-            
-            # Estimate database size (rough calculation)
-            # Average row size: ~500 bytes (including indexes)
-            estimated_db_size_mb = (total_students.count * 500 / 1024 / 1024) if hasattr(total_students, 'count') else 0
-            
-            result = {
-                'semester_breakdown': semester_breakdown,
-                'total_records': total_students.count if hasattr(total_students, 'count') else 0,
-                'total_semesters': total_semesters,
-                'estimated_size_mb': round(estimated_db_size_mb, 2),
-                'free_tier_limit_mb': 500
-            }
-        else:
-            # SQLite stats
-            import os
-            db_size = 0
-            if os.path.exists('exam_cell.db'):
-                db_size = os.path.getsize('exam_cell.db') / 1024 / 1024  # MB
-            
-            result = {
-                'semester_breakdown': [],
-                'total_records': 0,
-                'total_semesters': 0,
-                'estimated_size_mb': round(db_size, 2),
-                'free_tier_limit_mb': 500
-            }
+        semester_breakdown = []
+        semesters = supabase.table('semesters').select('id, academic_year, semester_type, degree_level, exam_type').execute()
+
+        for sem in semesters.data:
+            student_count = 0
+            page_size = 1000
+            offset = 0
+
+            while True:
+                students = supabase.table('students').select('id').eq('semester_id', sem['id']).range(offset, offset + page_size - 1).execute()
+                if not students.data:
+                    break
+                student_count += len(students.data)
+                if len(students.data) < page_size:
+                    break
+                offset += page_size
+
+            semester_breakdown.append({
+                'name': f"{sem['academic_year']} {sem['semester_type']} {sem['degree_level']} {sem['exam_type']}",
+                'count': student_count
+            })
+
+        total_students = supabase.table('students').select('id', count='exact').execute()
+        total_semesters = len(semesters.data)
+        estimated_db_size_mb = (total_students.count * 500 / 1024 / 1024) if hasattr(total_students, 'count') else 0
+
+        result = {
+            'semester_breakdown': semester_breakdown,
+            'total_records': total_students.count if hasattr(total_students, 'count') else 0,
+            'total_semesters': total_semesters,
+            'estimated_size_mb': round(estimated_db_size_mb, 2),
+            'free_tier_limit_mb': 500
+        }
         
         # Cache the result
         _db_usage_cache['data'] = result
@@ -465,8 +374,6 @@ def index():
 def health_check():
     """Health check endpoint to verify setup"""
     import os
-    from app.database import USE_SUPABASE_DB
-    
     is_vercel = bool(os.environ.get('VERCEL'))
     supabase_url = bool(os.environ.get('SUPABASE_URL'))
     supabase_key = bool(os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_ANON_KEY'))
@@ -479,13 +386,13 @@ def health_check():
         'supabase_url_set': supabase_url,
         'supabase_key_set': supabase_key,
         'supabase_client_initialized': supabase_configured,
-        'using_supabase_db': USE_SUPABASE_DB,
+        'using_supabase_db': supabase_configured,
         'python_path': sys.path[:2],
         'base_dir': BASE_DIR
     }
     
     # Add warning if on Vercel without Supabase
-    if is_vercel and not USE_SUPABASE_DB:
+    if is_vercel and not supabase_configured:
         status['warning'] = 'Running on Vercel WITHOUT Supabase - data will not persist! Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.'
     
     return status
@@ -504,7 +411,6 @@ def login():
         try:
             print(f"DEBUG: Attempting login for user: {email}")
             print(f"DEBUG: Supabase client available: {supabase is not None}")
-            print(f"DEBUG: USE_SUPABASE_DB: {USE_SUPABASE_DB}")
             
             user = get_user_by_credentials(email, password)
             print(f"DEBUG: get_user_by_credentials returned: {user}")
@@ -573,9 +479,6 @@ def register():
             flash('Only @nitc.ac.in email addresses are allowed!', 'error')
             return render_template('register.html')
         
-        # Import OTP functions
-        from app.models import create_pending_registration
-        
         # Create pending registration and send OTP
         success, message, _ = create_pending_registration(email, full_name, password)
         if success:
@@ -608,11 +511,8 @@ def verify_otp():
             flash('Please enter the OTP!', 'error')
             return render_template('verify_otp.html', email=pending_email)
         
-        # Import verification function
-        from app.models import verify_otp_and_register
-        
         # Verify OTP and complete registration
-        success, message = verify_otp_and_register(pending_email, otp)
+        success, message, _ = verify_otp_and_register(pending_email, otp)
         if success:
             # Clear pending email from session
             session.pop('pending_email', None)
@@ -632,9 +532,7 @@ def resend_otp_route():
         flash('No pending registration found. Please register first.', 'error')
         return redirect(url_for('register'))
     
-    from app.models import resend_otp
-    
-    success, message = resend_otp(pending_email)
+    success, message, _ = resend_otp(pending_email)
     flash(message, 'success' if success else 'error')
     return redirect(url_for('verify_otp'))
 
@@ -656,7 +554,7 @@ def forgot_password():
             flash('Please enter your email address!', 'error')
             return render_template('forgot_password.html')
         
-        success, message = create_password_reset_request(email)
+        success, message, _ = create_password_reset_request(email)
         flash(message, 'success' if success else 'error')
         
         if success:
@@ -694,7 +592,7 @@ def reset_password():
             flash('Password must be at least 6 characters!', 'error')
             return render_template('reset_password.html', email=reset_email)
         
-        success, message = verify_password_reset_otp(reset_email, otp, new_password)
+        success, message, _ = verify_password_reset_otp(reset_email, otp, new_password)
         flash(message, 'success' if success else 'error')
         
         if success:
@@ -725,7 +623,7 @@ def approve_user_route(user_id):
         flash('Access denied. Admins only.', 'error')
         return redirect(url_for('dashboard'))
     
-    success, message = approve_user(user_id, session.get('email'))
+    success, message, _ = approve_user(user_id, session.get('email'))
     flash(message, 'success' if success else 'error')
     return redirect(url_for('admin_users'))
 
@@ -735,7 +633,7 @@ def reject_user_route(user_id):
         flash('Access denied. Admins only.', 'error')
         return redirect(url_for('dashboard'))
     
-    success, message = reject_user(user_id)
+    success, message, _ = reject_user(user_id)
     flash(message, 'success' if success else 'error')
     return redirect(url_for('admin_users'))
 
@@ -745,7 +643,7 @@ def toggle_user_route(user_id):
         flash('Access denied. Admins only.', 'error')
         return redirect(url_for('dashboard'))
     
-    success, message = toggle_user_active(user_id)
+    success, message, _ = toggle_user_active(user_id)
     flash(message, 'success' if success else 'error')
     return redirect(url_for('admin_users'))
 
@@ -756,7 +654,7 @@ def change_role_route(user_id):
         return redirect(url_for('dashboard'))
     
     new_role = request.form.get('role', 'staff')
-    success, message = update_user_role(user_id, new_role)
+    success, message, _ = update_user_role(user_id, new_role)
     flash(message, 'success' if success else 'error')
     return redirect(url_for('admin_users'))
 
@@ -766,7 +664,7 @@ def delete_user_route(user_id):
         flash('Access denied. Admins only.', 'error')
         return redirect(url_for('dashboard'))
     
-    success, message = delete_user(user_id, session.get('user_id'))
+    success, message, _ = delete_user(user_id, session.get('user_id'))
     flash(message, 'success' if success else 'error')
     return redirect(url_for('admin_users'))
 
@@ -806,25 +704,10 @@ def delete_file(filename):
         else:
             flash(f'File {filename} not found.', 'error')
         
-        # Also clear semester data and remove semester databases so stats reset to 0
+        # Also clear semester/student data in Supabase so stats reset to 0
         try:
-            import sqlite3
-            conn = sqlite3.connect('exam_cell.db')
-            cursor = conn.cursor()
-            cursor.execute('SELECT db_name FROM semesters')
-            semester_dbs = [row[0] for row in cursor.fetchall()]
-            cursor.execute('DELETE FROM semesters')
-            conn.commit()
-            conn.close()
-            
-            # Remove semester-specific databases
-            for db_path in semester_dbs:
-                try:
-                    if db_path and os.path.exists(db_path):
-                        os.remove(db_path)
-                except Exception as remove_err:
-                    print(f"Warning: could not remove semester db {db_path}: {remove_err}")
-            
+            supabase.table('students').delete().neq('id', 0).execute()
+            supabase.table('semesters').delete().neq('id', 0).execute()
             # Invalidate stats cache after cleanup
             invalidate_stats_cache()
         except Exception as cleanup_err:
@@ -942,7 +825,7 @@ def upload_file():
                             print(f"DEBUG: Successfully uploaded to Supabase: {unique_filename}")
                             # Use BytesIO for processing
                             file_obj = BytesIO(content)
-                            success, message = load_excel_to_db(file_obj, academic_year, semester_type, sheet_type, exam_type)
+                            success, message, _ = load_excel_to_db(file_obj, academic_year, semester_type, sheet_type, exam_type)
                         else:
                             print("DEBUG: Supabase upload returned empty result")
                     except Exception as supabase_error:
@@ -958,7 +841,7 @@ def upload_file():
                     # Ensure the upload directory exists
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     file.save(filepath)
-                    success, message = load_excel_to_db(filepath, academic_year, semester_type, sheet_type, exam_type)
+                    success, message, _ = load_excel_to_db(filepath, academic_year, semester_type, sheet_type, exam_type)
             except Exception as file_error:
                 flash(f'Error saving file: {str(file_error)}', 'error')
                 return redirect(request.url)
@@ -1018,7 +901,7 @@ def api_get_sections(semester_id, course_code):
         return jsonify({'error': 'Unauthorized'}), 401
     
     try:
-        if USE_SUPABASE_DB and supabase:
+        if supabase:
             # Get unique sections with their instructors
             all_records = []
             page_size = 1000
@@ -1050,8 +933,6 @@ def api_get_sections(semester_id, course_code):
             sections = [{'code': code, 'instructor': instructor} for code, instructor in sorted(sections_dict.items())]
             
             return jsonify({'sections': sections}), 200
-        else:
-            return jsonify({'sections': []}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1062,7 +943,7 @@ def api_get_instructors(course_code):
         return jsonify({'error': 'Unauthorized'}), 401
     
     try:
-        if USE_SUPABASE_DB and supabase:
+        if supabase:
             semester_id = request.args.get('semester_id', '').strip()
             # Get unique instructors for the course
             all_records = []
@@ -1096,8 +977,6 @@ def api_get_instructors(course_code):
             instructors = sorted(list(instructors_set))
             
             return jsonify({'instructors': instructors}), 200
-        else:
-            return jsonify({'instructors': []}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1115,7 +994,7 @@ def api_approve_absentees():
     if session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'Admin access required'}), 403
     
-    if not USE_SUPABASE_DB or not supabase:
+    if not supabase:
         return jsonify({'success': False, 'error': 'Database not configured'}), 500
     
     try:
@@ -1156,7 +1035,7 @@ def api_reject_absentees():
     if session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'Admin access required'}), 403
     
-    if not USE_SUPABASE_DB or not supabase:
+    if not supabase:
         return jsonify({'success': False, 'error': 'Database not configured'}), 500
     
     try:
@@ -1197,7 +1076,7 @@ def api_set_pending_absentees():
     if session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'Admin access required'}), 403
     
-    if not USE_SUPABASE_DB or not supabase:
+    if not supabase:
         return jsonify({'success': False, 'error': 'Database not configured'}), 500
     
     try:
@@ -1240,7 +1119,7 @@ def api_delete_absentees():
     if session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'Admin access required'}), 403
     
-    if not USE_SUPABASE_DB or not supabase:
+    if not supabase:
         return jsonify({'success': False, 'error': 'Database not configured'}), 500
     
     try:
@@ -1276,7 +1155,7 @@ def api_list_absentees():
     if session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'Admin access required'}), 403
     
-    if not USE_SUPABASE_DB or not supabase:
+    if not supabase:
         return jsonify({'success': False, 'error': 'Database not configured'}), 500
     
     try:
@@ -1504,7 +1383,7 @@ def absentee_sheet():
     
     # Get all unique courses from students table
     all_courses = []
-    if USE_SUPABASE_DB and supabase:
+    if supabase:
         try:
             # Handle pagination - Supabase has 1000 record default limit
             all_students = []
@@ -1623,7 +1502,7 @@ def absentee_sheet():
             
             if not course_code:
                 flash('Please select or type a valid course code/name.', 'error')
-            elif USE_SUPABASE_DB and supabase:
+            elif supabase:
                 try:
                     # Build query with optional filters
                     query = supabase.table('students')\
@@ -1761,7 +1640,7 @@ def absentee_sheet():
             
             if not course_code or not roll_no:
                 flash('Please select a course and enter roll number.', 'error')
-            elif USE_SUPABASE_DB and supabase:
+            elif supabase:
                 try:
                     query = supabase.table('students')\
                         .select('roll_no, name, course_code, course_title, timetable_batch, main_instructor')\
@@ -1808,7 +1687,7 @@ def absentee_sheet():
                 flash('Please select a course before searching roll numbers.', 'error')
             elif not roll_numbers:
                 flash('Please enter valid roll numbers (start with B/M/P and include 6 digits).', 'error')
-            elif USE_SUPABASE_DB and supabase:
+            elif supabase:
                 try:
                     query = supabase.table('students')\
                         .select('roll_no, name, course_code, course_title, timetable_batch, main_instructor')\
@@ -2128,7 +2007,7 @@ def absentee_sheet():
                         course_code = key.replace('exam_date_', '')
                         exam_dates[course_code] = request.form.get(key) or datetime.now().strftime('%Y-%m-%d')
                 
-                if USE_SUPABASE_DB and supabase:
+                if supabase:
                     try:
                         marked_by = session.get('username', 'unknown')
                         
@@ -2257,7 +2136,7 @@ def admin_absentees():
         flash('Access denied. Only administrators can access this page.', 'error')
         return redirect(url_for('dashboard'))
     
-    if not USE_SUPABASE_DB or not supabase:
+    if not supabase:
         flash('Database not configured.', 'error')
         return redirect(url_for('dashboard'))
     
@@ -2768,7 +2647,7 @@ def clear_bucket(bucket_type):
     if session.get('role') != 'admin':
         return jsonify({'success': False, 'message': 'Access denied. Only administrators can clear buckets.'}), 403
     
-    if not USE_SUPABASE_DB or not supabase:
+    if not supabase:
         return jsonify({'success': False, 'message': 'Database not configured.'}), 500
     
     # Validate bucket type
@@ -3027,7 +2906,7 @@ def attach_consolidated_absentee_metadata(absentees):
     course_codes = sorted({a.get('course_code', '') for a in absentees if a.get('course_code')})
     instructor_map = {}
 
-    if course_codes and USE_SUPABASE_DB and supabase:
+    if course_codes and supabase:
         try:
             for course_code in course_codes:
                 page_size = 1000

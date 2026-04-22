@@ -1,6 +1,8 @@
 import re
 from datetime import datetime
 
+VALID_EMAIL_DOMAIN = 'nitc.ac.in'
+
 def extract_semester_from_roll_no(roll_no):
     """
     Calculate current semester number from roll number based on admission year.
@@ -63,3 +65,22 @@ def sort_by_roll_number(students):
     
     # Sort students based on roll number
     return sorted(students, key=lambda x: extract_sort_key(x[0]))
+
+
+def validate_email_domain(email):
+    if not email:
+        return False
+    return email.lower().endswith(f'@{VALID_EMAIL_DOMAIN}')
+
+
+def get_program_level(roll_no):
+    if not roll_no:
+        return None
+    prefix = str(roll_no)[0].upper()
+    if prefix == 'B':
+        return 'UG'
+    if prefix == 'M':
+        return 'PG'
+    if prefix == 'P':
+        return 'PhD'
+    return None

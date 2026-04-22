@@ -7,8 +7,7 @@ It fetches student data from Supabase database and creates HTML attendance sheet
 """
 
 # Import required libraries
-from supabase_client import supabase  # Database client to connect to Supabase
-from app.database import USE_SUPABASE_DB  # Flag to indicate we're using Supabase
+from database import repository
 from helpers.utils import extract_semester_from_roll_no  # Helper to get semester number from roll number
 from io import BytesIO  # For creating in-memory binary streams (used for ZIP files)
 import zipfile  # For creating ZIP archives
@@ -39,42 +38,25 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
     try:
         # STEP 1: Get semester information from database
         # We query the 'semesters' table to get details like academic year, exam type, etc.
-        sem_result = supabase.table('semesters').select('*').eq('id', semester_id).execute()
-        if not sem_result.data:
+        semester = repository.get_semester_by_id(semester_id)
+        if not semester:
             return None, "Semester not found"
-        semester = sem_result.data[0]  # Get the first (and only) result
         
         # STEP 2: Get all students enrolled in this course
         # We query the 'students' table filtering by semester_id and course_code,
         # then apply optional section/instructor/roll filters.
-        query = supabase.table('students').select('*').eq('semester_id', semester_id).eq('course_code', course_code)
+        students = repository.get_students_by_course(
+            semester_id,
+            course_code,
+            {
+                'section': kwargs.get('section'),
+                'instructor': kwargs.get('instructor'),
+                'roll_numbers': kwargs.get('roll_numbers'),
+            },
+        )
 
-        section = (kwargs.get('section') or '').strip().upper()
-        instructor = (kwargs.get('instructor') or '').strip()
-        roll_numbers = kwargs.get('roll_numbers') or []
-
-        if section and section != 'ALL':
-            query = query.eq('timetable_batch', section)
-
-        if instructor:
-            query = query.eq('main_instructor', instructor)
-
-        if roll_numbers:
-            normalized_rolls = []
-            seen_rolls = set()
-            for roll in roll_numbers:
-                roll_value = (str(roll) if roll is not None else '').strip().upper()
-                if roll_value and roll_value not in seen_rolls:
-                    seen_rolls.add(roll_value)
-                    normalized_rolls.append(roll_value)
-            if normalized_rolls:
-                query = query.in_('roll_no', normalized_rolls)
-
-        students_result = query.execute()
-        if not students_result.data:
+        if not students:
             return None, "No students found for selected filters"
-        
-        students = students_result.data  # This is a list of student dictionaries
         
         # STEP 3: Sort students in the correct order
         # Sorting order: Batch → Semester (extracted from roll number) → Name (alphabetically)
@@ -312,24 +294,17 @@ def generate_all_attendance_sheets_zip(semester_id, exam_date, **kwargs):
     """Generate ZIP file with all attendance sheets for a semester"""
     try:
         # Get all courses for this semester
-        courses_result = supabase.table('students').select('course_code, course_title').eq('semester_id', semester_id).execute()
-        
-        if not courses_result.data:
+        courses = repository.get_courses_for_semester(semester_id)
+
+        if not courses:
             return None, "No courses found"
-        
-        # Get unique courses
-        courses_dict = {}
-        for row in courses_result.data:
-            code = row['course_code']
-            if code not in courses_dict:
-                courses_dict[code] = row['course_title']
         
         # Create ZIP in memory
         zip_buffer = BytesIO()
         
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
             count = 0
-            for course_code in courses_dict:
+            for course_code, _ in courses:
                 html_content, message = generate_attendance_sheet(course_code, exam_date, semester_id)
                 
                 if html_content:
