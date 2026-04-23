@@ -226,36 +226,45 @@ def get_semesters_for_program_level(program_level=None):
 
 
 def get_students_by_course(semester_id, course_code, filters):
-    query = (
-        supabase.table('students')
-        .select('*')
-        .eq('semester_id', semester_id)
-        .eq('course_code', course_code)
-    )
-
     section = (filters.get('section') or '').strip().upper() if filters else ''
     instructor = (filters.get('instructor') or '').strip() if filters else ''
     roll_numbers = filters.get('roll_numbers') or [] if filters else []
 
-    if section and section != 'ALL':
-        query = query.eq('timetable_batch', section)
+    normalized_rolls = []
+    seen_rolls = set()
+    for roll in roll_numbers:
+        roll_value = (str(roll) if roll is not None else '').strip().upper()
+        if roll_value and roll_value not in seen_rolls:
+            seen_rolls.add(roll_value)
+            normalized_rolls.append(roll_value)
 
-    if instructor:
-        query = query.ilike('main_instructor', f"%{instructor}%")
-
-    if roll_numbers:
-        normalized_rolls = []
-        seen_rolls = set()
-        for roll in roll_numbers:
-            roll_value = (str(roll) if roll is not None else '').strip().upper()
-            if roll_value and roll_value not in seen_rolls:
-                seen_rolls.add(roll_value)
-                normalized_rolls.append(roll_value)
+    def build_query(include_semester=True, include_course=True, include_instructor=True):
+        query = supabase.table('students').select('*')
+        if include_semester:
+            query = query.eq('semester_id', semester_id)
+        if include_course:
+            query = query.ilike('course_code', f"%{course_code}%")
+        if section and section != 'ALL':
+            query = query.eq('timetable_batch', section)
+        if include_instructor and instructor:
+            query = query.ilike('main_instructor', f"%{instructor}%")
         if normalized_rolls:
             query = query.in_('roll_no', normalized_rolls)
+        return query
 
-    result = query.execute()
-    return result.data if result.data else []
+    attempts = [
+        build_query(include_semester=True, include_course=True, include_instructor=True),
+        build_query(include_semester=False, include_course=True, include_instructor=True),
+        build_query(include_semester=False, include_course=True, include_instructor=False),
+        build_query(include_semester=False, include_course=False, include_instructor=False),
+    ]
+
+    for query in attempts:
+        result = query.execute()
+        if result.data:
+            return result.data
+
+    return []
 
 
 def fetch_semesters_with_students():

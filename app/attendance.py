@@ -48,6 +48,7 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
             if parts[0].isdigit():
                 instructor_filter = parts[1].strip()
         instructor_filter = instructor_filter.lower()
+        course_code = (course_code or '').strip().upper()
         
         # STEP 2: Get all students enrolled in this course
         # We query the 'students' table filtering by semester_id and course_code,
