@@ -237,6 +237,15 @@ def get_students_by_course(semester_id, course_code, filters):
     instructor = (filters.get('instructor') or '').strip() if filters else ''
     roll_numbers = filters.get('roll_numbers') or [] if filters else []
 
+    debug = (
+        supabase.table('students')
+        .select('main_instructor')
+        .eq('semester_id', semester_id)
+        .eq('course_code', course_code)
+        .execute()
+    )
+    print("DB VALUES:", list(set([r['main_instructor'] for r in (debug.data or []) if r.get('main_instructor')])))
+
     if section and section != 'ALL':
         query = query.eq('timetable_batch', section)
 
