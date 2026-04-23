@@ -164,6 +164,23 @@ def get_semester_by_id(semester_id):
     return result.data[0] if result.data else None
 
 
+def get_distinct_instructors(semester_id, course_code):
+    result = (
+        supabase.table('students')
+        .select('main_instructor')
+        .eq('semester_id', semester_id)
+        .eq('course_code', course_code)
+        .execute()
+    )
+    return list(
+        {
+            (row.get('main_instructor') or '').strip()
+            for row in (result.data or [])
+            if (row.get('main_instructor') or '').strip()
+        }
+    )
+
+
 def upsert_semester_and_clear_students(academic_year, semester_type, degree_level, exam_type, db_name):
     semester_data = {
         'academic_year': academic_year,
@@ -224,7 +241,7 @@ def get_students_by_course(semester_id, course_code, filters):
         query = query.eq('timetable_batch', section)
 
     if instructor:
-        query = query.eq('main_instructor', instructor)
+        query = query.ilike('main_instructor', instructor)
 
     if roll_numbers:
         normalized_rolls = []

@@ -41,6 +41,12 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
         semester = repository.get_semester_by_id(semester_id)
         if not semester:
             return None, "Semester not found"
+
+        instructor_filter = (kwargs.get('instructor') or '').strip()
+        if instructor_filter:
+            distinct_instructors = repository.get_distinct_instructors(semester_id, course_code)
+            print(f"[attendance] UI instructor value: {instructor_filter}")
+            print(f"[attendance] DB instructors for {course_code}: {distinct_instructors}")
         
         # STEP 2: Get all students enrolled in this course
         # We query the 'students' table filtering by semester_id and course_code,
@@ -50,12 +56,14 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
             course_code,
             {
                 'section': kwargs.get('section'),
-                'instructor': kwargs.get('instructor'),
+                'instructor': instructor_filter,
                 'roll_numbers': kwargs.get('roll_numbers'),
             },
         )
 
         if not students:
+            if instructor_filter:
+                return None, "No students found for selected instructor"
             return None, "No students found for selected filters"
         
         # STEP 3: Sort students in the correct order

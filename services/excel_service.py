@@ -32,7 +32,7 @@ def _normalize_students(df, columns):
                 'program_name': str(row.get(columns['program'], '')) if columns['program'] else '',
                 'timetable_batch': str(row.get(columns['batch'], '')) if columns['batch'] else '',
                 'slot_code': str(row.get(columns['slot'], '')) if columns['slot'] else '',
-                'main_instructor': str(row.get(columns['instructor'], '')) if columns['instructor'] else '',
+                'main_instructor': str(row.get(columns['instructor'], '')).strip() if columns['instructor'] else '',
                 'primary_mail': str(row.get(columns['primary_mail'], '')) if columns['primary_mail'] else '',
                 'course_category_code': str(row.get(columns['category'], '')) if columns['category'] else '',
             }
