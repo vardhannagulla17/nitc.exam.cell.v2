@@ -43,6 +43,8 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
             return None, "Semester not found"
 
         instructor_filter = (kwargs.get('instructor') or '').strip()
+        if '-' in instructor_filter:
+            instructor_filter = instructor_filter.split('-', 1)[1].strip()
         if instructor_filter:
             distinct_instructors = repository.get_distinct_instructors(semester_id, course_code)
             print(f"[attendance] UI instructor value: {instructor_filter}")
