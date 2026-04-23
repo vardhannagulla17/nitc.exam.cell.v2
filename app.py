@@ -1420,7 +1420,7 @@ def absentee_sheet():
     selected_course_code = None
     selected_section = None
     selected_instructor = None
-    bulk_roll_input = ''
+    roll_numbers_input = ''
 
     # Accept course selection by dropdown, typed course code, or typed course name.
     def resolve_course_code(raw_course_code, raw_course_search):
@@ -1472,22 +1472,6 @@ def absentee_sheet():
 
         return None
 
-    def extract_roll_numbers(raw_text):
-        if not raw_text:
-            return []
-
-        # Accept comma/space/newline/continuous pasted text and extract valid roll patterns.
-        matches = re.findall(r'([BMP]\d{6}[A-Z]*)', raw_text.upper())
-
-        # Keep order while removing duplicates.
-        unique_rolls = []
-        seen = set()
-        for roll in matches:
-            if roll not in seen:
-                seen.add(roll)
-                unique_rolls.append(roll)
-        return unique_rolls
-    
     if request.method == 'POST':
         action = request.form.get('action')
         
@@ -1629,64 +1613,31 @@ def absentee_sheet():
                 except Exception as e:
                     print(f"Error reloading students: {e}")
         
-        elif action == 'search_student':
-            course_code = resolve_course_code(
-                request.form.get('course_code', ''),
-                request.form.get('course_search', '')
-            )
-            roll_no = request.form.get('roll_no', '').strip().upper()
-            section = request.form.get('section', '').strip().upper()
-            instructor = request.form.get('instructor', '').strip()
-            
-            if not course_code or not roll_no:
-                flash('Please select a course and enter roll number.', 'error')
-            elif supabase:
-                try:
-                    query = supabase.table('students')\
-                        .select('roll_no, name, course_code, course_title, timetable_batch, main_instructor')\
-                        .eq('course_code', course_code)\
-                        .eq('roll_no', roll_no)
-
-                    if section:
-                        query = query.eq('timetable_batch', section)
-
-                    if instructor:
-                        query = query.eq('main_instructor', instructor)
-
-                    response = query.execute()
-                    
-                    if response.data and len(response.data) > 0:
-                        row = response.data[0]
-                        selected_course_code = course_code
-                        selected_section = section if section else None
-                        selected_instructor = instructor if instructor else None
-                        course_students = [row]
-                        flash(f"Loaded student {row['roll_no']} from {course_code}.", 'success')
-                    else:
-                        filter_suffix = ''
-                        if section:
-                            filter_suffix += f' section {section}'
-                        if instructor:
-                            filter_suffix += f' instructor {instructor}'
-                        flash(f'Student {roll_no} not found in course {course_code}{filter_suffix}.', 'error')
-                except Exception as e:
-                    print(f"Error searching student: {e}")
-                    flash('Error searching for student.', 'error')
-
-        elif action == 'search_multiple_students':
+        elif action == 'search_by_roll':
             course_code = resolve_course_code(
                 request.form.get('course_code', ''),
                 request.form.get('course_search', '')
             )
             section = request.form.get('section', '').strip().upper()
             instructor = request.form.get('instructor', '').strip()
-            bulk_roll_input = request.form.get('roll_numbers_bulk', '').strip().upper()
-            roll_numbers = extract_roll_numbers(bulk_roll_input)
+            if '-' in instructor:
+                parts = instructor.split('-', 1)
+                if parts[0].isdigit():
+                    instructor = parts[1].strip()
+            instructor = instructor.lower()
+            roll_numbers_input = request.form.get('roll_numbers', '')
+            kwargs = {'roll_numbers': roll_numbers_input}
+            raw_input = kwargs.get('roll_numbers') or ''
+            roll_numbers = [
+                r.strip().upper()
+                for r in re.split(r'[,\s\n]+', raw_input)
+                if r.strip()
+            ]
 
             if not course_code:
                 flash('Please select a course before searching roll numbers.', 'error')
             elif not roll_numbers:
-                flash('Please enter valid roll numbers (start with B/M/P and include 6 digits).', 'error')
+                flash('Enter at least one roll number', 'error')
             elif supabase:
                 try:
                     query = supabase.table('students')\
@@ -1698,7 +1649,7 @@ def absentee_sheet():
                         query = query.eq('timetable_batch', section)
 
                     if instructor:
-                        query = query.eq('main_instructor', instructor)
+                        query = query.ilike('main_instructor', f"%{instructor}%")
 
                     response = query.order('roll_no').execute()
 
@@ -1723,7 +1674,7 @@ def absentee_sheet():
                         flash('No students found for the provided roll numbers with current filters.', 'error')
 
                 except Exception as e:
-                    print(f"Error searching multiple students: {e}")
+                    print(f"Error searching students by roll: {e}")
                     flash('Error searching roll numbers.', 'error')
         
         elif action == 'add_absentee':
@@ -2121,7 +2072,7 @@ def absentee_sheet():
                          selected_course_code=selected_course_code,
                          selected_section=selected_section,
                          selected_instructor=selected_instructor,
-                         bulk_roll_input=bulk_roll_input,
+                         roll_numbers_input=roll_numbers_input,
                          semesters=semesters)
 
 
