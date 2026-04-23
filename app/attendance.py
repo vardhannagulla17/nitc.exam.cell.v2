@@ -44,12 +44,10 @@ def generate_attendance_sheet(course_code, exam_date, semester_id, **kwargs):
 
         instructor_filter = (kwargs.get('instructor') or '').strip()
         if '-' in instructor_filter:
-            instructor_filter = instructor_filter.split('-', 1)[1].strip()
-        print("FILTER VALUE:", instructor_filter)
-        if instructor_filter:
-            distinct_instructors = repository.get_distinct_instructors(semester_id, course_code)
-            print(f"[attendance] UI instructor value: {instructor_filter}")
-            print(f"[attendance] DB instructors for {course_code}: {distinct_instructors}")
+            parts = instructor_filter.split('-', 1)
+            if parts[0].isdigit():
+                instructor_filter = parts[1].strip()
+        instructor_filter = instructor_filter.lower()
         
         # STEP 2: Get all students enrolled in this course
         # We query the 'students' table filtering by semester_id and course_code,
