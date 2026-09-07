@@ -66,6 +66,7 @@
                             <option value="">-- Select Exam Type --</option>
                             <option value="midsem" selected>Mid Semester</option>
                             <option value="endsem">End Semester</option>
+                            <option value="supplementary">Supplementary (Say)</option>
                         </select>
                         <i class="fas fa-chevron-down select-arrow"></i>
                     </div>
@@ -143,6 +144,12 @@
             <div class="note">
                 <i class="fas fa-exclamation-triangle"></i>
                 <strong>Important:</strong> The system will replace existing data with the new upload.
+            </div>
+            <div class="note">
+                <i class="fas fa-info-circle"></i>
+                <strong>Note:</strong> Column names are matched flexibly (e.g. "RollNo", "Roll No", or a
+                report-prefixed column like "..._RollNo" all work), so most exported registration sheets
+                can be uploaded as-is. Only a Roll Number column is strictly required.
             </div>
         </div>
     </div>

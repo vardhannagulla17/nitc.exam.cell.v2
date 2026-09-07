@@ -717,6 +717,28 @@ def delete_file(filename):
     
     return redirect(url_for('dashboard'))
 
+
+@app.route('/admin/clear_student_data', methods=['POST'])
+def clear_student_data():
+    """Explicitly wipe all previously uploaded registered-student data
+    (every semester and every student record) so a fresh upload starts
+    from a clean slate. Kept separate from delete_file so this destructive
+    action has its own clear, honestly-labeled confirmation."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Only administrators can clear student data.', 'error')
+        return redirect(url_for('dashboard'))
+
+    try:
+        supabase.table('students').delete().neq('id', 0).execute()
+        supabase.table('semesters').delete().neq('id', 0).execute()
+        invalidate_stats_cache()
+        flash('All previously uploaded student and semester data has been cleared.', 'success')
+    except Exception as exc:
+        flash(f'Error clearing student data: {str(exc)}', 'error')
+
+    return redirect(url_for('dashboard'))
+
+
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:

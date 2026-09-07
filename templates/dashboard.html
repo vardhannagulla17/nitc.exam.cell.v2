@@ -122,11 +122,23 @@
                         <td>{{ file.name }}</td>
                         <td>{{ '{:.2f}'.format(file.size / 1024) }} KB</td>
                         <td>{{ file.uploaded_at.strftime('%Y-%m-%d %H:%M') if file.uploaded_at else '-' }}</td>
-                        <td><a href="{{ url_for('delete_file', filename=file.name) }}" onclick="return confirm('Delete this file?');" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a></td>
+                        <td><a href="{{ url_for('delete_file', filename=file.name) }}" onclick="return confirm('Delete this file? Note: this also clears ALL previously uploaded student and semester data.');" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+        {% endif %}
+
+        {% if role == 'admin' %}
+        <div class="file-management">
+            <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+            <p>Permanently remove every previously uploaded registered-student record from all semesters, so the next upload starts from a clean slate.</p>
+            <form method="POST" action="{{ url_for('clear_student_data') }}" onsubmit="return confirm('This will permanently delete ALL previously uploaded student and semester data. This cannot be undone. Continue?');">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash-alt"></i> Clear All Student Data
+                </button>
+            </form>
         </div>
         {% endif %}
 
