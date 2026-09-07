@@ -165,10 +165,18 @@
             <details>
                 <summary><i class="fas fa-chart-bar"></i> Breakdown by Semester</summary>
                 <table class="table" style="margin-top: 0.5rem;">
-                    <thead><tr><th>Semester</th><th style="text-align:right;">Records</th></tr></thead>
+                    <thead><tr><th>Semester</th><th style="text-align:right;">Records</th><th></th></tr></thead>
                     <tbody>
                         {% for sem in db_usage.semester_breakdown %}
-                        <tr><td>{{ sem.name }}</td><td style="text-align:right;font-weight:bold;">{{ sem.count }}</td></tr>
+                        <tr>
+                            <td>{{ sem.name }}</td>
+                            <td style="text-align:right;font-weight:bold;">{{ sem.count }}</td>
+                            <td style="text-align:right;">
+                                <form method="POST" action="{{ url_for('delete_semester_data', semester_id=sem.id) }}" onsubmit="return confirm('Permanently delete all student data for {{ sem.name }}? This cannot be undone.');" style="display:inline;">
+                                    <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>

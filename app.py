@@ -22,6 +22,9 @@ from supabase_client import supabase
 # Import absentee storage for bucket operations
 from helpers.supabase_storage import absentee_storage
 
+# Import cache invalidation for the cached semester list
+from helpers.redis_cache import invalidate as invalidate_cache_key
+
 # Add the current directory to Python path so we can import from nitc.exam.cell.v1.app
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -311,6 +314,7 @@ def get_database_usage_stats():
                 offset += page_size
 
             semester_breakdown.append({
+                'id': sem['id'],
                 'name': f"{sem['academic_year']} {sem['semester_type']} {sem['degree_level']} {sem['exam_type']}",
                 'count': student_count
             })
@@ -732,9 +736,38 @@ def clear_student_data():
         supabase.table('students').delete().neq('id', 0).execute()
         supabase.table('semesters').delete().neq('id', 0).execute()
         invalidate_stats_cache()
+        invalidate_cache_key('all_semesters')
         flash('All previously uploaded student and semester data has been cleared.', 'success')
     except Exception as exc:
         flash(f'Error clearing student data: {str(exc)}', 'error')
+
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/delete_semester_data/<int:semester_id>', methods=['POST'])
+def delete_semester_data(semester_id):
+    """Delete one previously uploaded semester's data (its students and the
+    semester record itself), leaving every other semester untouched."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Only administrators can delete semester data.', 'error')
+        return redirect(url_for('dashboard'))
+
+    try:
+        semester = supabase.table('semesters').select('academic_year, semester_type, degree_level, exam_type').eq('id', semester_id).execute()
+        if not semester.data:
+            flash('Semester not found. It may have already been deleted.', 'error')
+            return redirect(url_for('dashboard'))
+
+        sem = semester.data[0]
+        label = f"{sem['academic_year']} {sem['semester_type']} {sem['degree_level']} {sem['exam_type']}"
+
+        supabase.table('students').delete().eq('semester_id', semester_id).execute()
+        supabase.table('semesters').delete().eq('id', semester_id).execute()
+        invalidate_stats_cache()
+        invalidate_cache_key('all_semesters')
+        flash(f'Deleted all student data for {label}.', 'success')
+    except Exception as exc:
+        flash(f'Error deleting semester data: {str(exc)}', 'error')
 
     return redirect(url_for('dashboard'))
 
